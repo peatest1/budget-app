@@ -258,24 +258,38 @@ body{
 .empty-state p{margin:0 0 14px;font-size:13.5px;}
 
 /* budget item cards */
-.item-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:14px;}
-@media (max-width:900px){.item-grid{grid-template-columns:1fr;}}
-.item-card{
-  background:var(--card);border:1px solid var(--border-soft);border-radius:var(--radius);
-  padding:16px;cursor:pointer;transition:box-shadow .15s, border-color .15s;
-  display:flex;flex-direction:column;gap:10px;
-}
-.item-card:hover{box-shadow:0 4px 16px rgba(22,33,43,.08);border-color:var(--border);}
-.item-card-top{display:flex;justify-content:space-between;align-items:flex-start;gap:8px;}
-.item-card .item-label{font-weight:700;font-size:14px;line-height:1.4;}
 .acct-code{
   font-family:'JetBrains Mono';font-size:11px;font-weight:700;color:var(--amber-dark);
-  background:#FCEED2;padding:3px 8px;border-radius:20px;letter-spacing:.02em;white-space:nowrap;flex-shrink:0;
+  background:#FCEED2;padding:3px 8px;border-radius:20px;letter-spacing:.02em;white-space:nowrap;
 }
-.item-card .num-row{display:flex;justify-content:space-between;font-size:12.5px;color:var(--text-muted);}
-.item-card .num-row .v{font-family:'JetBrains Mono';font-weight:600;color:var(--text);}
-.item-card .remain .v.neg{color:var(--rust);}
-.item-card .remain .v.pos{color:var(--teal);}
+.item-list{
+  display:flex;flex-direction:column;gap:1px;
+  background:var(--border-soft);border:1px solid var(--border-soft);border-radius:var(--radius);
+  overflow:hidden;
+}
+.item-row{
+  background:var(--card);cursor:pointer;transition:background .12s;
+  display:flex;align-items:center;gap:14px;
+  padding:12px 16px;
+}
+.item-row:hover{background:#FAFBFA;}
+.item-row .acct-code{flex-shrink:0;}
+.item-row .item-label{
+  flex:1;min-width:0;font-weight:600;font-size:13.5px;
+  overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
+}
+.item-row .item-budget{
+  flex-shrink:0;text-align:right;font-family:'JetBrains Mono';font-size:13.5px;font-weight:700;color:var(--text);
+  min-width:110px;
+}
+.item-row .item-arrow{flex-shrink:0;color:var(--text-faint);font-size:14px;}
+@media (max-width:640px){
+  .item-row{flex-wrap:wrap;gap:6px 10px;}
+  .item-row .item-label{flex-basis:100%;order:1;white-space:normal;}
+  .item-row .acct-code{order:0;}
+  .item-row .item-budget{order:2;margin-left:auto;}
+  .item-row .item-arrow{order:3;}
+}
 
 .gauge-wrap{position:relative;padding-top:4px;}
 .gauge{
@@ -524,10 +538,6 @@ table.ledger .del-x:hover{color:var(--rust);}
       <input type="text" id="aiLabel" placeholder="เช่น ค่าเบี้ยเลี้ยง-พนักงาน">
     </div>
     <div class="field">
-      <label>เลขหน้าในเล่ม (ถ้ามี)</label>
-      <input type="text" id="aiPage" placeholder="เช่น 35">
-    </div>
-    <div class="field">
       <label>งบประมาณทั้งปี (บาท)</label>
       <input type="number" min="0" step="0.01" id="aiBudget" placeholder="0.00">
     </div>
@@ -614,41 +624,41 @@ table.ledger .del-x:hover{color:var(--rust);}
 <script>
 /* ============ default seed data (from the 2569 notebook, cost center L309101030) ============ */
 const SEED_ITEMS_030 = [
-  {code:'52010030', label:'ค่าล่วงเวลาพนักงาน', page:'1', budget:580000.00},
-  {code:'52010070', label:'สวัสดิการลูกจ้างและค่าตอบแทนอื่น-ลูกจ้าง', page:'3', budget:270000.00},
-  {code:'52010080', label:'ค่าตอบแทนการอยู่เวรแบบเฝ้าระวัง-พนักงาน', page:'7', budget:1468457.03},
-  {code:'52010100', label:'ค่าล่วงเวลา-ลูกจ้าง', page:'13', budget:176503.91},
-  {code:'52010990', label:'ค่าตอบแทนอื่น-พนักงาน', page:'21', budget:10000.00},
-  {code:'52012020', label:'เงินเพิ่มฮอทไลน์', page:'23', budget:50000.00},
-  {code:'52020030', label:'เงินช่วยเหลือค่าเล่าเรียนบุตร', page:'25', budget:110000.00},
-  {code:'52020040', label:'เงินช่วยเหลือบุตร', page:'27', budget:48000.00},
-  {code:'52021010', label:'ค่ารักษาพยาบาล-พนักงาน', page:'29', budget:186000.00},
-  {code:'52021020', label:'ค่ารักษาพยาบาล-ครอบครัวพนักงาน', page:'31', budget:190000.00},
-  {code:'52022010', label:'ค่าพาหนะเดินทางปฏิบัติงานต่างท้องที่-พนง', page:'33', budget:53000.00},
-  {code:'52022020', label:'ค่าเบี้ยเลี้ยง-พนักงาน', page:'35', budget:73500.00},
-  {code:'52022030', label:'ค่าที่พัก-พนักงาน', page:'37', budget:135000.00},
-  {code:'52022050', label:'ค่าชดเชยการใช้ยานพาหนะส่วนตัว', page:'39', budget:30000.00},
-  {code:'52022060', label:'ค่าพาหนะเดินทางไปปฏิบัติงานต่างท้องที่-ล', page:'41', budget:13000.00},
-  {code:'52022070', label:'ค่าเบี้ยเลี้ยง-ลูกจ้าง', page:'43', budget:13000.00},
-  {code:'52022080', label:'ค่าที่พัก-ลูกจ้าง', page:'45', budget:13000.00},
-  {code:'53010070', label:'ค่าแรง/จ้างเหมาคนงานรายวันงานบำรุงรักษา', page:'47', budget:3000000.00},
-  {code:'53010090', label:'ค่าแรง/ค่าจ้างเหมาคนงานรายวันทั่วไป', page:'51', budget:1603900.00},
-  {code:'53019990', label:'ค่าตอบแทนอื่นๆ', page:'55', budget:30000.00},
-  {code:'53030010', label:'ค่าวัสดุสำนักงาน', page:'57', budget:30000.00},
-  {code:'53030030', label:'ค่าวัสดุเบ็ดเตล็ดในสำนักงาน', page:'59', budget:20000.00},
-  {code:'53032010', label:'ค่าใช้บริการโทรศัพท์', page:'61', budget:10500.00},
-  {code:'53032020', label:'ค่าบำรุงรักษาคู่สายโทรศัพท์', page:'63', budget:1500.00},
-  {code:'53034010', label:'ค่าจ้างเหมาทำความสะอาด', page:'65', budget:30000.00},
-  {code:'53039010', label:'ค่าเชื้อเพลิงยานพาหนะ', page:'67', budget:810000.00},
-  {code:'53039990', label:'ค่าใช้จ่ายเบ็ดเตล็ด', page:'87', budget:12000.00},
-  {code:'53051030', label:'ค่าซ่อมแซมบำรุงรักษา-ระบบไฟฟ้าและระบบควบ', page:'89', budget:300000.00},
-  {code:'53051050', label:'ค่าซ่อมแซมบำรุงรักษา-ยานพาหนะ', page:'91', budget:395000.00},
-  {code:'53051060', label:'ค่าบำรุงรักษาซ่อมแซม-ระบบสารสนเทศ', page:'93', budget:10000.00},
-  {code:'53051090', label:'ค่าวัสดุเบ็ดเตล็ดด้านช่าง', page:'95', budget:110000.00},
-  {code:'53051100', label:'ค่าซ่อมแซมบำรุงรักษา-อุปกรณ์ในสำนักงาน', page:'97', budget:10000.00},
-  {code:'53051990', label:'ค่าซ่อมแซมบำรุงรักษาอื่นๆ', page:'99', budget:50000.00},
-  {code:'53069030', label:'ค่าจ้างเหมายานพาหนะ/เครื่องจักรกลหนัก', page:'101', budget:350000.00},
-  {code:'53069990', label:'ค่าใช้จ่ายอื่น', page:'108', budget:10000.00},
+  {code:'52010030', label:'ค่าล่วงเวลาพนักงาน', budget:580000.00, example:'ค่าล่วงเวลา นายสมชาย ใจดี เดือน ม.ค. 69'},
+  {code:'52010070', label:'สวัสดิการลูกจ้างและค่าตอบแทนอื่น-ลูกจ้าง', budget:270000.00, example:'ค่าสวัสดิการ นายสมชาย ใจดี (ลูกจ้าง) เดือน ม.ค. 69'},
+  {code:'52010080', label:'ค่าตอบแทนการอยู่เวรแบบเฝ้าระวัง-พนักงาน', budget:1468457.03, example:'ค่าอยู่เวรเฝ้าระวัง นายสมชาย ใจดี เดือน ม.ค. 69'},
+  {code:'52010100', label:'ค่าล่วงเวลา-ลูกจ้าง', budget:176503.91, example:'ค่าล่วงเวลา นายสมชาย ใจดี (ลูกจ้าง) เดือน ม.ค. 69'},
+  {code:'52010990', label:'ค่าตอบแทนอื่น-พนักงาน', budget:10000.00, example:'ค่าตอบแทนอื่น นายสมชาย ใจดี เดือน ม.ค. 69'},
+  {code:'52012020', label:'เงินเพิ่มฮอทไลน์', budget:50000.00, example:'เงินเพิ่มฮอทไลน์ นายสมชาย ใจดี เดือน ม.ค. 69'},
+  {code:'52020030', label:'เงินช่วยเหลือค่าเล่าเรียนบุตร', budget:110000.00, example:'ค่าเล่าเรียนบุตร นายสมชาย ใจดี (บุตร ด.ช.สมศักดิ์)'},
+  {code:'52020040', label:'เงินช่วยเหลือบุตร', budget:48000.00, example:'เงินช่วยเหลือบุตร นายสมชาย ใจดี'},
+  {code:'52021010', label:'ค่ารักษาพยาบาล-พนักงาน', budget:186000.00, example:'ค่ารักษาพยาบาล (ตนเอง) นายสมชาย ใจดี วจ. 15 ม.ค. 69'},
+  {code:'52021020', label:'ค่ารักษาพยาบาล-ครอบครัวพนักงาน', budget:190000.00, example:'ค่ารักษาพยาบาล (มารดา) นายสมชาย ใจดี วจ. 15 ม.ค. 69'},
+  {code:'52022010', label:'ค่าพาหนะเดินทางปฏิบัติงานต่างท้องที่-พนง', budget:53000.00, example:'ค่าพาหนะเดินทาง นายสมชาย ใจดี ไปปฏิบัติงาน จ.ระยอง'},
+  {code:'52022020', label:'ค่าเบี้ยเลี้ยง-พนักงาน', budget:73500.00, example:'ค่าเบี้ยเลี้ยง นายสมชาย ใจดี ลว. 1-3 ม.ค. 69'},
+  {code:'52022030', label:'ค่าที่พัก-พนักงาน', budget:135000.00, example:'ค่าที่พัก นายสมชาย ใจดี ลว. 1-3 ม.ค. 69'},
+  {code:'52022050', label:'ค่าชดเชยการใช้ยานพาหนะส่วนตัว', budget:30000.00, example:'ค่าชดเชยใช้รถส่วนตัว นายสมชาย ใจดี เดือน ม.ค. 69'},
+  {code:'52022060', label:'ค่าพาหนะเดินทางไปปฏิบัติงานต่างท้องที่-ล', budget:13000.00, example:'ค่าพาหนะเดินทาง นายสมชาย ใจดี (ลูกจ้าง) ไปปฏิบัติงาน'},
+  {code:'52022070', label:'ค่าเบี้ยเลี้ยง-ลูกจ้าง', budget:13000.00, example:'ค่าเบี้ยเลี้ยง นายสมชาย ใจดี (ลูกจ้าง) ลว. 1-3 ม.ค. 69'},
+  {code:'52022080', label:'ค่าที่พัก-ลูกจ้าง', budget:13000.00, example:'ค่าที่พัก นายสมชาย ใจดี (ลูกจ้าง) ลว. 1-3 ม.ค. 69'},
+  {code:'53010070', label:'ค่าแรง/จ้างเหมาคนงานรายวันงานบำรุงรักษา', budget:3000000.00, example:'ค่าจ้างเหมาคนงานรายวัน งานบำรุงรักษา ลว. 1-15 ม.ค. 69'},
+  {code:'53010090', label:'ค่าแรง/ค่าจ้างเหมาคนงานรายวันทั่วไป', budget:1603900.00, example:'ค่าจ้างเหมาคนงานรายวันทั่วไป ลว. 1-15 ม.ค. 69'},
+  {code:'53019990', label:'ค่าตอบแทนอื่นๆ', budget:30000.00, example:'ค่าตอบแทนอื่นๆ นายสมชาย ใจดี เดือน ม.ค. 69'},
+  {code:'53030010', label:'ค่าวัสดุสำนักงาน', budget:30000.00, example:'ซื้อวัสดุสำนักงาน (กระดาษ, หมึกพิมพ์)'},
+  {code:'53030030', label:'ค่าวัสดุเบ็ดเตล็ดในสำนักงาน', budget:20000.00, example:'ซื้อวัสดุเบ็ดเตล็ดสำนักงาน'},
+  {code:'53032010', label:'ค่าใช้บริการโทรศัพท์', budget:10500.00, example:'ค่าโทรศัพท์สำนักงาน เดือน ม.ค. 69'},
+  {code:'53032020', label:'ค่าบำรุงรักษาคู่สายโทรศัพท์', budget:1500.00, example:'ค่าบำรุงรักษาคู่สายโทรศัพท์ เดือน ม.ค. 69'},
+  {code:'53034010', label:'ค่าจ้างเหมาทำความสะอาด', budget:30000.00, example:'ค่าจ้างเหมาทำความสะอาด เดือน ม.ค. 69'},
+  {code:'53039010', label:'ค่าเชื้อเพลิงยานพาหนะ', budget:810000.00, example:'ค่าน้ำมันเชื้อเพลิง รถทะเบียน กข-1234 เดือน ม.ค. 69'},
+  {code:'53039990', label:'ค่าใช้จ่ายเบ็ดเตล็ด', budget:12000.00, example:'ค่าใช้จ่ายเบ็ดเตล็ด (ระบุรายการ)'},
+  {code:'53051030', label:'ค่าซ่อมแซมบำรุงรักษา-ระบบไฟฟ้าและระบบควบ', budget:300000.00, example:'ค่าซ่อมแซมระบบไฟฟ้า จุด...'},
+  {code:'53051050', label:'ค่าซ่อมแซมบำรุงรักษา-ยานพาหนะ', budget:395000.00, example:'ค่าซ่อมรถยนต์ ทะเบียน กข-1234'},
+  {code:'53051060', label:'ค่าบำรุงรักษาซ่อมแซม-ระบบสารสนเทศ', budget:10000.00, example:'ค่าซ่อมบำรุงระบบสารสนเทศ'},
+  {code:'53051090', label:'ค่าวัสดุเบ็ดเตล็ดด้านช่าง', budget:110000.00, example:'ซื้อวัสดุเบ็ดเตล็ดด้านช่าง'},
+  {code:'53051100', label:'ค่าซ่อมแซมบำรุงรักษา-อุปกรณ์ในสำนักงาน', budget:10000.00, example:'ค่าซ่อมอุปกรณ์สำนักงาน (เครื่องปรับอากาศ)'},
+  {code:'53051990', label:'ค่าซ่อมแซมบำรุงรักษาอื่นๆ', budget:50000.00, example:'ค่าซ่อมแซมบำรุงรักษาอื่นๆ (ระบุรายการ)'},
+  {code:'53069030', label:'ค่าจ้างเหมายานพาหนะ/เครื่องจักรกลหนัก', budget:350000.00, example:'ค่าจ้างเหมารถแบคโฮ งานขุด...'},
+  {code:'53069990', label:'ค่าใช้จ่ายอื่น', budget:10000.00, example:'ค่าใช้จ่ายอื่น (ระบุรายการ)'},
 ];
 const DEFAULT_YEAR = 2569;
 const DEPARTMENTS = [
@@ -890,7 +900,7 @@ async function submitNewCc(){
   }
 }
 function seedToItem(s){
-  return { code:s.code, label:s.label, page:s.page, budget:s.budget, entries:[] };
+  return { code:s.code, label:s.label, example:s.example, budget:s.budget, entries:[] };
 }
 function openEditCcModal(){
   if(!isAdmin()){ alert('เฉพาะแอดมินเท่านั้นที่แก้ไขศูนย์ต้นทุนได้'); return; }
@@ -936,7 +946,6 @@ function openAddItemModal(){
   if(!isAdmin()){ alert('เฉพาะแอดมินเท่านั้นที่เพิ่มรายการงบประมาณได้'); return; }
   document.getElementById('aiCode').value='';
   document.getElementById('aiLabel').value='';
-  document.getElementById('aiPage').value='';
   document.getElementById('aiBudget').value='';
   openModal('addItemModal');
 }
@@ -945,12 +954,11 @@ function submitAddItem(){
   if(!cc || !isAdmin()){ alert('เฉพาะแอดมินเท่านั้นที่เพิ่มรายการได้'); return; }
   const code = document.getElementById('aiCode').value.trim();
   const label = document.getElementById('aiLabel').value.trim();
-  const page = document.getElementById('aiPage').value.trim();
   const budget = Math.max(0, Number(document.getElementById('aiBudget').value)||0);
   if(!code || !label){ alert('กรุณากรอกรหัสบัญชีและชื่อรายการ'); return; }
   if((cc.items||[]).find(it=>it.code===code)){ alert('มีรหัสบัญชีนี้อยู่แล้วในศูนย์ต้นทุนนี้'); return; }
   cc.items = cc.items || [];
-  cc.items.push({ code, label, page, budget, entries: [] });
+  cc.items.push({ code, label, budget, entries: [] });
   state.activeItemKey = code;
   closeModal('addItemModal');
   saveCc(cc); render();
@@ -1163,7 +1171,13 @@ function renderMain(){
         <div class="eyebrow" style="color:var(--text-faint);">รายการงบประมาณ (${items.length})</div>
         ${isAdmin() ? `<button class="btn btn-outline btn-sm" onclick="openAddItemModal()">+ เพิ่มรายการ</button>` : ''}
       </div>`;
-      html += `<div class="item-grid">`;
+      html += `<div style="display:flex;gap:14px;padding:0 16px;margin-bottom:6px;font-size:11px;color:var(--text-faint);font-weight:700;text-transform:uppercase;letter-spacing:.04em;">
+        <span style="width:76px;flex-shrink:0;">รหัสบัญชี</span>
+        <span style="flex:1;">ชื่อรายการ</span>
+        <span style="min-width:110px;text-align:right;">งบทั้งปี</span>
+        <span style="width:14px;flex-shrink:0;"></span>
+      </div>`;
+      html += `<div class="item-list">`;
       items.forEach(item=>{
         html += renderItemCard(item);
       });
@@ -1185,23 +1199,11 @@ function gaugeClass(pct){
 
 function renderItemCard(item){
   const t = itemTotals(item);
-  const pct = t.budget>0 ? (t.totalPaid/t.budget*100) : 0;
-  const barWidth = Math.min(pct,100);
-  const gClass = gaugeClass(pct);
-  const remainCls = t.remaining<0?'neg':'pos';
-  return `<div class="item-card" onclick="selectItem('${escapeHtml(item.code)}')">
-    <div class="item-card-top">
-      <span class="item-label">${escapeHtml(item.label)}</span>
-      <span class="acct-code mono">${escapeHtml(item.code||'—')}</span>
-    </div>
-    <div class="gauge-wrap">
-      <div class="gauge">
-        <div class="gauge-fill ${gClass}" style="width:${barWidth}%"></div>
-      </div>
-    </div>
-    <div class="num-row"><span>งบทั้งปี</span><span class="v">${fmt(t.budget)}</span></div>
-    <div class="num-row"><span>จ่ายแล้ว</span><span class="v">${fmt(t.totalPaid)}</span></div>
-    <div class="remain num-row"><span>คงเหลือ</span><span class="v ${remainCls}">${fmt(t.remaining)}</span></div>
+  return `<div class="item-row" onclick="selectItem('${escapeHtml(item.code)}')">
+    <span class="acct-code mono">${escapeHtml(item.code||'—')}</span>
+    <span class="item-label">${escapeHtml(item.label)}</span>
+    <span class="item-budget">${fmt(t.budget)}</span>
+    <span class="item-arrow">›</span>
   </div>`;
 }
 
@@ -1265,11 +1267,6 @@ function renderItemDetail(cc, item){
             ? `<input type="number" min="0" step="0.01" value="${item.budget}" onchange="updateItemBudget('${escapeHtml(item.code)}', this.value)">`
             : `<div class="readout">${fmt(t.budget)}</div>`}
         </div>
-        ${admin ? `
-        <div class="field">
-          <label>เลขหน้าในเล่ม</label>
-          <input type="text" value="${escapeHtml(item.page||'')}" onchange="updateItemMeta('${escapeHtml(item.code)}','page', this.value)">
-        </div>` : ''}
       </div>
 
       <div class="gauge-wrap">
@@ -1289,7 +1286,7 @@ function renderItemDetail(cc, item){
 
     <div class="entry-form">
       <div class="field"><label>วันที่</label><input type="date" id="entryDate"></div>
-      <div class="field desc"><label>รายการ</label><input type="text" id="entryDesc" placeholder="เช่น ค่ารักษาพยาบาล (มรดก) นาย... วจ.15 ก.ค.69" onkeydown="if(event.key==='Enter'){addEntry('${escapeHtml(item.code)}');}"></div>
+      <div class="field desc"><label>รายการ</label><input type="text" id="entryDesc" placeholder="เช่น ${escapeHtml(item.example || (item.label+' นายสมชาย ใจดี วันที่...'))}" onkeydown="if(event.key==='Enter'){addEntry('${escapeHtml(item.code)}');}"></div>
       <div class="field amt"><label>จ่ายรอบนี้ (บาท)</label><input type="number" id="entryAmount" min="0" step="0.01" placeholder="0.00" onkeydown="if(event.key==='Enter'){addEntry('${escapeHtml(item.code)}');}"></div>
       <button class="btn btn-primary" type="button" onclick="addEntry('${escapeHtml(item.code)}')">+ เพิ่มรายการ</button>
     </div>
