@@ -1128,9 +1128,6 @@ function renderMain(){
     return;
   }
 
-  const totals = ccTotals(cc);
-  const remainCls = totals.remaining<0?'neg':'pos';
-
   let html = `
     <div class="page-header">
       <div>
@@ -1143,12 +1140,6 @@ function renderMain(){
           <button class="btn btn-danger-ghost btn-sm" onclick="deleteCc()">ลบศูนย์ต้นทุน</button>
         ` : `<span class="eyebrow" style="color:var(--text-faint);">ดูอย่างเดียว · เพิ่มรายการจ่ายได้</span>`}
       </div>
-    </div>
-
-    <div class="stat-strip">
-      <div class="stat-box"><div class="label">งบประมาณทั้งปี</div><div class="value">${fmt(totals.budget)}</div></div>
-      <div class="stat-box"><div class="label">จ่ายไปแล้ว</div><div class="value">${fmt(totals.totalPaid)}</div></div>
-      <div class="stat-box remain"><div class="label">คงเหลือ</div><div class="value ${remainCls}">${fmt(totals.remaining)}</div></div>
     </div>
   `;
 
@@ -1257,7 +1248,7 @@ function renderItemDetail(cc, item){
       <div class="detail-title-row">
         <div>
           <div class="detail-title">${escapeHtml(item.label)}</div>
-          <div class="detail-sub">${escapeHtml(cc.code)} — ${escapeHtml(cc.name)}${item.page ? ' · หน้า '+escapeHtml(item.page)+' ในเล่ม' : ''}</div>
+          <div class="detail-sub">${escapeHtml(cc.code)} — ${escapeHtml(cc.name)}</div>
         </div>
         <div class="detail-code-edit">
           <span>รหัสบัญชี</span>
