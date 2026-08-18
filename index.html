@@ -1,0 +1,1343 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>สมุดคุมงบประมาณ</title>
+
+<link rel="icon" type="image/png" sizes="32x32" href="favicon-32.png">
+<link rel="apple-touch-icon" sizes="180x180" href="icon-180.png">
+<link rel="icon" type="image/png" sizes="512x512" href="icon-512.png">
+<link rel="manifest" href="manifest.json">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="คุมงบประมาณ">
+<meta name="theme-color" content="#16212B">
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Noto+Sans+Thai:wght@400;500;600;700&family=JetBrains+Mono:wght@500;600;700&display=swap');
+
+:root{
+  --ink:#16212B;
+  --ink-2:#1E2C36;
+  --paper:#EDF0EF;
+  --card:#FFFFFF;
+  --border:#D9DEE0;
+  --border-soft:#E6E9EA;
+  --amber:#E8A33D;
+  --amber-dark:#C7841E;
+  --teal:#2F7A6E;
+  --teal-soft:#E4F0EC;
+  --rust:#C1462F;
+  --rust-soft:#FBEAE5;
+  --text:#1C2B33;
+  --text-muted:#66757C;
+  --text-faint:#96A2A7;
+  --radius:10px;
+}
+*{box-sizing:border-box;}
+html,body{margin:0;padding:0;}
+body{
+  font-family:'Noto Sans Thai',sans-serif;
+  background:var(--paper);
+  color:var(--text);
+  min-height:100vh;
+  -webkit-font-smoothing:antialiased;
+}
+.eyebrow{
+  font-family:'Space Grotesk',sans-serif;
+  font-size:11px;
+  letter-spacing:.14em;
+  text-transform:uppercase;
+  color:var(--text-faint);
+  font-weight:600;
+}
+.mono{font-family:'JetBrains Mono',monospace;}
+.hidden{display:none !important;}
+
+/* auth screens */
+.center-screen{
+  min-height:100vh;display:flex;align-items:center;justify-content:center;
+  background:var(--paper);padding:24px;
+}
+.screen-card-wrap{max-width:640px;width:100%;text-align:center;}
+.screen-card-wrap h1{font-family:'Space Grotesk';font-size:24px;margin:18px 0 6px;color:var(--text);}
+.screen-card-wrap p{color:var(--text-muted);font-size:13.5px;margin:0 0 26px;}
+
+.auth-box{
+  max-width:380px;margin:0 auto;background:var(--card);border:1px solid var(--border-soft);
+  border-radius:12px;padding:26px;text-align:left;box-shadow:0 8px 30px rgba(22,33,43,.06);
+}
+.auth-box .field{margin-bottom:14px;}
+.auth-box .field label{display:block;font-size:11.5px;color:var(--text-muted);font-weight:600;margin-bottom:5px;}
+.auth-box .field input, .auth-box .field select{
+  width:100%;padding:10px 12px;border:1px solid var(--border);border-radius:7px;font-size:14px;
+  font-family:'Noto Sans Thai',sans-serif;
+}
+.role-pick{display:flex;gap:10px;}
+.role-pick label{
+  flex:1;display:flex;align-items:center;gap:8px;border:1.5px solid var(--border);
+  border-radius:8px;padding:10px 12px;cursor:pointer;font-size:13px;font-weight:600;color:var(--text-muted);
+}
+.role-pick input{width:15px;height:15px;margin:0;}
+.role-pick label.checked{border-color:var(--amber);background:#FFFCF6;color:var(--text);}
+.role-hint{font-size:11.5px;color:var(--text-faint);margin-top:6px;line-height:1.5;}
+.auth-error{
+  background:var(--rust-soft);color:var(--rust);font-size:12.5px;padding:9px 12px;
+  border-radius:7px;margin-bottom:14px;display:none;
+}
+.auth-error.show{display:block;}
+.auth-switch{text-align:center;font-size:12.5px;color:var(--text-muted);margin-top:14px;}
+.auth-switch button{background:none;border:none;color:var(--amber-dark);font-weight:700;cursor:pointer;font-size:12.5px;padding:0;}
+
+.btn{
+  font-family:'Noto Sans Thai',sans-serif;
+  font-weight:600;
+  font-size:13.5px;
+  border:none;
+  border-radius:8px;
+  padding:10px 14px;
+  cursor:pointer;
+  transition:filter .12s, transform .06s;
+  display:inline-flex;align-items:center;gap:6px;
+}
+.btn:active{transform:translateY(1px);}
+.btn-primary{background:var(--amber);color:var(--ink);}
+.btn-primary:hover{filter:brightness(1.06);}
+.btn-ghost{background:transparent;color:#DCE3E6;border:1px solid rgba(255,255,255,.18);}
+.btn-ghost:hover{background:rgba(255,255,255,.06);}
+.btn-outline{background:#fff;color:var(--text);border:1px solid var(--border);}
+.btn-outline:hover{background:var(--paper);}
+.btn-danger-ghost{background:transparent;color:var(--rust);border:1px solid rgba(193,70,47,.35);}
+.btn-danger-ghost:hover{background:var(--rust-soft);}
+.btn-sm{padding:6px 10px;font-size:12.5px;border-radius:7px;}
+.btn-block{width:100%;justify-content:center;}
+
+/* shell */
+.app-shell{
+  display:grid;
+  grid-template-columns:280px 1fr;
+  min-height:100vh;
+}
+.sidebar{
+  background:var(--ink);
+  color:#DCE3E6;
+  padding:22px 16px;
+  position:sticky;
+  top:0;
+  height:100vh;
+  overflow-y:auto;
+  display:flex;
+  flex-direction:column;
+  gap:16px;
+}
+.brand{
+  display:flex;
+  align-items:center;
+  gap:10px;
+  padding:2px 4px 14px;
+  border-bottom:1px solid rgba(255,255,255,.1);
+}
+.brand-mark{
+  width:34px;height:34px;border-radius:8px;
+  background:linear-gradient(135deg,var(--amber),var(--amber-dark));
+  display:flex;align-items:center;justify-content:center;
+  font-family:'Space Grotesk';font-weight:700;color:var(--ink);font-size:15px;
+  flex-shrink:0;
+}
+.brand-title{font-family:'Space Grotesk';font-weight:700;font-size:15px;color:#fff;line-height:1.25;}
+.brand-sub{font-size:11px;color:#93A3AA;margin-top:1px;}
+
+.role-badge{
+  display:inline-flex;align-items:center;gap:5px;
+  font-size:10.5px;font-weight:700;letter-spacing:.04em;
+  padding:3px 8px;border-radius:20px;
+}
+.role-badge.admin{background:rgba(232,163,61,.16);color:var(--amber);border:1px solid rgba(232,163,61,.4);}
+.role-badge.member{background:rgba(255,255,255,.08);color:#B7C2C6;border:1px solid rgba(255,255,255,.16);}
+
+.account-row{
+  display:flex;justify-content:space-between;align-items:center;gap:8px;
+  font-size:11.5px;color:#8B9BA2;padding:0 2px;flex-wrap:wrap;
+}
+.account-row .acc-email{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:100px;}
+.account-row button{background:none;border:none;color:#8B9BA2;font-size:11px;font-weight:600;cursor:pointer;text-decoration:underline;white-space:nowrap;}
+.account-row button:hover{color:#fff;}
+
+/* department tag / switcher */
+.dept-tag{
+  display:flex;flex-direction:column;gap:2px;
+  background:rgba(47,122,110,.14);border:1px solid rgba(47,122,110,.35);
+  border-radius:8px;padding:9px 11px;font-size:12px;color:#BEE0D6;
+}
+.dept-tag .dt-label{font-size:10px;color:#8FBBB0;text-transform:uppercase;letter-spacing:.06em;}
+.dept-tag .dt-name{font-weight:700;color:#E7F5F0;line-height:1.35;margin-top:1px;}
+.dept-switcher{display:flex;flex-direction:column;gap:6px;}
+.dept-switcher .dt-label{font-size:10px;color:#93A3AA;text-transform:uppercase;letter-spacing:.06em;padding:0 2px;}
+.dept-switcher select{
+  background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.2);
+  color:#F5E4C2;font-size:13px;font-weight:600;
+  padding:8px 10px;border-radius:8px;width:100%;
+  font-family:'Noto Sans Thai',sans-serif;
+}
+.dept-switcher select option{color:#1C2B33;}
+
+/* year selector in sidebar */
+.year-picker{
+  display:flex;align-items:center;gap:8px;
+  background:rgba(232,163,61,.1);border:1px solid rgba(232,163,61,.3);
+  border-radius:8px;padding:9px 11px;
+}
+.year-picker select{
+  flex:1;background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.2);
+  color:#F5E4C2;font-family:'JetBrains Mono';font-size:13px;font-weight:700;
+  padding:6px 8px;border-radius:6px;
+}
+.year-picker select option{color:#1C2B33;}
+.year-picker button{
+  background:none;border:none;color:var(--amber);font-size:16px;font-weight:700;cursor:pointer;
+  width:26px;height:26px;flex-shrink:0;
+}
+
+.list-eyebrow{color:#7C8A90;margin-bottom:8px;display:flex;justify-content:space-between;align-items:center;}
+.cc-list{display:flex;flex-direction:column;gap:6px;overflow-y:auto;flex:1;}
+.cc-item{
+  padding:10px 12px;
+  border-radius:8px;
+  cursor:pointer;
+  border:1px solid transparent;
+  transition:background .12s;
+}
+.cc-item:hover{background:rgba(255,255,255,.06);}
+.cc-item.active{background:rgba(232,163,61,.12);border-color:rgba(232,163,61,.4);}
+.cc-item .code{font-family:'JetBrains Mono';font-size:11.5px;color:var(--amber);letter-spacing:.02em;}
+.cc-item .name{font-size:13.5px;color:#EDEFEF;margin-top:2px;line-height:1.35;}
+.list-empty{color:#7C8A90;font-size:12.5px;padding:16px 4px;text-align:center;}
+
+/* main */
+.main{padding:28px 32px 60px;max-width:1180px;}
+@media (max-width:640px){.main{padding:18px 16px 40px;}}
+
+.welcome{
+  display:flex;flex-direction:column;align-items:flex-start;gap:14px;
+  padding:60px 10px;max-width:520px;
+}
+.welcome h1{font-family:'Space Grotesk';font-size:26px;margin:0;}
+.welcome p{color:var(--text-muted);font-size:14.5px;line-height:1.7;margin:0;}
+
+.page-header{
+  display:flex;justify-content:space-between;align-items:flex-start;
+  gap:16px;flex-wrap:wrap;margin-bottom:18px;
+}
+.page-header .code-tag{
+  font-family:'JetBrains Mono';font-size:12px;color:var(--amber-dark);
+  background:#FBF0DD;display:inline-block;padding:3px 8px;border-radius:5px;
+  letter-spacing:.03em;margin-bottom:6px;
+}
+.page-header h1{font-family:'Space Grotesk';font-size:24px;margin:0;line-height:1.3;}
+.header-actions{display:flex;gap:8px;flex-shrink:0;}
+
+.stat-strip{
+  display:grid;grid-template-columns:repeat(3,1fr);
+  gap:10px;margin-bottom:22px;
+}
+@media (max-width:700px){.stat-strip{grid-template-columns:1fr 1fr;}}
+.stat-box{
+  background:var(--card);border:1px solid var(--border-soft);
+  border-radius:var(--radius);padding:14px 16px;
+}
+.stat-box .label{font-size:11.5px;color:var(--text-muted);margin-bottom:6px;}
+.stat-box .value{font-family:'JetBrains Mono';font-size:19px;font-weight:700;}
+.stat-box.remain .value.neg{color:var(--rust);}
+.stat-box.remain .value.pos{color:var(--teal);}
+
+.empty-state{
+  border:1px dashed var(--border);border-radius:var(--radius);
+  padding:40px 20px;text-align:center;color:var(--text-muted);
+  background:#fff;
+}
+.empty-state p{margin:0 0 14px;font-size:13.5px;}
+
+/* budget item cards */
+.item-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:14px;}
+@media (max-width:900px){.item-grid{grid-template-columns:1fr;}}
+.item-card{
+  background:var(--card);border:1px solid var(--border-soft);border-radius:var(--radius);
+  padding:16px;cursor:pointer;transition:box-shadow .15s, border-color .15s;
+  display:flex;flex-direction:column;gap:10px;
+}
+.item-card:hover{box-shadow:0 4px 16px rgba(22,33,43,.08);border-color:var(--border);}
+.item-card-top{display:flex;justify-content:space-between;align-items:flex-start;gap:8px;}
+.item-card .item-label{font-weight:700;font-size:14px;line-height:1.4;}
+.acct-code{
+  font-family:'JetBrains Mono';font-size:11px;font-weight:700;color:var(--amber-dark);
+  background:#FCEED2;padding:3px 8px;border-radius:20px;letter-spacing:.02em;white-space:nowrap;flex-shrink:0;
+}
+.item-card .num-row{display:flex;justify-content:space-between;font-size:12.5px;color:var(--text-muted);}
+.item-card .num-row .v{font-family:'JetBrains Mono';font-weight:600;color:var(--text);}
+.item-card .remain .v.neg{color:var(--rust);}
+.item-card .remain .v.pos{color:var(--teal);}
+
+.gauge-wrap{position:relative;padding-top:4px;}
+.gauge{
+  position:relative;height:14px;border-radius:7px;overflow:hidden;
+  background:repeating-linear-gradient(135deg,#EFF1F0,#EFF1F0 5px,#E5E8E7 5px,#E5E8E7 10px);
+  border:1px solid var(--border-soft);
+}
+.gauge-fill{
+  position:absolute;left:0;top:0;bottom:0;border-radius:7px 0 0 7px;
+  transition:width .25s ease;
+}
+.gauge-fill.ok{background:linear-gradient(90deg,var(--teal),#3E9484);}
+.gauge-fill.warn{background:linear-gradient(90deg,var(--amber-dark),var(--amber));}
+.gauge-fill.over{background:linear-gradient(90deg,var(--rust),#D9613F);}
+
+/* item detail */
+.detail-back{
+  font-size:13px;color:var(--text);cursor:pointer;display:inline-flex;
+  align-items:center;gap:6px;margin-bottom:14px;font-weight:700;
+  background:#fff;border:1px solid var(--border);border-radius:8px;
+  padding:8px 14px;
+}
+.detail-back:hover{border-color:var(--amber);color:var(--amber-dark);background:#FFFCF6;}
+.detail-head{
+  background:var(--card);border:1px solid var(--border-soft);border-radius:var(--radius);
+  padding:18px 20px;margin-bottom:16px;
+}
+.detail-title-row{display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:12px;margin-bottom:14px;}
+.detail-title{font-family:'Space Grotesk';font-size:19px;font-weight:700;}
+.detail-sub{color:var(--text-muted);font-size:12.5px;margin-top:4px;}
+.detail-code-edit{display:flex;gap:8px;align-items:center;font-size:12.5px;color:var(--text-muted);font-weight:600;}
+.detail-code-edit input.code-highlight-input{
+  font-family:'JetBrains Mono';width:96px;padding:6px 9px;border:1px solid rgba(232,163,61,.45);
+  border-radius:6px;font-size:13.5px;font-weight:700;color:var(--amber-dark);background:#FCEED2;text-align:center;
+}
+.budget-input-row{display:flex;gap:22px;flex-wrap:wrap;align-items:flex-end;margin-bottom:14px;}
+.field{display:flex;flex-direction:column;gap:5px;}
+.field label{font-size:11.5px;color:var(--text-muted);font-weight:600;}
+.field input, .field select{
+  font-family:'JetBrains Mono';font-size:15px;padding:8px 10px;border:1px solid var(--border);
+  border-radius:7px;width:190px;
+}
+.field.wide input{width:100%;}
+.field .readout{font-family:'JetBrains Mono';font-size:19px;font-weight:700;}
+.detail-summary-row{display:flex;gap:26px;flex-wrap:wrap;margin-top:6px;}
+.summary-item .label{font-size:11.5px;color:var(--text-muted);}
+.summary-item .val{font-family:'JetBrains Mono';font-size:16px;font-weight:700;}
+.summary-item .val.neg{color:var(--rust);}
+.summary-item .val.pos{color:var(--teal);}
+
+.entry-form{
+  display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end;
+  background:var(--card);border:1px solid var(--border-soft);border-radius:var(--radius);
+  padding:16px;margin-bottom:14px;
+}
+.entry-form .field input{width:150px;}
+.entry-form .field.desc input{width:280px;}
+.entry-form .field.amt input{width:130px;}
+
+table.ledger{
+  width:100%;border-collapse:collapse;background:var(--card);
+  border:1px solid var(--border-soft);border-radius:var(--radius);overflow:hidden;
+}
+table.ledger thead th{
+  text-align:left;font-size:11.5px;color:var(--text-muted);font-weight:700;
+  text-transform:uppercase;letter-spacing:.04em;
+  background:#F6F7F6;padding:10px 12px;border-bottom:1px solid var(--border-soft);
+}
+table.ledger tbody td{
+  padding:10px 12px;font-size:13px;border-bottom:1px solid var(--border-soft);
+  vertical-align:top;
+}
+table.ledger tbody tr:last-child td{border-bottom:none;}
+table.ledger td.num{font-family:'JetBrains Mono';text-align:right;white-space:nowrap;}
+table.ledger td.num.neg{color:var(--rust);font-weight:700;}
+table.ledger .del-x{
+  color:var(--text-faint);cursor:pointer;font-size:12px;border:none;background:none;
+}
+table.ledger .del-x:hover{color:var(--rust);}
+.ledger-empty{padding:26px;text-align:center;color:var(--text-faint);font-size:13px;}
+
+/* modal */
+.modal-overlay{
+  position:fixed;inset:0;background:rgba(22,33,43,.55);
+  display:flex;align-items:center;justify-content:center;z-index:50;padding:16px;
+  overflow-y:auto;
+}
+.modal{
+  background:#fff;border-radius:12px;padding:24px;width:100%;max-width:440px;
+  box-shadow:0 20px 60px rgba(0,0,0,.25);margin:auto;
+}
+.modal h2{font-family:'Space Grotesk';font-size:18px;margin:0 0 4px;}
+.modal .modal-desc{font-size:12.5px;color:var(--text-muted);margin:0 0 16px;}
+.modal .field{margin-bottom:14px;width:100%;}
+.modal .field input, .modal .field select{width:100%;}
+.modal-actions{display:flex;justify-content:flex-end;gap:8px;margin-top:18px;}
+.check-list{display:flex;flex-direction:column;gap:8px;max-height:280px;overflow-y:auto;}
+.check-row{
+  display:flex;align-items:center;gap:10px;padding:10px 12px;border:1px solid var(--border);
+  border-radius:8px;font-size:13.5px;
+}
+
+.save-indicator{
+  position:fixed;bottom:16px;right:20px;background:var(--ink);color:#fff;
+  font-size:12px;padding:8px 14px;border-radius:20px;opacity:0;
+  transition:opacity .3s;pointer-events:none;z-index:80;font-weight:600;
+}
+.save-indicator.show{opacity:.92;}
+.save-indicator.error{background:var(--rust);}
+
+@media (max-width:860px){
+  .app-shell{grid-template-columns:1fr;}
+  .sidebar{position:static;height:auto;min-height:0;}
+  .main{padding:18px 16px 40px;}
+}
+</style>
+</head>
+<body>
+
+<!-- Auth screen -->
+<div class="center-screen" id="authScreen">
+  <div class="screen-card-wrap">
+    <div class="brand" style="border-bottom:none;justify-content:center;margin-bottom:8px;">
+      <div class="brand-mark">คง</div>
+      <div style="text-align:left;">
+        <div class="brand-title" style="color:#1C2B33;">สมุดคุมงบประมาณ</div>
+        <div class="brand-sub" style="color:#66757C;">Cost Center Budget Ledger</div>
+      </div>
+    </div>
+    <h1 id="authTitle">เข้าสู่ระบบ</h1>
+    <p id="authSubtitle">เข้าสู่ระบบด้วยอีเมลของคุณ</p>
+    <div class="auth-box">
+      <div class="auth-error" id="authError"></div>
+      <div class="field hidden" id="authNameField">
+        <label>ชื่อ-นามสกุล (แสดงในรายการที่คุณเพิ่ม)</label>
+        <input type="text" id="authName" placeholder="เช่น สมชาย ใจดี" autocomplete="name">
+      </div>
+      <div class="field">
+        <label>อีเมล</label>
+        <input type="email" id="authEmail" placeholder="name@company.com" autocomplete="username">
+      </div>
+      <div class="field">
+        <label>รหัสผ่าน</label>
+        <input type="password" id="authPassword" placeholder="อย่างน้อย 6 ตัวอักษร" autocomplete="current-password">
+      </div>
+      <div class="field hidden" id="authRoleField">
+        <label>บทบาทของคุณ</label>
+        <div class="role-pick" id="rolePick">
+          <label id="roleLabelMember"><input type="radio" name="authRole" value="member" checked> สมาชิกทั่วไป</label>
+          <label id="roleLabelAdmin"><input type="radio" name="authRole" value="admin"> แอดมิน</label>
+        </div>
+        <div class="role-hint">สมาชิกทั่วไป: เห็นและเพิ่มรายการได้เฉพาะแผนกตัวเอง · แอดมิน: เข้าดูได้ทุกแผนก จัดการศูนย์ต้นทุนและแก้ไขงบได้</div>
+      </div>
+      <div class="field hidden" id="authDeptField">
+        <label>สังกัดแผนก</label>
+        <select id="authDept"></select>
+      </div>
+      <button class="btn btn-primary btn-block" id="authSubmitBtn" onclick="submitAuth()">เข้าสู่ระบบ</button>
+      <div class="auth-switch">
+        <span id="authSwitchText">ยังไม่มีบัญชี?</span>
+        <button onclick="toggleAuthMode()" id="authSwitchBtn">สมัครสมาชิก</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="app-shell hidden" id="appShell">
+  <aside class="sidebar">
+    <div class="brand">
+      <div class="brand-mark">คง</div>
+      <div>
+        <div class="brand-title">สมุดคุมงบประมาณ</div>
+        <div class="brand-sub">Cost Center Ledger</div>
+      </div>
+    </div>
+    <div id="roleBadgeWrap"></div>
+    <div class="account-row" id="accountRow"></div>
+    <div id="deptWrap"></div>
+
+    <div class="year-picker">
+      <select id="yearSelect" onchange="onYearChange(this.value)"></select>
+      <button title="เพิ่มปีงบประมาณใหม่" onclick="promptAddYear()">+</button>
+    </div>
+
+    <button class="btn btn-primary btn-block" id="newCcBtn" onclick="openNewCcModal()">+ ศูนย์ต้นทุนใหม่</button>
+    <div>
+      <div class="eyebrow list-eyebrow"><span>ศูนย์ต้นทุน</span></div>
+      <div class="cc-list" id="ccList"></div>
+    </div>
+  </aside>
+
+  <main class="main" id="main"></main>
+</div>
+
+<div class="save-indicator" id="saveIndicator">บันทึกแล้ว</div>
+
+<!-- New cost center modal -->
+<div class="modal-overlay hidden" id="newCcModal">
+  <div class="modal">
+    <h2>สร้างศูนย์ต้นทุนใหม่</h2>
+    <p class="modal-desc">จะสร้างในปีงบประมาณที่กำลังเลือกอยู่</p>
+    <div class="field">
+      <label>รหัสศูนย์ต้นทุน</label>
+      <input type="text" id="ccCode" placeholder="เช่น L309101030">
+    </div>
+    <div class="field">
+      <label>ชื่อกลุ่ม/แผนก</label>
+      <input type="text" id="ccName" placeholder="เช่น ผปบ. แผนกก่อสร้างแรงสูง">
+    </div>
+    <div class="modal-actions">
+      <button class="btn btn-outline" onclick="closeModal('newCcModal')">ยกเลิก</button>
+      <button class="btn btn-primary" onclick="submitNewCc()">สร้างศูนย์ต้นทุน</button>
+    </div>
+  </div>
+</div>
+
+<!-- Edit cost center modal -->
+<div class="modal-overlay hidden" id="editCcModal">
+  <div class="modal">
+    <h2>แก้ไขศูนย์ต้นทุน</h2>
+    <div class="field">
+      <label>รหัสศูนย์ต้นทุน</label>
+      <input type="text" id="ecCode">
+    </div>
+    <div class="field">
+      <label>ชื่อกลุ่ม/แผนก</label>
+      <input type="text" id="ecName">
+    </div>
+    <div class="modal-actions">
+      <button class="btn btn-outline" onclick="closeModal('editCcModal')">ยกเลิก</button>
+      <button class="btn btn-primary" onclick="submitEditCc()">บันทึก</button>
+    </div>
+  </div>
+</div>
+
+<!-- Add budget item modal -->
+<div class="modal-overlay hidden" id="addItemModal">
+  <div class="modal">
+    <h2>เพิ่มรายการงบประมาณ</h2>
+    <div class="field">
+      <label>รหัสบัญชี</label>
+      <input type="text" id="aiCode" placeholder="เช่น 52022020">
+    </div>
+    <div class="field">
+      <label>ชื่อรายการ</label>
+      <input type="text" id="aiLabel" placeholder="เช่น ค่าเบี้ยเลี้ยง-พนักงาน">
+    </div>
+    <div class="field">
+      <label>เลขหน้าในเล่ม (ถ้ามี)</label>
+      <input type="text" id="aiPage" placeholder="เช่น 35">
+    </div>
+    <div class="field">
+      <label>งบประมาณทั้งปี (บาท)</label>
+      <input type="number" min="0" step="0.01" id="aiBudget" placeholder="0.00">
+    </div>
+    <div class="modal-actions">
+      <button class="btn btn-outline" onclick="closeModal('addItemModal')">ยกเลิก</button>
+      <button class="btn btn-primary" onclick="submitAddItem()">เพิ่มรายการ</button>
+    </div>
+  </div>
+</div>
+
+<!-- Profile modal -->
+<div class="modal-overlay hidden" id="profileModal">
+  <div class="modal">
+    <h2>โปรไฟล์ของฉัน</h2>
+    <div class="field">
+      <label>ชื่อ-นามสกุล (จะแสดงในรายการที่คุณเพิ่ม)</label>
+      <input type="text" id="pfName" placeholder="เช่น สมชาย ใจดี">
+    </div>
+    <div class="field">
+      <label>อีเมล</label>
+      <input type="text" id="pfEmail" disabled style="background:var(--paper);color:var(--text-muted);">
+    </div>
+    <div class="modal-actions">
+      <button class="btn btn-outline" onclick="closeModal('profileModal')">ยกเลิก</button>
+      <button class="btn btn-primary" onclick="submitProfileName()">บันทึก</button>
+    </div>
+  </div>
+</div>
+
+<!-- ============ Firebase init (module) ============ -->
+<script type="module">
+  import { initializeApp } from "https://www.gstatic.com/firebasejs/12.1.0/firebase-app.js";
+  import {
+    getAuth, onAuthStateChanged, createUserWithEmailAndPassword,
+    signInWithEmailAndPassword, signOut
+  } from "https://www.gstatic.com/firebasejs/12.1.0/firebase-auth.js";
+  import {
+    getFirestore, doc, getDoc, setDoc, deleteDoc,
+    collection, query, where, onSnapshot
+  } from "https://www.gstatic.com/firebasejs/12.1.0/firebase-firestore.js";
+
+  // ============================================================
+  // TODO: วางค่า Firebase config ของโปรเจกต์คุณตรงนี้
+  // (Firebase Console > Project settings > General > Your apps > SDK setup and configuration)
+  // ============================================================
+  const firebaseConfig = {
+    apiKey: "AIzaSyArdvHvylPr_gjuJGaILHyBsi8CUjbVkEQ",
+    authDomain: "budget-ledger-7a310.firebaseapp.com",
+    projectId: "budget-ledger-7a310",
+    storageBucket: "budget-ledger-7a310.firebasestorage.app",
+    messagingSenderId: "606923723466",
+    appId: "1:606923723466:web:0dd0abb123d3a065421a33"
+  };
+
+  const app = initializeApp(firebaseConfig);
+  const auth = getAuth(app);
+  const db = getFirestore(app);
+
+  window.fb = {
+    onAuthChange: (cb) => onAuthStateChanged(auth, cb),
+    signUp: (email, password) => createUserWithEmailAndPassword(auth, email, password),
+    signIn: (email, password) => signInWithEmailAndPassword(auth, email, password),
+    signOutUser: () => signOut(auth),
+    getUserProfile: async (uid) => {
+      const snap = await getDoc(doc(db, 'users', uid));
+      return snap.exists() ? snap.data() : null;
+    },
+    setUserProfile: (uid, data) =>
+      setDoc(doc(db, 'users', uid), data, { merge: true }),
+    // Cost centers are global (shared by everyone), filtered client-side by year.
+    subscribeCostCenters: (cb) => {
+      return onSnapshot(collection(db, 'costCenters'), (snap) => cb(snap.docs.map(d => d.data())), (err) => {
+        console.error('subscribeCostCenters error', err);
+      });
+    },
+    saveCostCenter: (cc) => setDoc(doc(db, 'costCenters', cc.id), cc),
+    deleteCostCenterDoc: (id) => deleteDoc(doc(db, 'costCenters', id)),
+  };
+
+  window.__fbReady = true;
+  window.dispatchEvent(new Event('fbready'));
+</script>
+
+<script>
+/* ============ default seed data (from the 2569 notebook, cost center L309101030) ============ */
+const SEED_ITEMS_030 = [
+  {code:'52010030', label:'ค่าล่วงเวลาพนักงาน', page:'1', budget:580000.00},
+  {code:'52010070', label:'สวัสดิการลูกจ้างและค่าตอบแทนอื่น-ลูกจ้าง', page:'3', budget:270000.00},
+  {code:'52010080', label:'ค่าตอบแทนการอยู่เวรแบบเฝ้าระวัง-พนักงาน', page:'7', budget:1468457.03},
+  {code:'52010100', label:'ค่าล่วงเวลา-ลูกจ้าง', page:'13', budget:176503.91},
+  {code:'52010990', label:'ค่าตอบแทนอื่น-พนักงาน', page:'21', budget:10000.00},
+  {code:'52012020', label:'เงินเพิ่มฮอทไลน์', page:'23', budget:50000.00},
+  {code:'52020030', label:'เงินช่วยเหลือค่าเล่าเรียนบุตร', page:'25', budget:110000.00},
+  {code:'52020040', label:'เงินช่วยเหลือบุตร', page:'27', budget:48000.00},
+  {code:'52021010', label:'ค่ารักษาพยาบาล-พนักงาน', page:'29', budget:186000.00},
+  {code:'52021020', label:'ค่ารักษาพยาบาล-ครอบครัวพนักงาน', page:'31', budget:190000.00},
+  {code:'52022010', label:'ค่าพาหนะเดินทางปฏิบัติงานต่างท้องที่-พนง', page:'33', budget:53000.00},
+  {code:'52022020', label:'ค่าเบี้ยเลี้ยง-พนักงาน', page:'35', budget:73500.00},
+  {code:'52022030', label:'ค่าที่พัก-พนักงาน', page:'37', budget:135000.00},
+  {code:'52022050', label:'ค่าชดเชยการใช้ยานพาหนะส่วนตัว', page:'39', budget:30000.00},
+  {code:'52022060', label:'ค่าพาหนะเดินทางไปปฏิบัติงานต่างท้องที่-ล', page:'41', budget:13000.00},
+  {code:'52022070', label:'ค่าเบี้ยเลี้ยง-ลูกจ้าง', page:'43', budget:13000.00},
+  {code:'52022080', label:'ค่าที่พัก-ลูกจ้าง', page:'45', budget:13000.00},
+  {code:'53010070', label:'ค่าแรง/จ้างเหมาคนงานรายวันงานบำรุงรักษา', page:'47', budget:3000000.00},
+  {code:'53010090', label:'ค่าแรง/ค่าจ้างเหมาคนงานรายวันทั่วไป', page:'51', budget:1603900.00},
+  {code:'53019990', label:'ค่าตอบแทนอื่นๆ', page:'55', budget:30000.00},
+  {code:'53030010', label:'ค่าวัสดุสำนักงาน', page:'57', budget:30000.00},
+  {code:'53030030', label:'ค่าวัสดุเบ็ดเตล็ดในสำนักงาน', page:'59', budget:20000.00},
+  {code:'53032010', label:'ค่าใช้บริการโทรศัพท์', page:'61', budget:10500.00},
+  {code:'53032020', label:'ค่าบำรุงรักษาคู่สายโทรศัพท์', page:'63', budget:1500.00},
+  {code:'53034010', label:'ค่าจ้างเหมาทำความสะอาด', page:'65', budget:30000.00},
+  {code:'53039010', label:'ค่าเชื้อเพลิงยานพาหนะ', page:'67', budget:810000.00},
+  {code:'53039990', label:'ค่าใช้จ่ายเบ็ดเตล็ด', page:'87', budget:12000.00},
+  {code:'53051030', label:'ค่าซ่อมแซมบำรุงรักษา-ระบบไฟฟ้าและระบบควบ', page:'89', budget:300000.00},
+  {code:'53051050', label:'ค่าซ่อมแซมบำรุงรักษา-ยานพาหนะ', page:'91', budget:395000.00},
+  {code:'53051060', label:'ค่าบำรุงรักษาซ่อมแซม-ระบบสารสนเทศ', page:'93', budget:10000.00},
+  {code:'53051090', label:'ค่าวัสดุเบ็ดเตล็ดด้านช่าง', page:'95', budget:110000.00},
+  {code:'53051100', label:'ค่าซ่อมแซมบำรุงรักษา-อุปกรณ์ในสำนักงาน', page:'97', budget:10000.00},
+  {code:'53051990', label:'ค่าซ่อมแซมบำรุงรักษาอื่นๆ', page:'99', budget:50000.00},
+  {code:'53069030', label:'ค่าจ้างเหมายานพาหนะ/เครื่องจักรกลหนัก', page:'101', budget:350000.00},
+  {code:'53069990', label:'ค่าใช้จ่ายอื่น', page:'108', budget:10000.00},
+];
+const DEFAULT_YEAR = 2569;
+const DEPARTMENTS = [
+  {key:'support',  name:'แผนกสนับสนุน', abbr:'ผสน.'},
+  {key:'revenue',  name:'แผนกบริหารรายได้ค่าไฟฟ้า', abbr:'ผบร.'},
+  {key:'warehouse',name:'แผนกคลังพัสดุ', abbr:'ผคพ.'},
+  {key:'service',  name:'แผนกบริการและลูกค้าสัมพันธ์', abbr:'ผบส.'},
+  {key:'meter',    name:'แผนกมิเตอร์และหม้อแปลง', abbr:'ผมต.'},
+  {key:'om',       name:'แผนกปฏิบัติการและบำรุงรักษาระบบไฟฟ้า', abbr:'ผปบ.'},
+  {key:'construct',name:'แผนกก่อสร้างระบบไฟฟ้า', abbr:'ผกส.'},
+];
+function deptByKey(key){ return DEPARTMENTS.find(d=>d.key===key); }
+
+/* ============ state ============ */
+let state = {
+  user: null,             // {uid, email, displayName}
+  userRole: 'member',      // 'admin' | 'member'
+  userDept: null,          // department key saved on the user's profile (member only)
+  activeDept: null,        // department key currently being viewed
+  costCenters: [],         // all cost centers across all years (raw docs)
+  years: [DEFAULT_YEAR],   // known years, derived + manually added
+  activeYear: DEFAULT_YEAR,
+  activeCcId: null,
+  activeItemKey: null,     // item.code used as key within a cost center
+  authMode: 'login',       // 'login' | 'signup'
+};
+let ccUnsub = null;
+
+function uid(){ return Date.now().toString(36)+Math.random().toString(36).slice(2,7); }
+function todayStr(){ return new Date().toISOString().slice(0,10); }
+function fmt(n){
+  n = Number(n)||0;
+  return n.toLocaleString('th-TH',{minimumFractionDigits:2,maximumFractionDigits:2});
+}
+function escapeHtml(s){
+  return String(s??'').replace(/[&<>"']/g, m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
+}
+function flashSaved(isError){
+  const el = document.getElementById('saveIndicator');
+  el.textContent = isError ? 'บันทึกไม่สำเร็จ' : 'บันทึกแล้ว';
+  el.classList.toggle('error', !!isError);
+  el.classList.add('show');
+  setTimeout(()=> el.classList.remove('show'), 1400);
+}
+function isAdmin(){ return state.userRole === 'admin'; }
+
+/* ============ auth ============ */
+function toggleAuthMode(){
+  state.authMode = state.authMode === 'login' ? 'signup' : 'login';
+  renderAuthScreen();
+}
+function populateDeptSelect(){
+  const sel = document.getElementById('authDept');
+  if(sel.options.length) return;
+  sel.innerHTML = DEPARTMENTS.map(d=>`<option value="${d.key}">${d.abbr} ${d.name}</option>`).join('');
+}
+function renderAuthScreen(){
+  populateDeptSelect();
+  const isSignup = state.authMode === 'signup';
+  document.getElementById('authTitle').textContent = isSignup ? 'สมัครสมาชิก' : 'เข้าสู่ระบบ';
+  document.getElementById('authSubtitle').textContent = isSignup
+    ? 'สร้างบัญชีและเลือกบทบาทของคุณ'
+    : 'เข้าสู่ระบบด้วยอีเมลของคุณ';
+  document.getElementById('authRoleField').classList.toggle('hidden', !isSignup);
+  document.getElementById('authNameField').classList.toggle('hidden', !isSignup);
+  document.getElementById('authSubmitBtn').textContent = isSignup ? 'สมัครสมาชิก' : 'เข้าสู่ระบบ';
+  document.getElementById('authSwitchText').textContent = isSignup ? 'มีบัญชีอยู่แล้ว?' : 'ยังไม่มีบัญชี?';
+  document.getElementById('authSwitchBtn').textContent = isSignup ? 'เข้าสู่ระบบ' : 'สมัครสมาชิก';
+  document.getElementById('authError').classList.remove('show');
+  if(isSignup){
+    document.querySelectorAll('#rolePick input[name="authRole"]').forEach(r=>{
+      r.onchange = updateRolePickUi;
+    });
+    updateRolePickUi();
+  }
+}
+function updateRolePickUi(){
+  const val = document.querySelector('#rolePick input[name="authRole"]:checked')?.value || 'member';
+  document.getElementById('roleLabelMember').classList.toggle('checked', val==='member');
+  document.getElementById('roleLabelAdmin').classList.toggle('checked', val==='admin');
+  document.getElementById('authDeptField').classList.toggle('hidden', val==='admin');
+}
+async function submitAuth(){
+  const email = document.getElementById('authEmail').value.trim();
+  const password = document.getElementById('authPassword').value;
+  const errEl = document.getElementById('authError');
+  errEl.classList.remove('show');
+  if(!email || !password){
+    errEl.textContent = 'กรุณากรอกอีเมลและรหัสผ่าน';
+    errEl.classList.add('show');
+    return;
+  }
+  try{
+    if(state.authMode === 'signup'){
+      const displayName = document.getElementById('authName').value.trim();
+      const role = document.querySelector('#rolePick input[name="authRole"]:checked')?.value || 'member';
+      const deptKey = document.getElementById('authDept').value;
+      if(!displayName){
+        errEl.textContent = 'กรุณากรอกชื่อ-นามสกุล';
+        errEl.classList.add('show');
+        return;
+      }
+      if(role === 'member' && !deptKey){
+        errEl.textContent = 'กรุณาเลือกแผนก';
+        errEl.classList.add('show');
+        return;
+      }
+      const cred = await window.fb.signUp(email, password);
+      const profile = { email, displayName, role };
+      if(role === 'member') profile.deptKey = deptKey;
+      await window.fb.setUserProfile(cred.user.uid, profile);
+    } else {
+      await window.fb.signIn(email, password);
+    }
+  }catch(e){
+    errEl.textContent = translateAuthError(e);
+    errEl.classList.add('show');
+  }
+}
+function translateAuthError(e){
+  const code = e.code || '';
+  if(code.includes('email-already-in-use')) return 'อีเมลนี้มีบัญชีอยู่แล้ว ลองเข้าสู่ระบบแทน';
+  if(code.includes('invalid-email')) return 'รูปแบบอีเมลไม่ถูกต้อง';
+  if(code.includes('weak-password')) return 'รหัสผ่านสั้นเกินไป (อย่างน้อย 6 ตัวอักษร)';
+  if(code.includes('user-not-found') || code.includes('wrong-password') || code.includes('invalid-credential')) return 'อีเมลหรือรหัสผ่านไม่ถูกต้อง';
+  return 'เกิดข้อผิดพลาด: ' + (e.message || code);
+}
+async function logout(){
+  if(!confirm('ออกจากระบบ?')) return;
+  if(ccUnsub){ ccUnsub(); ccUnsub = null; }
+  await window.fb.signOutUser();
+}
+
+/* ============ persistence ============ */
+let saveTimer=null;
+function saveCc(cc){
+  clearTimeout(saveTimer);
+  saveTimer = setTimeout(async ()=>{
+    try{
+      await window.fb.saveCostCenter(cc);
+      flashSaved(false);
+    }catch(e){
+      console.error(e);
+      flashSaved(true);
+    }
+  }, 250);
+}
+
+/* ============ data helpers ============ */
+function getCc(id){ return state.costCenters.find(c=>c.id===id); }
+function ccsForYear(year){
+  return state.costCenters.filter(c=>c.year===year && c.deptKey===state.activeDept);
+}
+function recomputeYears(){
+  const set = new Set([DEFAULT_YEAR]);
+  state.costCenters.forEach(c=>set.add(c.year));
+  state.years.forEach(y=>set.add(y));
+  state.years = [...set].sort((a,b)=>b-a);
+  if(!state.years.includes(state.activeYear)) state.activeYear = state.years[0];
+}
+function itemTotals(item){
+  const budget = Number(item.budget)||0;
+  const sortedEntries = [...(item.entries||[])].sort((a,b)=> (a.date||'').localeCompare(b.date||'') || a.createdAt-b.createdAt);
+  let running = 0;
+  const rows = sortedEntries.map(e=>{
+    running += Number(e.amount)||0;
+    return {...e, cumulative: running};
+  });
+  const totalPaid = running;
+  const remaining = budget - totalPaid;
+  return {budget, totalPaid, remaining, rows};
+}
+function ccTotals(cc){
+  let budget=0, totalPaid=0;
+  (cc.items||[]).forEach(item=>{
+    const t = itemTotals(item);
+    budget += t.budget; totalPaid += t.totalPaid;
+  });
+  return {budget, totalPaid, remaining: budget-totalPaid};
+}
+function canDeleteEntry(entry){
+  if(isAdmin()) return true;
+  return !!(entry.addedBy && state.user && entry.addedBy === state.user.uid);
+}
+
+/* ============ modal helpers ============ */
+function openModal(id){ document.getElementById(id).classList.remove('hidden'); }
+function closeModal(id){ document.getElementById(id).classList.add('hidden'); }
+
+/* ============ year management ============ */
+function onYearChange(val){
+  state.activeYear = Number(val);
+  state.activeCcId = null; state.activeItemKey = null;
+  render();
+}
+function promptAddYear(){
+  const val = prompt('ปีงบประมาณใหม่ (พ.ศ.) เช่น 2570');
+  if(!val) return;
+  const year = Number(val);
+  if(!year || year < 2500 || year > 2700){ alert('กรุณากรอกปี พ.ศ. ให้ถูกต้อง'); return; }
+  if(!state.years.includes(year)) state.years.push(year);
+  state.years.sort((a,b)=>b-a);
+  state.activeYear = year;
+  state.activeCcId = null; state.activeItemKey = null;
+  render();
+}
+
+/* ============ cost center CRUD ============ */
+function openNewCcModal(){
+  if(!isAdmin()){ alert('เฉพาะแอดมินเท่านั้นที่สร้างศูนย์ต้นทุนได้'); return; }
+  document.getElementById('ccCode').value='';
+  document.getElementById('ccName').value='';
+  openModal('newCcModal');
+  setTimeout(()=>document.getElementById('ccCode').focus(),50);
+}
+async function submitNewCc(){
+  const code = document.getElementById('ccCode').value.trim();
+  const name = document.getElementById('ccName').value.trim();
+  if(!code || !name){ alert('กรุณากรอกรหัสและชื่อให้ครบ'); return; }
+  // Seed with the standard 34-item list on each department's very first cost center.
+  const isFirstForDept = ccsForYear(state.activeYear).length === 0
+    && !state.costCenters.some(c=>c.deptKey===state.activeDept);
+  const items = isFirstForDept ? SEED_ITEMS_030.map(seedToItem) : [];
+  const cc = {
+    id: uid(), code, name, year: state.activeYear, deptKey: state.activeDept,
+    createdBy: state.user ? state.user.uid : null,
+    createdAt: Date.now(), items
+  };
+  state.costCenters.push(cc);
+  state.activeCcId = cc.id;
+  state.activeItemKey = null;
+  closeModal('newCcModal');
+  render();
+  try{
+    await window.fb.saveCostCenter(cc);
+    flashSaved(false);
+  }catch(e){
+    alert('สร้างศูนย์ต้นทุนไม่สำเร็จ: ' + e.message);
+  }
+}
+function seedToItem(s){
+  return { code:s.code, label:s.label, page:s.page, budget:s.budget, entries:[] };
+}
+function openEditCcModal(){
+  if(!isAdmin()){ alert('เฉพาะแอดมินเท่านั้นที่แก้ไขศูนย์ต้นทุนได้'); return; }
+  const cc = getCc(state.activeCcId);
+  if(!cc) return;
+  document.getElementById('ecCode').value = cc.code;
+  document.getElementById('ecName').value = cc.name;
+  openModal('editCcModal');
+}
+function submitEditCc(){
+  const cc = getCc(state.activeCcId);
+  if(!cc || !isAdmin()){ alert('เฉพาะแอดมินเท่านั้นที่แก้ไขได้'); return; }
+  const code = document.getElementById('ecCode').value.trim();
+  const name = document.getElementById('ecName').value.trim();
+  if(!code || !name){ alert('กรุณากรอกให้ครบ'); return; }
+  cc.code = code; cc.name = name;
+  closeModal('editCcModal');
+  saveCc(cc); render();
+}
+async function deleteCc(){
+  const cc = getCc(state.activeCcId);
+  if(!cc || !isAdmin()){ alert('เฉพาะแอดมินเท่านั้นที่ลบศูนย์ต้นทุนได้'); return; }
+  if(!confirm('ยืนยันลบศูนย์ต้นทุน "'+cc.code+' — '+cc.name+'" ? ข้อมูลทั้งหมดจะหายไป')) return;
+  state.activeCcId = null; state.activeItemKey = null;
+  render();
+  try{
+    await window.fb.deleteCostCenterDoc(cc.id);
+    flashSaved(false);
+  }catch(e){
+    alert('ลบไม่สำเร็จ: ' + e.message);
+  }
+}
+
+/* ============ selection ============ */
+function selectCc(id){
+  state.activeCcId = id; state.activeItemKey=null; render();
+}
+function selectItem(code){ state.activeItemKey = code; render(); }
+function backToItemGrid(){ state.activeItemKey = null; render(); }
+
+/* ============ budget item CRUD ============ */
+function openAddItemModal(){
+  if(!isAdmin()){ alert('เฉพาะแอดมินเท่านั้นที่เพิ่มรายการงบประมาณได้'); return; }
+  document.getElementById('aiCode').value='';
+  document.getElementById('aiLabel').value='';
+  document.getElementById('aiPage').value='';
+  document.getElementById('aiBudget').value='';
+  openModal('addItemModal');
+}
+function submitAddItem(){
+  const cc = getCc(state.activeCcId);
+  if(!cc || !isAdmin()){ alert('เฉพาะแอดมินเท่านั้นที่เพิ่มรายการได้'); return; }
+  const code = document.getElementById('aiCode').value.trim();
+  const label = document.getElementById('aiLabel').value.trim();
+  const page = document.getElementById('aiPage').value.trim();
+  const budget = Math.max(0, Number(document.getElementById('aiBudget').value)||0);
+  if(!code || !label){ alert('กรุณากรอกรหัสบัญชีและชื่อรายการ'); return; }
+  if((cc.items||[]).find(it=>it.code===code)){ alert('มีรหัสบัญชีนี้อยู่แล้วในศูนย์ต้นทุนนี้'); return; }
+  cc.items = cc.items || [];
+  cc.items.push({ code, label, page, budget, entries: [] });
+  state.activeItemKey = code;
+  closeModal('addItemModal');
+  saveCc(cc); render();
+}
+function removeItem(itemCode){
+  const cc = getCc(state.activeCcId);
+  if(!cc || !isAdmin()){ alert('เฉพาะแอดมินเท่านั้นที่ลบรายการงบประมาณได้'); return; }
+  const item = cc.items.find(i=>i.code===itemCode);
+  if(!confirm('ยืนยันลบรายการ "'+item.code+' '+item.label+'" ออกจากศูนย์ต้นทุนนี้? รายการจ่ายทั้งหมดในนี้จะหายไป')) return;
+  cc.items = cc.items.filter(i=>i.code!==itemCode);
+  if(state.activeItemKey===itemCode){ state.activeItemKey=null; }
+  saveCc(cc); render();
+}
+function updateItemBudget(itemCode, value){
+  const cc = getCc(state.activeCcId);
+  if(!cc || !isAdmin()){ alert('เฉพาะแอดมินเท่านั้นที่แก้ไขงบประมาณได้'); render(); return; }
+  const item = cc.items.find(i=>i.code===itemCode);
+  item.budget = Math.max(0, Number(value)||0);
+  saveCc(cc); render();
+}
+function updateItemMeta(itemCode, field, value){
+  const cc = getCc(state.activeCcId);
+  if(!cc || !isAdmin()){ alert('เฉพาะแอดมินเท่านั้นที่แก้ไขได้'); render(); return; }
+  const item = cc.items.find(i=>i.code===itemCode);
+  item[field] = value;
+  saveCc(cc); render();
+}
+
+/* ============ ledger entries ============ */
+function addEntry(itemCode){
+  const cc = getCc(state.activeCcId);
+  const item = cc.items.find(i=>i.code===itemCode);
+  const date = document.getElementById('entryDate').value || todayStr();
+  const desc = document.getElementById('entryDesc').value.trim();
+  const amount = Number(document.getElementById('entryAmount').value);
+  if(!desc || !amount || amount<=0){ alert('กรุณากรอกรายการและจำนวนเงินให้ถูกต้อง'); return false; }
+  item.entries = item.entries || [];
+  item.entries.push({
+    id:uid(), date, desc, amount, createdAt:Date.now(),
+    addedBy: state.user ? state.user.uid : null,
+    addedByName: state.user ? (state.user.displayName || state.user.email) : null,
+    addedByEmail: state.user ? state.user.email : null,
+  });
+  saveCc(cc); render();
+  return false;
+}
+function deleteEntry(itemCode, entryId){
+  const cc = getCc(state.activeCcId);
+  const item = cc.items.find(i=>i.code===itemCode);
+  const entry = item.entries.find(e=>e.id===entryId);
+  if(!entry || !canDeleteEntry(entry)){ alert('ลบได้เฉพาะรายการที่แอดมิน หรือตัวคุณเองเป็นคนเพิ่มเข้ามาเท่านั้น'); return; }
+  if(!confirm('ยืนยันลบรายการนี้?')) return;
+  item.entries = item.entries.filter(e=>e.id!==entryId);
+  saveCc(cc); render();
+}
+
+/* ============ render ============ */
+function render(){
+  const authScreen = document.getElementById('authScreen');
+  const appShell = document.getElementById('appShell');
+
+  if(!state.user){
+    authScreen.classList.remove('hidden');
+    appShell.classList.add('hidden');
+    renderAuthScreen();
+    return;
+  }
+  authScreen.classList.add('hidden');
+  appShell.classList.remove('hidden');
+  recomputeYears();
+  renderRoleBadge();
+  renderAccountRow();
+  renderDeptWrap();
+  renderYearPicker();
+  renderSidebar();
+  renderMain();
+}
+
+function renderRoleBadge(){
+  const el = document.getElementById('roleBadgeWrap');
+  el.innerHTML = isAdmin()
+    ? `<span class="role-badge admin">★ แอดมิน</span>`
+    : `<span class="role-badge member">สมาชิกทั่วไป</span>`;
+}
+function renderAccountRow(){
+  const el = document.getElementById('accountRow');
+  const shownName = state.user.displayName || state.user.email || '';
+  el.innerHTML = `
+    <span class="acc-email" title="${escapeHtml(state.user.email||'')}">${escapeHtml(shownName)}</span>
+    <span style="display:flex;gap:8px;flex-shrink:0;">
+      <button onclick="openProfileModal()">แก้ไขชื่อ</button>
+      <button onclick="logout()">ออกจากระบบ</button>
+    </span>
+  `;
+}
+function openProfileModal(){
+  document.getElementById('pfName').value = state.user.displayName || '';
+  document.getElementById('pfEmail').value = state.user.email || '';
+  openModal('profileModal');
+}
+async function submitProfileName(){
+  const name = document.getElementById('pfName').value.trim();
+  if(!name){ alert('กรุณากรอกชื่อ-นามสกุล'); return; }
+  try{
+    await window.fb.setUserProfile(state.user.uid, { displayName: name });
+    state.user.displayName = name;
+    closeModal('profileModal');
+    flashSaved(false);
+    render();
+  }catch(e){
+    alert('บันทึกชื่อไม่สำเร็จ: ' + e.message);
+  }
+}
+
+function switchDept(key){
+  state.activeDept = key;
+  state.activeCcId = null; state.activeItemKey = null;
+  render();
+}
+function renderDeptWrap(){
+  const el = document.getElementById('deptWrap');
+  if(isAdmin()){
+    el.innerHTML = `
+      <div class="dept-switcher">
+        <div class="dt-label">กำลังดูแผนก</div>
+        <select onchange="switchDept(this.value)">
+          ${DEPARTMENTS.map(d=>`<option value="${d.key}" ${d.key===state.activeDept?'selected':''}>${d.abbr} ${d.name}</option>`).join('')}
+        </select>
+      </div>`;
+  } else {
+    const d = deptByKey(state.activeDept);
+    el.innerHTML = `
+      <div class="dept-tag">
+        <span class="dt-label">แผนกของคุณ</span>
+        <span class="dt-name">${d ? d.abbr+' '+d.name : '—'}</span>
+      </div>`;
+  }
+}
+
+function renderYearPicker(){
+  const sel = document.getElementById('yearSelect');
+  sel.innerHTML = state.years.map(y=>`<option value="${y}" ${y===state.activeYear?'selected':''}>ปีงบประมาณ ${y}</option>`).join('');
+}
+
+function renderSidebar(){
+  const list = document.getElementById('ccList');
+  const ccs = ccsForYear(state.activeYear);
+  document.getElementById('newCcBtn').classList.toggle('hidden', !isAdmin());
+  if(!ccs.length){
+    const dName = deptByKey(state.activeDept)?.abbr || '';
+    list.innerHTML = `<div class="list-empty">ยังไม่มีศูนย์ต้นทุนของ ${dName} ในปี ${state.activeYear}${isAdmin() ? '<br>กด "+ ศูนย์ต้นทุนใหม่" เพื่อเริ่มต้น' : '<br>รอแอดมินสร้างศูนย์ต้นทุน'}</div>`;
+    return;
+  }
+  list.innerHTML = ccs.map(c=>{
+    const active = c.id===state.activeCcId;
+    return `<div class="cc-item ${active?'active':''}" onclick="selectCc('${c.id}')">
+      <div class="code">${escapeHtml(c.code)}</div>
+      <div class="name">${escapeHtml(c.name)}</div>
+    </div>`;
+  }).join('');
+}
+
+function renderMain(){
+  const main = document.getElementById('main');
+  const cc = getCc(state.activeCcId);
+  const dName = deptByKey(state.activeDept);
+  const deptLabel = dName ? dName.abbr+' '+dName.name : '';
+  if(!cc || cc.year !== state.activeYear || cc.deptKey !== state.activeDept){
+    main.innerHTML = `<div class="welcome">
+      <h1>สมุดคุมงบประมาณ — ${escapeHtml(deptLabel)}</h1>
+      <p>เลือกศูนย์ต้นทุนจากเมนูด้านซ้าย เพื่อดูรายการงบประมาณและบันทึกรายการจ่าย
+      ${isAdmin() ? 'กด "+ ศูนย์ต้นทุนใหม่" เพื่อสร้างศูนย์ต้นทุนสำหรับแผนกและปีงบประมาณนี้' : 'หากยังไม่มีศูนย์ต้นทุน กรุณาติดต่อแอดมิน'}</p>
+      ${isAdmin() ? `<button class="btn btn-primary" onclick="openNewCcModal()">+ สร้างศูนย์ต้นทุนแรก</button>` : ''}
+    </div>`;
+    return;
+  }
+
+  const totals = ccTotals(cc);
+  const remainCls = totals.remaining<0?'neg':'pos';
+
+  let html = `
+    <div class="page-header">
+      <div>
+        <div class="code-tag mono">${escapeHtml(cc.code)} · ปีงบประมาณ ${cc.year}</div>
+        <h1>${escapeHtml(cc.name)}</h1>
+      </div>
+      <div class="header-actions">
+        ${isAdmin() ? `
+          <button class="btn btn-outline btn-sm" onclick="openEditCcModal()">แก้ไข</button>
+          <button class="btn btn-danger-ghost btn-sm" onclick="deleteCc()">ลบศูนย์ต้นทุน</button>
+        ` : `<span class="eyebrow" style="color:var(--text-faint);">ดูอย่างเดียว · เพิ่มรายการจ่ายได้</span>`}
+      </div>
+    </div>
+
+    <div class="stat-strip">
+      <div class="stat-box"><div class="label">งบประมาณทั้งปี</div><div class="value">${fmt(totals.budget)}</div></div>
+      <div class="stat-box"><div class="label">จ่ายไปแล้ว</div><div class="value">${fmt(totals.totalPaid)}</div></div>
+      <div class="stat-box remain"><div class="label">คงเหลือ</div><div class="value ${remainCls}">${fmt(totals.remaining)}</div></div>
+    </div>
+  `;
+
+  const items = cc.items || [];
+
+  if(state.activeItemKey){
+    const item = items.find(i=>i.code===state.activeItemKey);
+    if(item){
+      html += renderItemDetail(cc, item);
+    } else {
+      state.activeItemKey = null;
+    }
+  }
+
+  if(!state.activeItemKey){
+    if(!items.length){
+      html += `<div class="empty-state"><p>ยังไม่มีรายการงบประมาณในศูนย์ต้นทุนนี้</p>
+        ${isAdmin() ? `<button class="btn btn-primary btn-sm" onclick="openAddItemModal()">+ เพิ่มรายการงบประมาณ</button>` : `<span style="font-size:12.5px;color:var(--text-faint);">รอแอดมินเพิ่มรายการ</span>`}</div>`;
+    } else {
+      html += `<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
+        <div class="eyebrow" style="color:var(--text-faint);">รายการงบประมาณ (${items.length})</div>
+        ${isAdmin() ? `<button class="btn btn-outline btn-sm" onclick="openAddItemModal()">+ เพิ่มรายการ</button>` : ''}
+      </div>`;
+      html += `<div class="item-grid">`;
+      items.forEach(item=>{
+        html += renderItemCard(item);
+      });
+      html += `</div>`;
+    }
+  }
+
+  main.innerHTML = html;
+
+  const dateInput = document.getElementById('entryDate');
+  if(dateInput && !dateInput.value) dateInput.value = todayStr();
+}
+
+function gaugeClass(pct){
+  if(pct>100) return 'over';
+  if(pct>=80) return 'warn';
+  return 'ok';
+}
+
+function renderItemCard(item){
+  const t = itemTotals(item);
+  const pct = t.budget>0 ? (t.totalPaid/t.budget*100) : 0;
+  const barWidth = Math.min(pct,100);
+  const gClass = gaugeClass(pct);
+  const remainCls = t.remaining<0?'neg':'pos';
+  return `<div class="item-card" onclick="selectItem('${escapeHtml(item.code)}')">
+    <div class="item-card-top">
+      <span class="item-label">${escapeHtml(item.label)}</span>
+      <span class="acct-code mono">${escapeHtml(item.code||'—')}</span>
+    </div>
+    <div class="gauge-wrap">
+      <div class="gauge">
+        <div class="gauge-fill ${gClass}" style="width:${barWidth}%"></div>
+      </div>
+    </div>
+    <div class="num-row"><span>งบทั้งปี</span><span class="v">${fmt(t.budget)}</span></div>
+    <div class="num-row"><span>จ่ายแล้ว</span><span class="v">${fmt(t.totalPaid)}</span></div>
+    <div class="remain num-row"><span>คงเหลือ</span><span class="v ${remainCls}">${fmt(t.remaining)}</span></div>
+  </div>`;
+}
+
+function renderItemDetail(cc, item){
+  const t = itemTotals(item);
+  const pct = t.budget>0 ? (t.totalPaid/t.budget*100) : 0;
+  const barWidth = Math.min(pct,100);
+  const gClass = gaugeClass(pct);
+  const remainCls = t.remaining<0?'neg':'pos';
+  const admin = isAdmin();
+
+  let rowsHtml = '';
+  if(!t.rows.length){
+    rowsHtml = `<div class="ledger-empty">ยังไม่มีรายการจ่าย เพิ่มรายการแรกด้านบน</div>`;
+  } else {
+    rowsHtml = `<table class="ledger">
+      <thead><tr>
+        <th>วันที่</th><th>รายการ</th>
+        <th style="text-align:right">จ่ายรอบนี้</th>
+        <th style="text-align:right">รวมจ่าย</th>
+        <th style="text-align:right">คงเหลือ</th>
+        <th></th>
+      </tr></thead>
+      <tbody>
+        ${t.rows.map(r=>{
+          const rowRemaining = t.budget - r.cumulative;
+          const canDelete = canDeleteEntry(r);
+          return `<tr>
+            <td class="mono">${escapeHtml(r.date)}</td>
+            <td>${escapeHtml(r.desc)}${(r.addedByName || r.addedByEmail) ? `<div style="font-size:10.5px;color:var(--text-faint);margin-top:2px;">เพิ่มโดย ${escapeHtml(r.addedByName || r.addedByEmail)}</div>` : ''}</td>
+            <td class="num">${fmt(r.amount)}</td>
+            <td class="num">${fmt(r.cumulative)}</td>
+            <td class="num ${rowRemaining<0?'neg':''}">${fmt(rowRemaining)}</td>
+            <td>${canDelete ? `<button class="del-x" onclick="deleteEntry('${escapeHtml(item.code)}','${r.id}')" title="ลบรายการ">✕</button>` : ''}</td>
+          </tr>`;
+        }).join('')}
+      </tbody>
+    </table>`;
+  }
+
+  return `
+    <div class="detail-back" onclick="backToItemGrid()">← กลับไปที่รายการงบประมาณ</div>
+    <div class="detail-head">
+      <div class="detail-title-row">
+        <div>
+          <div class="detail-title">${escapeHtml(item.label)}</div>
+          <div class="detail-sub">${escapeHtml(cc.code)} — ${escapeHtml(cc.name)}${item.page ? ' · หน้า '+escapeHtml(item.page)+' ในเล่ม' : ''}</div>
+        </div>
+        <div class="detail-code-edit">
+          <span>รหัสบัญชี</span>
+          ${admin
+            ? `<input type="text" class="code-highlight-input" value="${escapeHtml(item.code)}" onchange="updateItemMeta('${escapeHtml(item.code)}','code', this.value)">`
+            : `<span class="acct-code mono">${escapeHtml(item.code||'—')}</span>`}
+        </div>
+      </div>
+
+      <div class="budget-input-row">
+        <div class="field">
+          <label>งบประมาณทั้งปี (บาท)</label>
+          ${admin
+            ? `<input type="number" min="0" step="0.01" value="${item.budget}" onchange="updateItemBudget('${escapeHtml(item.code)}', this.value)">`
+            : `<div class="readout">${fmt(t.budget)}</div>`}
+        </div>
+        ${admin ? `
+        <div class="field">
+          <label>เลขหน้าในเล่ม</label>
+          <input type="text" value="${escapeHtml(item.page||'')}" onchange="updateItemMeta('${escapeHtml(item.code)}','page', this.value)">
+        </div>` : ''}
+      </div>
+
+      <div class="gauge-wrap">
+        <div class="gauge">
+          <div class="gauge-fill ${gClass}" style="width:${barWidth}%"></div>
+        </div>
+      </div>
+
+      <div class="detail-summary-row">
+        <div class="summary-item"><div class="label">รวมจ่ายแล้ว</div><div class="val">${fmt(t.totalPaid)}</div></div>
+        <div class="summary-item"><div class="label">คงเหลือ</div><div class="val ${remainCls}">${fmt(t.remaining)}</div></div>
+      </div>
+      ${admin
+        ? `<div style="margin-top:14px;"><button class="btn btn-danger-ghost btn-sm" onclick="removeItem('${escapeHtml(item.code)}')">ลบรายการนี้ออกจากศูนย์ต้นทุน</button></div>`
+        : `<div style="margin-top:12px;font-size:11.5px;color:var(--text-faint);">งบและรหัสแก้ไขได้เฉพาะแอดมิน — คุณเพิ่มรายการจ่ายได้ และลบได้เฉพาะรายการที่คุณเพิ่มเอง</div>`}
+    </div>
+
+    <div class="entry-form">
+      <div class="field"><label>วันที่</label><input type="date" id="entryDate"></div>
+      <div class="field desc"><label>รายการ</label><input type="text" id="entryDesc" placeholder="เช่น ค่ารักษาพยาบาล (มรดก) นาย... วจ.15 ก.ค.69" onkeydown="if(event.key==='Enter'){addEntry('${escapeHtml(item.code)}');}"></div>
+      <div class="field amt"><label>จ่ายรอบนี้ (บาท)</label><input type="number" id="entryAmount" min="0" step="0.01" placeholder="0.00" onkeydown="if(event.key==='Enter'){addEntry('${escapeHtml(item.code)}');}"></div>
+      <button class="btn btn-primary" type="button" onclick="addEntry('${escapeHtml(item.code)}')">+ เพิ่มรายการ</button>
+    </div>
+
+    ${rowsHtml}
+  `;
+}
+
+/* ============ init ============ */
+function initAuthListener(){
+  window.fb.onAuthChange(async (user)=>{
+    if(ccUnsub){ ccUnsub(); ccUnsub = null; }
+    if(!user){
+      state.user = null; state.userRole = 'member';
+      state.costCenters = []; state.activeCcId = null; state.activeItemKey = null;
+      render();
+      return;
+    }
+    state.user = {uid:user.uid, email:user.email, displayName:''};
+    let profile = null;
+    try{ profile = await window.fb.getUserProfile(user.uid); }catch(e){ console.error(e); }
+    state.userRole = (profile && profile.role === 'admin') ? 'admin' : 'member';
+    state.user.displayName = (profile && profile.displayName) ? profile.displayName : '';
+    state.userDept = (profile && profile.deptKey) ? profile.deptKey : null;
+    state.activeDept = isAdmin() ? (state.activeDept || DEPARTMENTS[0].key) : state.userDept;
+    ccUnsub = window.fb.subscribeCostCenters((ccs)=>{
+      state.costCenters = ccs;
+      if(state.activeCcId && !ccs.find(c=>c.id===state.activeCcId)){
+        state.activeCcId=null; state.activeItemKey=null;
+      }
+      render();
+    });
+    render();
+  });
+}
+if(window.__fbReady){ initAuthListener(); }
+else { window.addEventListener('fbready', initAuthListener); }
+render();
+</script>
+
+</body>
+</html>
