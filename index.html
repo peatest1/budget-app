@@ -406,7 +406,6 @@ table.ledger .del-x:hover{color:var(--rust);}
   .main{padding:18px 16px 40px;}
 }
 </style>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
 </head>
 <body>
 
@@ -797,190 +796,170 @@ function downloadWithdrawalSlip(itemCode, entryId){
   const payerName = row.addedByName || row.addedByEmail || '';
   const payerCode = row.addedByCode || '';
   const payerPosition = row.addedByPosition || '';
+  const docTitle = `ใบตัดงบ_${item.code}_${row.date}`;
 
-  const overlay = document.createElement('div');
-  overlay.style.position = 'fixed';
-  overlay.style.inset = '0';
-  overlay.style.background = '#16212B';
-  overlay.style.zIndex = '99999';
-  overlay.style.display = 'flex';
-  overlay.style.alignItems = 'center';
-  overlay.style.justifyContent = 'center';
-  overlay.style.color = '#fff';
-  overlay.style.fontFamily = "'Noto Sans Thai', sans-serif";
-  overlay.style.fontSize = '15px';
-  overlay.textContent = 'กำลังสร้างใบตัดงบ PDF...';
-
-  const container = document.createElement('div');
-  container.style.position = 'absolute';
-  container.style.left = '0';
-  container.style.top = '0';
-  container.style.width = '794px';
-  container.style.background = '#fff';
-  container.style.fontFamily = "'Noto Sans Thai', sans-serif";
-  container.style.color = '#000';
-  container.style.padding = '28px';
-  container.style.fontSize = '13px';
-  container.innerHTML = `
-    <table style="width:100%;border-collapse:collapse;margin-bottom:10px;">
+  const bodyHtml = `
+    <table class="hdr">
       <tr>
-        <td style="width:33%;vertical-align:top;border:1px solid #000;padding:8px;text-align:center;">
-          <div style="width:56px;height:56px;border:1px dashed #999;border-radius:50%;margin:0 auto 4px;display:flex;align-items:center;justify-content:center;font-size:9px;color:#999;">ตรา<br>หน่วยงาน</div>
+        <td class="seal-cell">
+          <div class="seal">ตรา<br>หน่วยงาน</div>
         </td>
-        <td style="width:67%;border:1px solid #000;border-left:none;padding:8px;">
-          <div style="font-weight:700;font-size:14px;">แบบขอเบิกจ่ายเงินและตัดงบประมาณ</div>
+        <td class="hdr-right">
+          <div class="hdr-title">แบบขอเบิกจ่ายเงินและตัดงบประมาณ</div>
           <div>กฟฟ. ${escapeHtml(officeName)}</div>
           <div>งบ ทำการ</div>
           <div>หมายเลขศูนย์ต้นทุน ${escapeHtml(cc.code)}</div>
         </td>
       </tr>
     </table>
-    <table style="width:100%;border-collapse:collapse;margin-bottom:10px;">
-      <tr>
-        <td style="border:1px solid #000;padding:6px 8px;">เลขที่ กฟฟ. _____________ &nbsp;&nbsp;&nbsp; เลขที่ _____________</td>
-      </tr>
-      <tr>
-        <td style="border:1px solid #000;border-top:none;padding:6px 8px;">
-          วันที่ ${escapeHtml(dateParts.day)} เดือน ${escapeHtml(dateParts.month)} พ.ศ. ${escapeHtml(dateParts.year)}
-        </td>
-      </tr>
-      <tr>
-        <td style="border:1px solid #000;border-top:none;padding:6px 8px;">
-          ผู้เบิก ${escapeHtml(payerName)} &nbsp;&nbsp;&nbsp; ${escapeHtml(payerCode)}
-        </td>
-      </tr>
-      <tr>
-        <td style="border:1px solid #000;border-top:none;padding:6px 8px;">
-          ตำแหน่ง/ที่อยู่ ${escapeHtml(payerPosition)}
-        </td>
-      </tr>
+    <table class="meta">
+      <tr><td>เลขที่ กฟฟ. _____________ &nbsp;&nbsp;&nbsp; เลขที่ _____________</td></tr>
+      <tr><td>วันที่ ${escapeHtml(dateParts.day)} เดือน ${escapeHtml(dateParts.month)} พ.ศ. ${escapeHtml(dateParts.year)}</td></tr>
+      <tr><td>ผู้เบิก ${escapeHtml(payerName)} &nbsp;&nbsp;&nbsp; ${escapeHtml(payerCode)}</td></tr>
+      <tr><td>ตำแหน่ง/ที่อยู่ ${escapeHtml(payerPosition)}</td></tr>
     </table>
-    <table style="width:100%;border-collapse:collapse;margin-bottom:10px;">
+    <table class="items">
       <thead>
         <tr>
-          <th style="border:1px solid #000;padding:6px;width:8%;">ลำดับ</th>
-          <th style="border:1px solid #000;padding:6px;">รายการ</th>
-          <th style="border:1px solid #000;padding:6px;width:16%;">จำนวนเงิน</th>
-          <th style="border:1px solid #000;padding:6px;width:14%;">ภาษีมูลค่าเพิ่ม</th>
-          <th style="border:1px solid #000;padding:6px;width:16%;">รวม</th>
+          <th style="width:8%;">ลำดับ</th>
+          <th>รายการ</th>
+          <th style="width:16%;">จำนวนเงิน</th>
+          <th style="width:14%;">ภาษีมูลค่าเพิ่ม</th>
+          <th style="width:16%;">รวม</th>
         </tr>
       </thead>
       <tbody>
         <tr>
-          <td style="border:1px solid #000;padding:6px;text-align:center;">1</td>
-          <td style="border:1px solid #000;padding:6px;color:#c1462f;">${escapeHtml(item.label)}</td>
-          <td style="border:1px solid #000;padding:6px;text-align:right;color:#c1462f;">${fmt2(row.amount)}</td>
-          <td style="border:1px solid #000;padding:6px;text-align:center;">-</td>
-          <td style="border:1px solid #000;padding:6px;text-align:right;color:#c1462f;">${fmt2(row.amount)}</td>
+          <td class="ctr">1</td>
+          <td class="hl">${escapeHtml(item.label)}</td>
+          <td class="num hl">${fmt2(row.amount)}</td>
+          <td class="ctr">-</td>
+          <td class="num hl">${fmt2(row.amount)}</td>
         </tr>
-        ${[1,2,3,4,5].map(()=>`<tr><td style="border:1px solid #000;padding:6px;">&nbsp;</td><td style="border:1px solid #000;padding:6px;"></td><td style="border:1px solid #000;padding:6px;"></td><td style="border:1px solid #000;padding:6px;"></td><td style="border:1px solid #000;padding:6px;"></td></tr>`).join('')}
+        ${[1,2,3,4,5].map(()=>`<tr><td>&nbsp;</td><td></td><td></td><td></td><td></td></tr>`).join('')}
         <tr>
-          <td colspan="2" style="border:1px solid #000;padding:6px;">(มีหลักฐานประกอบแนบ รวม _______ ฉบับ)</td>
+          <td colspan="2">(มีหลักฐานประกอบแนบ รวม _______ ฉบับ)</td>
           <td colspan="3"></td>
         </tr>
         <tr>
-          <td colspan="2" style="border:1px solid #000;padding:6px;font-weight:700;">รวมเงินที่เบิก&nbsp;&nbsp;<span style="color:#c1462f;font-weight:400;">${escapeHtml(bahtText(row.amount))}</span></td>
+          <td colspan="2" class="bold">รวมเงินที่เบิก&nbsp;&nbsp;<span class="hl" style="font-weight:400;">${escapeHtml(bahtText(row.amount))}</span></td>
           <td colspan="2"></td>
-          <td style="border:1px solid #000;padding:6px;text-align:right;font-weight:700;color:#c1462f;">${fmt2(row.amount)}</td>
+          <td class="num bold hl">${fmt2(row.amount)}</td>
         </tr>
       </tbody>
     </table>
-    <div style="text-align:center;font-size:12px;margin-bottom:8px;">รายละเอียดค่าใช้จ่ายตามศูนย์ต้นทุนประกอบใบสำคัญจ่ายเงิน</div>
-    <table style="width:100%;border-collapse:collapse;margin-bottom:14px;font-size:12.5px;">
+    <div class="section-label">รายละเอียดค่าใช้จ่ายตามศูนย์ต้นทุนประกอบใบสำคัญจ่ายเงิน</div>
+    <table class="detail">
       <tr>
-        <td style="border:1px solid #000;padding:6px;width:34%;">ชื่อ-รหัสบัญชี</td>
-        <td style="border:1px solid #000;padding:6px;color:#c1462f;" colspan="2">${escapeHtml(item.label)}</td>
-        <td style="border:1px solid #000;padding:6px;text-align:center;" rowspan="4">รวมค่าใช้จ่าย</td>
+        <td style="width:34%;">ชื่อ-รหัสบัญชี</td>
+        <td class="hl" colspan="2">${escapeHtml(item.label)}</td>
+        <td class="ctr" rowspan="4">รวมค่าใช้จ่าย</td>
       </tr>
       <tr>
-        <td style="border:1px solid #000;padding:6px;">รหัสศูนย์ต้นทุน</td>
-        <td style="border:1px solid #000;padding:6px;" colspan="2">${escapeHtml(item.code)}</td>
+        <td>รหัสศูนย์ต้นทุน</td>
+        <td colspan="2">${escapeHtml(item.code)}</td>
       </tr>
       <tr>
-        <td style="border:1px solid #000;padding:6px;">${escapeHtml(cc.code)}</td>
-        <td style="border:1px solid #000;padding:6px;text-align:right;color:#c1462f;">${fmt2(row.amount)}</td>
-        <td style="border:1px solid #000;padding:6px;"></td>
+        <td>${escapeHtml(cc.code)}</td>
+        <td class="num hl">${fmt2(row.amount)}</td>
+        <td></td>
       </tr>
       <tr>
-        <td style="border:1px solid #000;padding:6px;font-weight:700;">รวม</td>
-        <td style="border:1px solid #000;padding:6px;text-align:right;font-weight:700;">${fmt2(row.amount)}</td>
-        <td style="border:1px solid #000;padding:6px;"></td>
-        <td style="border:1px solid #000;padding:6px;text-align:right;font-weight:700;">${fmt2(row.amount)}</td>
+        <td class="bold">รวม</td>
+        <td class="num bold">${fmt2(row.amount)}</td>
+        <td></td>
+        <td class="num bold">${fmt2(row.amount)}</td>
       </tr>
       <tr>
-        <td colspan="3" style="border:1px solid #000;padding:6px;">งบประมาณคงเหลือหลังเบิกจ่ายครั้งนี้</td>
-        <td style="border:1px solid #000;padding:6px;text-align:right;color:#c1462f;font-weight:700;">${fmt2(rowRemaining)}</td>
-      </tr>
-    </table>
-    <table style="width:100%;border-collapse:collapse;margin-bottom:14px;font-size:12.5px;">
-      <tr>
-        <td style="border:1px solid #000;padding:6px;width:34%;">ชื่อ-รหัสบัญชี</td>
-        <td style="border:1px solid #000;padding:6px;text-align:center;">เบี้ยเลี้ยง</td>
-        <td style="border:1px solid #000;padding:6px;text-align:center;">ที่พัก</td>
-        <td style="border:1px solid #000;padding:6px;text-align:center;" rowspan="4">รวมค่าใช้จ่าย</td>
-      </tr>
-      <tr>
-        <td style="border:1px solid #000;padding:6px;">WBS / PM order</td>
-        <td style="border:1px solid #000;padding:6px;"></td>
-        <td style="border:1px solid #000;padding:6px;"></td>
-      </tr>
-      <tr>
-        <td style="border:1px solid #000;padding:6px;">กิจกรรม</td>
-        <td style="border:1px solid #000;padding:6px;"></td>
-        <td style="border:1px solid #000;padding:6px;"></td>
-      </tr>
-      <tr>
-        <td style="border:1px solid #000;padding:6px;">โครงข่าย</td>
-        <td style="border:1px solid #000;padding:6px;"></td>
-        <td style="border:1px solid #000;padding:6px;"></td>
-      </tr>
-      <tr>
-        <td style="border:1px solid #000;padding:6px;font-weight:700;">รวม</td>
-        <td style="border:1px solid #000;padding:6px;text-align:center;">-</td>
-        <td style="border:1px solid #000;padding:6px;text-align:center;">-</td>
-        <td style="border:1px solid #000;padding:6px;text-align:center;">-</td>
-      </tr>
-      <tr>
-        <td colspan="3" style="border:1px solid #000;padding:6px;">งบประมาณคงเหลือหลังเบิกจ่ายครั้งนี้</td>
-        <td style="border:1px solid #000;padding:6px;"></td>
+        <td colspan="3">งบประมาณคงเหลือหลังเบิกจ่ายครั้งนี้</td>
+        <td class="num bold hl">${fmt2(rowRemaining)}</td>
       </tr>
     </table>
-    <div style="font-size:11px;line-height:1.7;">
+    <table class="detail">
+      <tr>
+        <td style="width:34%;">ชื่อ-รหัสบัญชี</td>
+        <td class="ctr">เบี้ยเลี้ยง</td>
+        <td class="ctr">ที่พัก</td>
+        <td class="ctr" rowspan="4">รวมค่าใช้จ่าย</td>
+      </tr>
+      <tr><td>WBS / PM order</td><td></td><td></td></tr>
+      <tr><td>กิจกรรม</td><td></td><td></td></tr>
+      <tr><td>โครงข่าย</td><td></td><td></td></tr>
+      <tr>
+        <td class="bold">รวม</td>
+        <td class="ctr">-</td>
+        <td class="ctr">-</td>
+        <td class="ctr">-</td>
+      </tr>
+      <tr>
+        <td colspan="3">งบประมาณคงเหลือหลังเบิกจ่ายครั้งนี้</td>
+        <td></td>
+      </tr>
+    </table>
+    <div class="note">
       หมายเหตุ - การระบุจำนวนเงินไม่เครดิตภาษีซื้อ ให้ใช้ยอดเงินรวมภาษี &nbsp;&nbsp;&nbsp;&nbsp; ลงชื่อ ________________________ ผู้ควบคุมงบ<br>
       &nbsp;&nbsp;&nbsp;&nbsp; - กรณีค่าใช้จ่ายที่เครดิตภาษีซื้อ ให้ใช้ยอดมูลค่าสินค้าไม่รวมภาษี &nbsp;&nbsp;&nbsp;&nbsp; ( &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; )
     </div>
   `;
-  document.body.appendChild(container);
-  document.body.appendChild(overlay);
 
-  if(typeof html2pdf === 'undefined'){
-    document.body.removeChild(container);
-    document.body.removeChild(overlay);
-    alert('ไม่สามารถโหลดตัวสร้าง PDF ได้ (html2pdf.js) กรุณาตรวจสอบการเชื่อมต่ออินเทอร์เน็ตแล้วลองใหม่');
+  const fullHtml = `<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="UTF-8">
+<title>${escapeHtml(docTitle)}</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+Thai:wght@400;500;600;700&display=swap');
+  @page { size: A4; margin: 14mm; }
+  *{ box-sizing:border-box; }
+  body{
+    font-family:'Noto Sans Thai', sans-serif;
+    color:#000; font-size:13px; margin:0; padding:16px;
+    background:#fff;
+  }
+  table{ width:100%; border-collapse:collapse; margin-bottom:10px; }
+  td, th{ border:1px solid #000; padding:6px 8px; vertical-align:top; }
+  th{ font-weight:700; }
+  .hdr td{ vertical-align:top; }
+  .seal-cell{ width:33%; text-align:center; }
+  .seal{
+    width:56px;height:56px;border:1px dashed #999;border-radius:50%;
+    margin:0 auto;display:flex;align-items:center;justify-content:center;
+    font-size:9px;color:#999;
+  }
+  .hdr-right{ width:67%; border-left:none; }
+  .hdr-title{ font-weight:700; font-size:14px; margin-bottom:2px; }
+  .meta td{ border-top:none; }
+  .meta tr:first-child td{ border-top:1px solid #000; }
+  .ctr{ text-align:center; }
+  .num{ text-align:right; }
+  .bold{ font-weight:700; }
+  .hl{ color:#c1462f; }
+  .section-label{ text-align:center; font-size:12px; margin-bottom:8px; }
+  .detail td{ font-size:12.5px; }
+  .note{ font-size:11px; line-height:1.7; margin-top:6px; }
+  @media print{
+    body{ padding:0; }
+  }
+</style>
+</head>
+<body>
+${bodyHtml}
+<sc` + `ript>
+  window.onload = function(){
+    setTimeout(function(){ window.print(); }, 250);
+  };
+</sc` + `ript>
+</body>
+</html>`;
+
+  const win = window.open('', '_blank');
+  if(!win){
+    alert('เบราว์เซอร์บล็อกการเปิดหน้าต่างใหม่ กรุณาอนุญาตป๊อปอัปสำหรับเว็บนี้แล้วลองใหม่');
     return;
   }
-
-  const filename = `ใบตัดงบ_${item.code}_${row.date}.pdf`;
-  function cleanup(){
-    if(container.parentNode) document.body.removeChild(container);
-    if(overlay.parentNode) document.body.removeChild(overlay);
-  }
-  // Small delay so the browser has fully painted the container before html2canvas snapshots it.
-  setTimeout(()=>{
-    html2pdf().set({
-      margin: 0,
-      filename,
-      image: { type: 'jpeg', quality: 0.98 },
-      html2canvas: { scale: 2, useCORS: true, scrollX: 0, scrollY: 0, windowWidth: container.scrollWidth, windowHeight: container.scrollHeight, backgroundColor: '#ffffff' },
-      jsPDF: { unit: 'px', format: [794, 1123], orientation: 'portrait' }
-    }).from(container).save().then(()=>{
-      cleanup();
-    }).catch((e)=>{
-      console.error(e);
-      cleanup();
-      alert('สร้าง PDF ไม่สำเร็จ: ' + e.message);
-    });
-  }, 120);
+  win.document.open();
+  win.document.write(fullHtml);
+  win.document.close();
 }
 
 /* ============ auth ============ */
@@ -1548,7 +1527,7 @@ function renderItemDetail(cc, item){
             <td class="num">${fmt(r.cumulative)}</td>
             <td class="num ${rowRemaining<0?'neg':''}">${fmt(rowRemaining)}</td>
             <td style="white-space:nowrap;">
-              <button class="del-x" style="color:var(--teal);margin-right:8px;" onclick="downloadWithdrawalSlip('${escapeHtml(item.code)}','${r.id}')" title="ดาวน์โหลดใบตัดงบ (PDF)">⬇ PDF</button>
+              <button class="del-x" style="color:var(--teal);margin-right:8px;" onclick="downloadWithdrawalSlip('${escapeHtml(item.code)}','${r.id}')" title="เปิดใบตัดงบเพื่อพิมพ์ / บันทึกเป็น PDF">🖨 ใบตัดงบ</button>
               ${canDelete ? `<button class="del-x" onclick="deleteEntry('${escapeHtml(item.code)}','${r.id}')" title="ลบรายการ">✕</button>` : ''}
             </td>
           </tr>`;
