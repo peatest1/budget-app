@@ -798,8 +798,21 @@ function downloadWithdrawalSlip(itemCode, entryId){
   const payerCode = row.addedByCode || '';
   const payerPosition = row.addedByPosition || '';
 
+  const overlay = document.createElement('div');
+  overlay.style.position = 'fixed';
+  overlay.style.inset = '0';
+  overlay.style.background = '#16212B';
+  overlay.style.zIndex = '99999';
+  overlay.style.display = 'flex';
+  overlay.style.alignItems = 'center';
+  overlay.style.justifyContent = 'center';
+  overlay.style.color = '#fff';
+  overlay.style.fontFamily = "'Noto Sans Thai', sans-serif";
+  overlay.style.fontSize = '15px';
+  overlay.textContent = 'กำลังสร้างใบตัดงบ PDF...';
+
   const container = document.createElement('div');
-  container.style.position = 'fixed';
+  container.style.position = 'absolute';
   container.style.left = '0';
   container.style.top = '0';
   container.style.width = '794px';
@@ -808,9 +821,6 @@ function downloadWithdrawalSlip(itemCode, entryId){
   container.style.color = '#000';
   container.style.padding = '28px';
   container.style.fontSize = '13px';
-  container.style.opacity = '0.01';
-  container.style.pointerEvents = 'none';
-  container.style.zIndex = '-1';
   container.innerHTML = `
     <table style="width:100%;border-collapse:collapse;margin-bottom:10px;">
       <tr>
@@ -941,15 +951,21 @@ function downloadWithdrawalSlip(itemCode, entryId){
     </div>
   `;
   document.body.appendChild(container);
+  document.body.appendChild(overlay);
 
   if(typeof html2pdf === 'undefined'){
     document.body.removeChild(container);
+    document.body.removeChild(overlay);
     alert('ไม่สามารถโหลดตัวสร้าง PDF ได้ (html2pdf.js) กรุณาตรวจสอบการเชื่อมต่ออินเทอร์เน็ตแล้วลองใหม่');
     return;
   }
 
   const filename = `ใบตัดงบ_${item.code}_${row.date}.pdf`;
-  // Small delay so the browser has fully painted the offscreen container before html2canvas snapshots it.
+  function cleanup(){
+    if(container.parentNode) document.body.removeChild(container);
+    if(overlay.parentNode) document.body.removeChild(overlay);
+  }
+  // Small delay so the browser has fully painted the container before html2canvas snapshots it.
   setTimeout(()=>{
     html2pdf().set({
       margin: 0,
@@ -958,13 +974,13 @@ function downloadWithdrawalSlip(itemCode, entryId){
       html2canvas: { scale: 2, useCORS: true, scrollX: 0, scrollY: 0, windowWidth: container.scrollWidth, windowHeight: container.scrollHeight, backgroundColor: '#ffffff' },
       jsPDF: { unit: 'px', format: [794, 1123], orientation: 'portrait' }
     }).from(container).save().then(()=>{
-      document.body.removeChild(container);
+      cleanup();
     }).catch((e)=>{
       console.error(e);
-      document.body.removeChild(container);
+      cleanup();
       alert('สร้าง PDF ไม่สำเร็จ: ' + e.message);
     });
-  }, 80);
+  }, 120);
 }
 
 /* ============ auth ============ */
