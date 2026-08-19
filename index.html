@@ -406,6 +406,7 @@ table.ledger .del-x:hover{color:var(--rust);}
   .main{padding:18px 16px 40px;}
 }
 </style>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
 </head>
 <body>
 
@@ -560,9 +561,33 @@ table.ledger .del-x:hover{color:var(--rust);}
       <label>อีเมล</label>
       <input type="text" id="pfEmail" disabled style="background:var(--paper);color:var(--text-muted);">
     </div>
+    <div class="field">
+      <label>ตำแหน่ง/ที่อยู่ (สำหรับใบตัดงบ)</label>
+      <input type="text" id="pfPosition" placeholder="เช่น พชง.ผปบ.กฟส.เบตง">
+    </div>
+    <div class="field">
+      <label>รหัสพนักงาน (สำหรับใบตัดงบ)</label>
+      <input type="text" id="pfCode" placeholder="เช่น 513847">
+    </div>
     <div class="modal-actions">
       <button class="btn btn-outline" onclick="closeModal('profileModal')">ยกเลิก</button>
       <button class="btn btn-primary" onclick="submitProfileName()">บันทึก</button>
+    </div>
+  </div>
+</div>
+
+<!-- Org settings modal (admin only) -->
+<div class="modal-overlay hidden" id="orgSettingsModal">
+  <div class="modal">
+    <h2>ตั้งค่าหน่วยงาน</h2>
+    <p class="modal-desc">ใช้แสดงบนหัวใบตัดงบ (กฟฟ. ...) เหมือนกันทุกแผนก</p>
+    <div class="field">
+      <label>ชื่อสาขา/หน่วยงาน (กฟฟ.)</label>
+      <input type="text" id="osOfficeName" placeholder="เช่น เบตง">
+    </div>
+    <div class="modal-actions">
+      <button class="btn btn-outline" onclick="closeModal('orgSettingsModal')">ยกเลิก</button>
+      <button class="btn btn-primary" onclick="submitOrgSettings()">บันทึก</button>
     </div>
   </div>
 </div>
@@ -615,6 +640,12 @@ table.ledger .del-x:hover{color:var(--rust);}
     },
     saveCostCenter: (cc) => setDoc(doc(db, 'costCenters', cc.id), cc),
     deleteCostCenterDoc: (id) => deleteDoc(doc(db, 'costCenters', id)),
+    subscribeOrgSettings: (cb) => {
+      return onSnapshot(doc(db, 'settings', 'org'), (snap) => cb(snap.exists() ? snap.data() : {}), (err) => {
+        console.error('subscribeOrgSettings error', err);
+      });
+    },
+    setOrgSettings: (data) => setDoc(doc(db, 'settings', 'org'), data, { merge: true }),
   };
 
   window.__fbReady = true;
@@ -674,7 +705,7 @@ function deptByKey(key){ return DEPARTMENTS.find(d=>d.key===key); }
 
 /* ============ state ============ */
 let state = {
-  user: null,             // {uid, email, displayName}
+  user: null,             // {uid, email, displayName, position, employeeCode}
   userRole: 'member',      // 'admin' | 'member'
   userDept: null,          // department key saved on the user's profile (member only)
   activeDept: null,        // department key currently being viewed
@@ -684,8 +715,10 @@ let state = {
   activeCcId: null,
   activeItemKey: null,     // item.code used as key within a cost center
   authMode: 'login',       // 'login' | 'signup'
+  orgSettings: {},         // { officeName }
 };
 let ccUnsub = null;
+let orgUnsub = null;
 
 function uid(){ return Date.now().toString(36)+Math.random().toString(36).slice(2,7); }
 function todayStr(){ return new Date().toISOString().slice(0,10); }
@@ -704,6 +737,223 @@ function flashSaved(isError){
   setTimeout(()=> el.classList.remove('show'), 1400);
 }
 function isAdmin(){ return state.userRole === 'admin'; }
+
+/* ============ Thai date / number-to-words helpers (for withdrawal slip PDF) ============ */
+const THAI_MONTHS = ['','มกราคม','กุมภาพันธ์','มีนาคม','เมษายน','พฤษภาคม','มิถุนายน','กรกฎาคม','สิงหาคม','กันยายน','ตุลาคม','พฤศจิกายน','ธันวาคม'];
+function thaiDateParts(dateStr){
+  // dateStr: 'YYYY-MM-DD'
+  const [y,m,d] = String(dateStr||'').split('-').map(Number);
+  if(!y || !m || !d) return {day:'', month:'', year:''};
+  return { day: String(d), month: THAI_MONTHS[m] || '', year: String(y + 543) };
+}
+const THAI_DIGITS = ['ศูนย์','หนึ่ง','สอง','สาม','สี่','ห้า','หก','เจ็ด','แปด','เก้า'];
+const THAI_PLACES = ['','สิบ','ร้อย','พัน','หมื่น','แสน','ล้าน'];
+function thaiNumberText(numStr){
+  // numStr: integer digits only, no leading zeros (except "0")
+  numStr = numStr.replace(/^0+(?=\d)/,'');
+  if(numStr === '0') return 'ศูนย์';
+  let result = '';
+  const len = numStr.length;
+  for(let i=0;i<len;i++){
+    const digit = Number(numStr[i]);
+    const placeIndex = (len-1-i) % 7; // handle millions recursion via place cycling
+    if(digit === 0) continue;
+    if(placeIndex === 0 && digit === 1 && len > 1){
+      result += 'เอ็ด';
+    } else if(placeIndex === 1 && digit === 1){
+      result += 'สิบ';
+    } else if(placeIndex === 1 && digit === 2){
+      result += 'ยี่สิบ';
+    } else {
+      result += THAI_DIGITS[digit] + THAI_PLACES[placeIndex];
+    }
+  }
+  return result;
+}
+function bahtText(amount){
+  amount = Math.round((Number(amount)||0) * 100) / 100;
+  const negative = amount < 0;
+  amount = Math.abs(amount);
+  const baht = Math.floor(amount);
+  const satang = Math.round((amount - baht) * 100);
+  let text = thaiNumberText(String(baht)) + 'บาท';
+  text += satang > 0 ? (thaiNumberText(String(satang)) + 'สตางค์') : 'ถ้วน';
+  return (negative ? 'ลบ' : '') + text;
+}
+function fmt2(n){ return (Number(n)||0).toLocaleString('th-TH',{minimumFractionDigits:2,maximumFractionDigits:2}); }
+
+/* ============ withdrawal / budget-deduction slip PDF ============ */
+function downloadWithdrawalSlip(itemCode, entryId){
+  const cc = getCc(state.activeCcId);
+  if(!cc) return;
+  const item = (cc.items||[]).find(i=>i.code===itemCode);
+  if(!item) return;
+  const t = itemTotals(item);
+  const row = t.rows.find(r=>r.id===entryId);
+  if(!row) return;
+  const rowRemaining = t.budget - row.cumulative;
+  const dateParts = thaiDateParts(row.date);
+  const officeName = state.orgSettings.officeName || '';
+  const payerName = row.addedByName || row.addedByEmail || '';
+  const payerCode = row.addedByCode || '';
+  const payerPosition = row.addedByPosition || '';
+
+  const container = document.createElement('div');
+  container.style.position = 'fixed';
+  container.style.left = '-9999px';
+  container.style.top = '0';
+  container.style.width = '794px';
+  container.style.background = '#fff';
+  container.style.fontFamily = "'Noto Sans Thai', sans-serif";
+  container.style.color = '#000';
+  container.style.padding = '28px';
+  container.style.fontSize = '13px';
+  container.innerHTML = `
+    <table style="width:100%;border-collapse:collapse;margin-bottom:10px;">
+      <tr>
+        <td style="width:33%;vertical-align:top;border:1px solid #000;padding:8px;text-align:center;">
+          <div style="width:56px;height:56px;border:1px dashed #999;border-radius:50%;margin:0 auto 4px;display:flex;align-items:center;justify-content:center;font-size:9px;color:#999;">ตรา<br>หน่วยงาน</div>
+        </td>
+        <td style="width:67%;border:1px solid #000;border-left:none;padding:8px;">
+          <div style="font-weight:700;font-size:14px;">แบบขอเบิกจ่ายเงินและตัดงบประมาณ</div>
+          <div>กฟฟ. ${escapeHtml(officeName)}</div>
+          <div>งบ ทำการ</div>
+          <div>หมายเลขศูนย์ต้นทุน ${escapeHtml(cc.code)}</div>
+        </td>
+      </tr>
+    </table>
+    <table style="width:100%;border-collapse:collapse;margin-bottom:10px;">
+      <tr>
+        <td style="border:1px solid #000;padding:6px 8px;">เลขที่ กฟฟ. _____________ &nbsp;&nbsp;&nbsp; เลขที่ _____________</td>
+      </tr>
+      <tr>
+        <td style="border:1px solid #000;border-top:none;padding:6px 8px;">
+          วันที่ ${escapeHtml(dateParts.day)} เดือน ${escapeHtml(dateParts.month)} พ.ศ. ${escapeHtml(dateParts.year)}
+        </td>
+      </tr>
+      <tr>
+        <td style="border:1px solid #000;border-top:none;padding:6px 8px;">
+          ผู้เบิก ${escapeHtml(payerName)} &nbsp;&nbsp;&nbsp; ${escapeHtml(payerCode)}
+        </td>
+      </tr>
+      <tr>
+        <td style="border:1px solid #000;border-top:none;padding:6px 8px;">
+          ตำแหน่ง/ที่อยู่ ${escapeHtml(payerPosition)}
+        </td>
+      </tr>
+    </table>
+    <table style="width:100%;border-collapse:collapse;margin-bottom:10px;">
+      <thead>
+        <tr>
+          <th style="border:1px solid #000;padding:6px;width:8%;">ลำดับ</th>
+          <th style="border:1px solid #000;padding:6px;">รายการ</th>
+          <th style="border:1px solid #000;padding:6px;width:16%;">จำนวนเงิน</th>
+          <th style="border:1px solid #000;padding:6px;width:14%;">ภาษีมูลค่าเพิ่ม</th>
+          <th style="border:1px solid #000;padding:6px;width:16%;">รวม</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td style="border:1px solid #000;padding:6px;text-align:center;">1</td>
+          <td style="border:1px solid #000;padding:6px;color:#c1462f;">${escapeHtml(item.label)}</td>
+          <td style="border:1px solid #000;padding:6px;text-align:right;color:#c1462f;">${fmt2(row.amount)}</td>
+          <td style="border:1px solid #000;padding:6px;text-align:center;">-</td>
+          <td style="border:1px solid #000;padding:6px;text-align:right;color:#c1462f;">${fmt2(row.amount)}</td>
+        </tr>
+        ${[1,2,3,4,5].map(()=>`<tr><td style="border:1px solid #000;padding:6px;">&nbsp;</td><td style="border:1px solid #000;padding:6px;"></td><td style="border:1px solid #000;padding:6px;"></td><td style="border:1px solid #000;padding:6px;"></td><td style="border:1px solid #000;padding:6px;"></td></tr>`).join('')}
+        <tr>
+          <td colspan="2" style="border:1px solid #000;padding:6px;">(มีหลักฐานประกอบแนบ รวม _______ ฉบับ)</td>
+          <td colspan="3"></td>
+        </tr>
+        <tr>
+          <td colspan="2" style="border:1px solid #000;padding:6px;font-weight:700;">รวมเงินที่เบิก&nbsp;&nbsp;<span style="color:#c1462f;font-weight:400;">${escapeHtml(bahtText(row.amount))}</span></td>
+          <td colspan="2"></td>
+          <td style="border:1px solid #000;padding:6px;text-align:right;font-weight:700;color:#c1462f;">${fmt2(row.amount)}</td>
+        </tr>
+      </tbody>
+    </table>
+    <div style="text-align:center;font-size:12px;margin-bottom:8px;">รายละเอียดค่าใช้จ่ายตามศูนย์ต้นทุนประกอบใบสำคัญจ่ายเงิน</div>
+    <table style="width:100%;border-collapse:collapse;margin-bottom:14px;font-size:12.5px;">
+      <tr>
+        <td style="border:1px solid #000;padding:6px;width:34%;">ชื่อ-รหัสบัญชี</td>
+        <td style="border:1px solid #000;padding:6px;color:#c1462f;" colspan="2">${escapeHtml(item.label)}</td>
+        <td style="border:1px solid #000;padding:6px;text-align:center;" rowspan="4">รวมค่าใช้จ่าย</td>
+      </tr>
+      <tr>
+        <td style="border:1px solid #000;padding:6px;">รหัสศูนย์ต้นทุน</td>
+        <td style="border:1px solid #000;padding:6px;" colspan="2">${escapeHtml(item.code)}</td>
+      </tr>
+      <tr>
+        <td style="border:1px solid #000;padding:6px;">${escapeHtml(cc.code)}</td>
+        <td style="border:1px solid #000;padding:6px;text-align:right;color:#c1462f;">${fmt2(row.amount)}</td>
+        <td style="border:1px solid #000;padding:6px;"></td>
+      </tr>
+      <tr>
+        <td style="border:1px solid #000;padding:6px;font-weight:700;">รวม</td>
+        <td style="border:1px solid #000;padding:6px;text-align:right;font-weight:700;">${fmt2(row.amount)}</td>
+        <td style="border:1px solid #000;padding:6px;"></td>
+        <td style="border:1px solid #000;padding:6px;text-align:right;font-weight:700;">${fmt2(row.amount)}</td>
+      </tr>
+      <tr>
+        <td colspan="3" style="border:1px solid #000;padding:6px;">งบประมาณคงเหลือหลังเบิกจ่ายครั้งนี้</td>
+        <td style="border:1px solid #000;padding:6px;text-align:right;color:#c1462f;font-weight:700;">${fmt2(rowRemaining)}</td>
+      </tr>
+    </table>
+    <table style="width:100%;border-collapse:collapse;margin-bottom:14px;font-size:12.5px;">
+      <tr>
+        <td style="border:1px solid #000;padding:6px;width:34%;">ชื่อ-รหัสบัญชี</td>
+        <td style="border:1px solid #000;padding:6px;text-align:center;">เบี้ยเลี้ยง</td>
+        <td style="border:1px solid #000;padding:6px;text-align:center;">ที่พัก</td>
+        <td style="border:1px solid #000;padding:6px;text-align:center;" rowspan="4">รวมค่าใช้จ่าย</td>
+      </tr>
+      <tr>
+        <td style="border:1px solid #000;padding:6px;">WBS / PM order</td>
+        <td style="border:1px solid #000;padding:6px;"></td>
+        <td style="border:1px solid #000;padding:6px;"></td>
+      </tr>
+      <tr>
+        <td style="border:1px solid #000;padding:6px;">กิจกรรม</td>
+        <td style="border:1px solid #000;padding:6px;"></td>
+        <td style="border:1px solid #000;padding:6px;"></td>
+      </tr>
+      <tr>
+        <td style="border:1px solid #000;padding:6px;">โครงข่าย</td>
+        <td style="border:1px solid #000;padding:6px;"></td>
+        <td style="border:1px solid #000;padding:6px;"></td>
+      </tr>
+      <tr>
+        <td style="border:1px solid #000;padding:6px;font-weight:700;">รวม</td>
+        <td style="border:1px solid #000;padding:6px;text-align:center;">-</td>
+        <td style="border:1px solid #000;padding:6px;text-align:center;">-</td>
+        <td style="border:1px solid #000;padding:6px;text-align:center;">-</td>
+      </tr>
+      <tr>
+        <td colspan="3" style="border:1px solid #000;padding:6px;">งบประมาณคงเหลือหลังเบิกจ่ายครั้งนี้</td>
+        <td style="border:1px solid #000;padding:6px;"></td>
+      </tr>
+    </table>
+    <div style="font-size:11px;line-height:1.7;">
+      หมายเหตุ - การระบุจำนวนเงินไม่เครดิตภาษีซื้อ ให้ใช้ยอดเงินรวมภาษี &nbsp;&nbsp;&nbsp;&nbsp; ลงชื่อ ________________________ ผู้ควบคุมงบ<br>
+      &nbsp;&nbsp;&nbsp;&nbsp; - กรณีค่าใช้จ่ายที่เครดิตภาษีซื้อ ให้ใช้ยอดมูลค่าสินค้าไม่รวมภาษี &nbsp;&nbsp;&nbsp;&nbsp; ( &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; )
+    </div>
+  `;
+  document.body.appendChild(container);
+
+  const filename = `ใบตัดงบ_${item.code}_${row.date}.pdf`;
+  html2pdf().set({
+    margin: 0,
+    filename,
+    image: { type: 'jpeg', quality: 0.98 },
+    html2canvas: { scale: 2, useCORS: true },
+    jsPDF: { unit: 'px', format: [794, 1123], orientation: 'portrait' }
+  }).from(container).save().then(()=>{
+    document.body.removeChild(container);
+  }).catch((e)=>{
+    console.error(e);
+    document.body.removeChild(container);
+    alert('สร้าง PDF ไม่สำเร็จ: ' + e.message);
+  });
+}
 
 /* ============ auth ============ */
 function toggleAuthMode(){
@@ -789,6 +1039,7 @@ function translateAuthError(e){
 async function logout(){
   if(!confirm('ออกจากระบบ?')) return;
   if(ccUnsub){ ccUnsub(); ccUnsub = null; }
+  if(orgUnsub){ orgUnsub(); orgUnsub = null; }
   await window.fb.signOutUser();
 }
 
@@ -1001,6 +1252,8 @@ function addEntry(itemCode){
     addedBy: state.user ? state.user.uid : null,
     addedByName: state.user ? (state.user.displayName || state.user.email) : null,
     addedByEmail: state.user ? state.user.email : null,
+    addedByPosition: state.user ? (state.user.position || '') : '',
+    addedByCode: state.user ? (state.user.employeeCode || '') : '',
   });
   saveCc(cc); render();
   return false;
@@ -1040,7 +1293,10 @@ function render(){
 function renderRoleBadge(){
   const el = document.getElementById('roleBadgeWrap');
   el.innerHTML = isAdmin()
-    ? `<span class="role-badge admin">★ แอดมิน</span>`
+    ? `<div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
+        <span class="role-badge admin">★ แอดมิน</span>
+        <button onclick="openOrgSettingsModal()" style="background:none;border:1px solid rgba(255,255,255,.22);border-radius:6px;padding:3px 9px;font-size:11px;font-weight:600;color:#B7C2C6;cursor:pointer;font-family:'Noto Sans Thai',sans-serif;">ตั้งค่าหน่วยงาน</button>
+       </div>`
     : `<span class="role-badge member">สมาชิกทั่วไป</span>`;
 }
 function renderAccountRow(){
@@ -1057,19 +1313,45 @@ function renderAccountRow(){
 function openProfileModal(){
   document.getElementById('pfName').value = state.user.displayName || '';
   document.getElementById('pfEmail').value = state.user.email || '';
+  document.getElementById('pfPosition').value = state.user.position || '';
+  document.getElementById('pfCode').value = state.user.employeeCode || '';
   openModal('profileModal');
 }
 async function submitProfileName(){
   const name = document.getElementById('pfName').value.trim();
+  const position = document.getElementById('pfPosition').value.trim();
+  const employeeCode = document.getElementById('pfCode').value.trim();
   if(!name){ alert('กรุณากรอกชื่อ-นามสกุล'); return; }
   try{
-    await window.fb.setUserProfile(state.user.uid, { displayName: name });
+    await window.fb.setUserProfile(state.user.uid, { displayName: name, position, employeeCode });
     state.user.displayName = name;
+    state.user.position = position;
+    state.user.employeeCode = employeeCode;
     closeModal('profileModal');
     flashSaved(false);
     render();
   }catch(e){
     alert('บันทึกชื่อไม่สำเร็จ: ' + e.message);
+  }
+}
+
+/* ============ org settings (admin) ============ */
+function openOrgSettingsModal(){
+  if(!isAdmin()){ alert('เฉพาะแอดมินเท่านั้นที่ตั้งค่านี้ได้'); return; }
+  document.getElementById('osOfficeName').value = state.orgSettings.officeName || '';
+  openModal('orgSettingsModal');
+}
+async function submitOrgSettings(){
+  if(!isAdmin()){ alert('เฉพาะแอดมินเท่านั้นที่ตั้งค่านี้ได้'); return; }
+  const officeName = document.getElementById('osOfficeName').value.trim();
+  try{
+    await window.fb.setOrgSettings({ officeName });
+    state.orgSettings.officeName = officeName;
+    closeModal('orgSettingsModal');
+    flashSaved(false);
+    render();
+  }catch(e){
+    alert('บันทึกไม่สำเร็จ: ' + e.message);
   }
 }
 
@@ -1237,7 +1519,10 @@ function renderItemDetail(cc, item){
             <td class="num">${fmt(r.amount)}</td>
             <td class="num">${fmt(r.cumulative)}</td>
             <td class="num ${rowRemaining<0?'neg':''}">${fmt(rowRemaining)}</td>
-            <td>${canDelete ? `<button class="del-x" onclick="deleteEntry('${escapeHtml(item.code)}','${r.id}')" title="ลบรายการ">✕</button>` : ''}</td>
+            <td style="white-space:nowrap;">
+              <button class="del-x" style="color:var(--teal);margin-right:8px;" onclick="downloadWithdrawalSlip('${escapeHtml(item.code)}','${r.id}')" title="ดาวน์โหลดใบตัดงบ (PDF)">⬇ PDF</button>
+              ${canDelete ? `<button class="del-x" onclick="deleteEntry('${escapeHtml(item.code)}','${r.id}')" title="ลบรายการ">✕</button>` : ''}
+            </td>
           </tr>`;
         }).join('')}
       </tbody>
@@ -1299,17 +1584,21 @@ function renderItemDetail(cc, item){
 function initAuthListener(){
   window.fb.onAuthChange(async (user)=>{
     if(ccUnsub){ ccUnsub(); ccUnsub = null; }
+    if(orgUnsub){ orgUnsub(); orgUnsub = null; }
     if(!user){
       state.user = null; state.userRole = 'member';
       state.costCenters = []; state.activeCcId = null; state.activeItemKey = null;
+      state.orgSettings = {};
       render();
       return;
     }
-    state.user = {uid:user.uid, email:user.email, displayName:''};
+    state.user = {uid:user.uid, email:user.email, displayName:'', position:'', employeeCode:''};
     let profile = null;
     try{ profile = await window.fb.getUserProfile(user.uid); }catch(e){ console.error(e); }
     state.userRole = (profile && profile.role === 'admin') ? 'admin' : 'member';
     state.user.displayName = (profile && profile.displayName) ? profile.displayName : '';
+    state.user.position = (profile && profile.position) ? profile.position : '';
+    state.user.employeeCode = (profile && profile.employeeCode) ? profile.employeeCode : '';
     state.userDept = (profile && profile.deptKey) ? profile.deptKey : null;
     state.activeDept = isAdmin() ? (state.activeDept || DEPARTMENTS[0].key) : state.userDept;
     ccUnsub = window.fb.subscribeCostCenters((ccs)=>{
@@ -1317,6 +1606,10 @@ function initAuthListener(){
       if(state.activeCcId && !ccs.find(c=>c.id===state.activeCcId)){
         state.activeCcId=null; state.activeItemKey=null;
       }
+      render();
+    });
+    orgUnsub = window.fb.subscribeOrgSettings((settings)=>{
+      state.orgSettings = settings || {};
       render();
     });
     render();
