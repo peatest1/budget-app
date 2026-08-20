@@ -801,22 +801,25 @@ function downloadWithdrawalSlip(itemCode, entryId){
   const bodyHtml = `
     <table class="hdr">
       <tr>
-        <td class="seal-cell">
+        <td class="seal-cell" rowspan="2">
           <div class="seal">ตรา<br>หน่วยงาน</div>
-        </td>
-        <td class="hdr-right">
           <div class="hdr-title">แบบขอเบิกจ่ายเงินและตัดงบประมาณ</div>
-          <div>กฟฟ. ${escapeHtml(officeName)}</div>
-          <div>งบ ทำการ</div>
-          <div>หมายเลขศูนย์ต้นทุน ${escapeHtml(cc.code)}</div>
+          <div class="hdr-line">กฟฟ. &nbsp;${escapeHtml(officeName)}</div>
+          <div class="hdr-line">งบ &nbsp;ทำการ</div>
+          <div class="hdr-line">หมายเลขศูนย์ต้นทุน &nbsp;${escapeHtml(cc.code)}</div>
+        </td>
+        <td class="hdr-topright">
+          เลขที่ กฟฟ. _____________<br>
+          เลขที่ _____________
         </td>
       </tr>
-    </table>
-    <table class="meta">
-      <tr><td>เลขที่ กฟฟ. _____________ &nbsp;&nbsp;&nbsp; เลขที่ _____________</td></tr>
-      <tr><td>วันที่ ${escapeHtml(dateParts.day)} เดือน ${escapeHtml(dateParts.month)} พ.ศ. ${escapeHtml(dateParts.year)}</td></tr>
-      <tr><td>ผู้เบิก ${escapeHtml(payerName)} &nbsp;&nbsp;&nbsp; ${escapeHtml(payerCode)}</td></tr>
-      <tr><td>ตำแหน่ง/ที่อยู่ ${escapeHtml(payerPosition)}</td></tr>
+      <tr>
+        <td class="hdr-botright">
+          วันที่ ${escapeHtml(dateParts.day)} &nbsp;เดือน ${escapeHtml(dateParts.month)} &nbsp;พ.ศ. ${escapeHtml(dateParts.year)}<br>
+          ผู้เบิก ${escapeHtml(payerName)} &nbsp;&nbsp;&nbsp; ${escapeHtml(payerCode)}<br>
+          ตำแหน่ง/ที่อยู่ &nbsp;${escapeHtml(payerPosition)}
+        </td>
+      </tr>
     </table>
     <table class="items">
       <thead>
@@ -836,14 +839,13 @@ function downloadWithdrawalSlip(itemCode, entryId){
           <td class="ctr">-</td>
           <td class="num hl">${fmt2(row.amount)}</td>
         </tr>
-        ${[1,2,3,4,5].map(()=>`<tr><td>&nbsp;</td><td></td><td></td><td></td><td></td></tr>`).join('')}
+        ${[1,2,3,4,5,6].map(()=>`<tr><td>&nbsp;</td><td></td><td></td><td></td><td></td></tr>`).join('')}
         <tr>
-          <td colspan="2">(มีหลักฐานประกอบแนบ รวม _______ ฉบับ)</td>
-          <td colspan="3"></td>
+          <td colspan="5">(มีหลักฐานประกอบแนบ รวม _______ ฉบับ)</td>
         </tr>
         <tr>
-          <td colspan="2" class="bold">รวมเงินที่เบิก&nbsp;&nbsp;<span class="hl" style="font-weight:400;">${escapeHtml(bahtText(row.amount))}</span></td>
-          <td colspan="2"></td>
+          <td colspan="3" class="bold">รวมเงินที่เบิก&nbsp;&nbsp;<span class="hl" style="font-weight:400;">${escapeHtml(bahtText(row.amount))}</span></td>
+          <td></td>
           <td class="num bold hl">${fmt2(row.amount)}</td>
         </tr>
       </tbody>
@@ -920,16 +922,16 @@ function downloadWithdrawalSlip(itemCode, entryId){
   td, th{ border:1px solid #000; padding:6px 8px; vertical-align:top; }
   th{ font-weight:700; }
   .hdr td{ vertical-align:top; }
-  .seal-cell{ width:33%; text-align:center; }
+  .seal-cell{ width:38%; text-align:center; }
   .seal{
-    width:56px;height:56px;border:1px dashed #999;border-radius:50%;
-    margin:0 auto;display:flex;align-items:center;justify-content:center;
+    width:52px;height:52px;border:1px dashed #999;border-radius:50%;
+    margin:0 auto 6px;display:flex;align-items:center;justify-content:center;
     font-size:9px;color:#999;
   }
-  .hdr-right{ width:67%; border-left:none; }
-  .hdr-title{ font-weight:700; font-size:14px; margin-bottom:2px; }
-  .meta td{ border-top:none; }
-  .meta tr:first-child td{ border-top:1px solid #000; }
+  .hdr-title{ font-weight:700; font-size:14px; margin-bottom:4px; text-align:left; }
+  .hdr-line{ text-align:left; }
+  .hdr-topright{ width:62%; }
+  .hdr-botright{ width:62%; border-top:none; }
   .ctr{ text-align:center; }
   .num{ text-align:right; }
   .bold{ font-weight:700; }
