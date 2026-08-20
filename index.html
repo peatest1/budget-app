@@ -801,20 +801,16 @@ function downloadWithdrawalSlip(itemCode, entryId){
   const bodyHtml = `
     <table class="hdr">
       <tr>
-        <td class="seal-cell" rowspan="2">
+        <td class="seal-cell">
           <div class="seal">ตรา<br>หน่วยงาน</div>
           <div class="hdr-title">แบบขอเบิกจ่ายเงินและตัดงบประมาณ</div>
           <div class="hdr-line">กฟฟ. &nbsp;${escapeHtml(officeName)}</div>
           <div class="hdr-line">งบ &nbsp;ทำการ</div>
           <div class="hdr-line">หมายเลขศูนย์ต้นทุน &nbsp;${escapeHtml(cc.code)}</div>
         </td>
-        <td class="hdr-topright">
+        <td class="hdr-right">
           เลขที่ กฟฟ. _____________<br>
-          เลขที่ _____________
-        </td>
-      </tr>
-      <tr>
-        <td class="hdr-botright">
+          เลขที่ _____________<br>
           วันที่ ${escapeHtml(dateParts.day)} &nbsp;เดือน ${escapeHtml(dateParts.month)} &nbsp;พ.ศ. ${escapeHtml(dateParts.year)}<br>
           ผู้เบิก ${escapeHtml(payerName)} &nbsp;&nbsp;&nbsp; ${escapeHtml(payerCode)}<br>
           ตำแหน่ง/ที่อยู่ &nbsp;${escapeHtml(payerPosition)}
@@ -839,7 +835,7 @@ function downloadWithdrawalSlip(itemCode, entryId){
           <td class="ctr">-</td>
           <td class="num hl">${fmt2(row.amount)}</td>
         </tr>
-        ${[1,2,3,4,5,6].map(()=>`<tr><td>&nbsp;</td><td></td><td></td><td></td><td></td></tr>`).join('')}
+        ${[1,2,3,4,5].map(()=>`<tr><td>&nbsp;</td><td></td><td></td><td></td><td></td></tr>`).join('')}
         <tr>
           <td colspan="5">(มีหลักฐานประกอบแนบ รวม _______ ฉบับ)</td>
         </tr>
@@ -855,7 +851,7 @@ function downloadWithdrawalSlip(itemCode, entryId){
       <tr>
         <td style="width:34%;">ชื่อ-รหัสบัญชี</td>
         <td class="hl" colspan="2">${escapeHtml(item.label)}</td>
-        <td class="ctr" rowspan="4">รวมค่าใช้จ่าย</td>
+        <td class="ctr" rowspan="3">รวมค่าใช้จ่าย</td>
       </tr>
       <tr>
         <td>รหัสศูนย์ต้นทุน</td>
@@ -930,8 +926,7 @@ function downloadWithdrawalSlip(itemCode, entryId){
   }
   .hdr-title{ font-weight:700; font-size:14px; margin-bottom:4px; text-align:left; }
   .hdr-line{ text-align:left; }
-  .hdr-topright{ width:62%; }
-  .hdr-botright{ width:62%; border-top:none; }
+  .hdr-right{ width:62%; }
   .ctr{ text-align:center; }
   .num{ text-align:right; }
   .bold{ font-weight:700; }
