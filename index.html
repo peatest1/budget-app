@@ -849,8 +849,14 @@ function downloadWithdrawalSlip(itemCode, entryId){
     </table>
     <div class="section-label">รายละเอียดค่าใช้จ่ายตามศูนย์ต้นทุนประกอบใบสำคัญจ่ายเงิน</div>
     <table class="detail">
+      <colgroup>
+        <col style="width:28%;">
+        <col style="width:24%;">
+        <col style="width:24%;">
+        <col style="width:24%;">
+      </colgroup>
       <tr>
-        <td style="width:30%;">ชื่อ-รหัสบัญชี</td>
+        <td>ชื่อ-รหัสบัญชี</td>
         <td class="hl">${escapeHtml(item.label)}</td>
         <td></td>
         <td class="ctr">รวมค่าใช้จ่าย</td>
@@ -889,11 +895,11 @@ function downloadWithdrawalSlip(itemCode, entryId){
         <td style="width:34%;">ชื่อ-รหัสบัญชี</td>
         <td class="ctr">เบี้ยเลี้ยง</td>
         <td class="ctr">ที่พัก</td>
-        <td class="ctr" rowspan="4">รวมค่าใช้จ่าย</td>
+        <td class="ctr" rowspan="2">รวมค่าใช้จ่าย</td>
       </tr>
       <tr><td>WBS / PM order</td><td></td><td></td></tr>
-      <tr><td>กิจกรรม</td><td></td><td></td></tr>
-      <tr><td>โครงข่าย</td><td></td><td></td></tr>
+      <tr><td>กิจกรรม</td><td></td><td></td><td></td></tr>
+      <tr><td>โครงข่าย</td><td></td><td></td><td></td></tr>
       <tr>
         <td class="bold">รวม</td>
         <td class="ctr">-</td>
@@ -910,10 +916,18 @@ function downloadWithdrawalSlip(itemCode, entryId){
         หมายเหตุ - การระบุจำนวนเงินไม่เครดิตภาษีซื้อ ให้ใช้ยอดเงินรวมภาษี<br>
         &nbsp;&nbsp;&nbsp;&nbsp; - กรณีค่าใช้จ่ายที่เครดิตภาษีซื้อ ให้ใช้ยอดมูลค่าสินค้าไม่รวมภาษี
       </div>
-      <div class="sig-block">
-        ลงชื่อ ________________________ ผู้ควบคุมงบ<br>
-        ( &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; )
-      </div>
+      <table class="sig-block">
+        <tr>
+          <td class="sig-label">ลงชื่อ</td>
+          <td class="sig-blank">________________________</td>
+          <td class="sig-label">ผู้ควบคุมงบ</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td class="ctr">( &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; )</td>
+          <td></td>
+        </tr>
+      </table>
     </div>
   `;
 
@@ -935,18 +949,18 @@ function downloadWithdrawalSlip(itemCode, entryId){
   td, th{ border:1px solid #000; padding:6px 8px; vertical-align:top; }
   th{ font-weight:700; }
   .hdr td{ vertical-align:top; }
-  .seal-cell{ width:38%; text-align:center; }
+  .seal-cell{ width:50%; text-align:center; }
   .seal-img{
     width:58px;height:58px;object-fit:contain;
     display:block;margin:0 auto 6px;
   }
   .hdr-title{ font-weight:700; font-size:17px; margin-bottom:4px; text-align:left; }
   .hdr-line{ text-align:left; }
-  .hdr-right{ width:62%; }
+  .hdr-right{ width:50%; }
   .ctr{ text-align:center; }
   .num{ text-align:right; }
   .bold{ font-weight:700; }
-  .hl{ color:#c1462f; }
+  .hl{ color:#000; }
   .section-label{ text-align:center; font-size:15px; margin-bottom:8px; }
   .detail td{ font-size:15px; }
   .note-sig-row{
@@ -954,7 +968,10 @@ function downloadWithdrawalSlip(itemCode, entryId){
     margin-top:34px; gap:20px; flex-wrap:wrap;
   }
   .note{ font-size:13.5px; line-height:1.7; flex:1; min-width:260px; }
-  .sig-block{ font-size:13.5px; line-height:1.9; text-align:right; white-space:nowrap; }
+  .sig-block{ font-size:13.5px; width:auto; border-collapse:collapse; }
+  .sig-block td{ border:none; padding:2px 4px; white-space:nowrap; }
+  .sig-block .sig-label{ text-align:left; }
+  .sig-block .sig-blank{ text-align:center; }
   @media print{
     body{ padding:0; }
   }
