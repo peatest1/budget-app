@@ -924,7 +924,7 @@ function downloadWithdrawalSlip(itemCode, entryId){
         </tr>
         <tr>
           <td></td>
-          <td class="ctr">( &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; )</td>
+          <td class="ctr">( &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; )</td>
           <td></td>
         </tr>
       </table>
@@ -956,13 +956,14 @@ function downloadWithdrawalSlip(itemCode, entryId){
   }
   .hdr-title{ font-weight:700; font-size:17px; margin-bottom:4px; text-align:left; }
   .hdr-line{ text-align:left; }
-  .hdr-right{ width:50%; }
+  .hdr-right{ width:50%; vertical-align:bottom; }
   .ctr{ text-align:center; }
   .num{ text-align:right; }
   .bold{ font-weight:700; }
   .hl{ color:#000; }
   .section-label{ text-align:center; font-size:15px; margin-bottom:8px; }
-  .detail td{ font-size:15px; }
+  .detail{ table-layout:fixed; }
+  .detail td{ font-size:15px; word-wrap:break-word; overflow-wrap:break-word; }
   .note-sig-row{
     display:flex; justify-content:space-between; align-items:flex-start;
     margin-top:34px; gap:20px; flex-wrap:wrap;
