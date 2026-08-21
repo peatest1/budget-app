@@ -850,25 +850,37 @@ function downloadWithdrawalSlip(itemCode, entryId){
     <div class="section-label">รายละเอียดค่าใช้จ่ายตามศูนย์ต้นทุนประกอบใบสำคัญจ่ายเงิน</div>
     <table class="detail">
       <tr>
-        <td style="width:34%;">ชื่อ-รหัสบัญชี</td>
+        <td style="width:30%;">ชื่อ-รหัสบัญชี</td>
         <td class="hl">${escapeHtml(item.label)}</td>
-        <td class="ctr" rowspan="3">รวมค่าใช้จ่าย</td>
+        <td></td>
+        <td class="ctr">รวมค่าใช้จ่าย</td>
       </tr>
       <tr>
         <td>รหัสศูนย์ต้นทุน</td>
         <td>${escapeHtml(item.code)}</td>
+        <td></td>
+        <td></td>
       </tr>
       <tr>
         <td>${escapeHtml(cc.code)}</td>
         <td class="num hl">${fmt2(row.amount)}</td>
+        <td></td>
+        <td class="num hl">${fmt2(row.amount)}</td>
+      </tr>
+      <tr>
+        <td>&nbsp;</td>
+        <td></td>
+        <td></td>
+        <td></td>
       </tr>
       <tr>
         <td class="bold">รวม</td>
         <td class="num bold">${fmt2(row.amount)}</td>
+        <td></td>
         <td class="num bold">${fmt2(row.amount)}</td>
       </tr>
       <tr>
-        <td colspan="2">งบประมาณคงเหลือหลังเบิกจ่ายครั้งนี้</td>
+        <td colspan="3">งบประมาณคงเหลือหลังเบิกจ่ายครั้งนี้</td>
         <td class="num bold hl">${fmt2(rowRemaining)}</td>
       </tr>
     </table>
@@ -893,9 +905,15 @@ function downloadWithdrawalSlip(itemCode, entryId){
         <td></td>
       </tr>
     </table>
-    <div class="note">
-      หมายเหตุ - การระบุจำนวนเงินไม่เครดิตภาษีซื้อ ให้ใช้ยอดเงินรวมภาษี &nbsp;&nbsp;&nbsp;&nbsp; ลงชื่อ ________________________ ผู้ควบคุมงบ<br>
-      &nbsp;&nbsp;&nbsp;&nbsp; - กรณีค่าใช้จ่ายที่เครดิตภาษีซื้อ ให้ใช้ยอดมูลค่าสินค้าไม่รวมภาษี &nbsp;&nbsp;&nbsp;&nbsp; ( &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; )
+    <div class="note-sig-row">
+      <div class="note">
+        หมายเหตุ - การระบุจำนวนเงินไม่เครดิตภาษีซื้อ ให้ใช้ยอดเงินรวมภาษี<br>
+        &nbsp;&nbsp;&nbsp;&nbsp; - กรณีค่าใช้จ่ายที่เครดิตภาษีซื้อ ให้ใช้ยอดมูลค่าสินค้าไม่รวมภาษี
+      </div>
+      <div class="sig-block">
+        ลงชื่อ ________________________ ผู้ควบคุมงบ<br>
+        ( &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; )
+      </div>
     </div>
   `;
 
@@ -905,12 +923,12 @@ function downloadWithdrawalSlip(itemCode, entryId){
 <meta charset="UTF-8">
 <title>${escapeHtml(docTitle)}</title>
 <style>
-  @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+Thai:wght@400;500;600;700&display=swap');
+  @import url('https://fonts.googleapis.com/css2?family=Sarabun:wght@400;500;600;700&family=Noto+Sans+Thai:wght@400;500;600;700&display=swap');
   @page { size: A4; margin: 14mm; }
   *{ box-sizing:border-box; }
   body{
-    font-family:'Noto Sans Thai', sans-serif;
-    color:#000; font-size:13px; margin:0; padding:16px;
+    font-family:'TH SarabunPSK','Sarabun','Noto Sans Thai', sans-serif;
+    color:#000; font-size:16px; margin:0; padding:16px;
     background:#fff;
   }
   table{ width:100%; border-collapse:collapse; margin-bottom:10px; }
@@ -922,16 +940,21 @@ function downloadWithdrawalSlip(itemCode, entryId){
     width:58px;height:58px;object-fit:contain;
     display:block;margin:0 auto 6px;
   }
-  .hdr-title{ font-weight:700; font-size:14px; margin-bottom:4px; text-align:left; }
+  .hdr-title{ font-weight:700; font-size:17px; margin-bottom:4px; text-align:left; }
   .hdr-line{ text-align:left; }
   .hdr-right{ width:62%; }
   .ctr{ text-align:center; }
   .num{ text-align:right; }
   .bold{ font-weight:700; }
   .hl{ color:#c1462f; }
-  .section-label{ text-align:center; font-size:12px; margin-bottom:8px; }
-  .detail td{ font-size:12.5px; }
-  .note{ font-size:11px; line-height:1.7; margin-top:6px; }
+  .section-label{ text-align:center; font-size:15px; margin-bottom:8px; }
+  .detail td{ font-size:15px; }
+  .note-sig-row{
+    display:flex; justify-content:space-between; align-items:flex-start;
+    margin-top:34px; gap:20px; flex-wrap:wrap;
+  }
+  .note{ font-size:13.5px; line-height:1.7; flex:1; min-width:260px; }
+  .sig-block{ font-size:13.5px; line-height:1.9; text-align:right; white-space:nowrap; }
   @media print{
     body{ padding:0; }
   }
