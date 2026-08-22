@@ -153,6 +153,7 @@ body{
   padding:3px 8px;border-radius:20px;
 }
 .role-badge.admin{background:rgba(232,163,61,.16);color:var(--amber);border:1px solid rgba(232,163,61,.4);}
+.role-badge.deptadmin{background:rgba(47,122,110,.18);color:#5FC2AE;border:1px solid rgba(47,122,110,.45);}
 .role-badge.member{background:rgba(255,255,255,.08);color:#B7C2C6;border:1px solid rgba(255,255,255,.16);}
 
 .account-row{
@@ -448,9 +449,14 @@ table.ledger .del-x:hover{color:var(--rust);}
         <label>บทบาทของคุณ</label>
         <div class="role-pick" id="rolePick">
           <label id="roleLabelMember"><input type="radio" name="authRole" value="member" checked> สมาชิกทั่วไป</label>
+          <label id="roleLabelDeptAdmin"><input type="radio" name="authRole" value="dept_admin"> ผู้ดูแลแผนก</label>
           <label id="roleLabelAdmin"><input type="radio" name="authRole" value="admin"> แอดมิน</label>
         </div>
-        <div class="role-hint">สมาชิกทั่วไป: เห็นและเพิ่มรายการได้เฉพาะแผนกตัวเอง · แอดมิน: เข้าดูได้ทุกแผนก จัดการศูนย์ต้นทุนและแก้ไขงบได้</div>
+        <div class="role-hint">สมาชิกทั่วไป: เห็น/เพิ่มรายการได้เฉพาะแผนกตัวเอง · ผู้ดูแลแผนก: จัดการศูนย์ต้นทุนและงบได้เฉพาะแผนกตัวเอง · แอดมิน: จัดการได้ทุกแผนก</div>
+      </div>
+      <div class="field hidden" id="authCodeField">
+        <label>รหัสยืนยันสิทธิ์ (สำหรับผู้ดูแลแผนก/แอดมิน)</label>
+        <input type="text" id="authCode" placeholder="ขอรหัสได้จากผู้ดูแลระบบ">
       </div>
       <div class="field hidden" id="authDeptField">
         <label>สังกัดแผนก</label>
@@ -497,7 +503,7 @@ table.ledger .del-x:hover{color:var(--rust);}
 
 <!-- New cost center modal -->
 <div class="modal-overlay hidden" id="newCcModal">
-  <div class="modal">
+  <div class="modal" style="max-width:520px;">
     <h2>สร้างศูนย์ต้นทุนใหม่</h2>
     <p class="modal-desc">จะสร้างในปีงบประมาณที่กำลังเลือกอยู่</p>
     <div class="field">
@@ -507,6 +513,17 @@ table.ledger .del-x:hover{color:var(--rust);}
     <div class="field">
       <label>ชื่อกลุ่ม/แผนก</label>
       <input type="text" id="ccName" placeholder="เช่น ผปบ. แผนกก่อสร้างแรงสูง">
+    </div>
+    <div class="field">
+      <label style="display:flex;justify-content:space-between;align-items:center;">
+        <span>เลือกรายการบัญชีที่จะใช้ในศูนย์ต้นทุนนี้</span>
+        <span style="display:flex;gap:8px;">
+          <button type="button" onclick="toggleAllCcSeedItems(true)" style="background:none;border:none;color:var(--amber-dark);font-size:11px;font-weight:700;cursor:pointer;text-decoration:underline;">เลือกทั้งหมด</button>
+          <button type="button" onclick="toggleAllCcSeedItems(false)" style="background:none;border:none;color:var(--text-muted);font-size:11px;font-weight:700;cursor:pointer;text-decoration:underline;">ไม่เลือกเลย</button>
+        </span>
+      </label>
+      <div class="check-list" id="ccSeedItemList" style="max-height:260px;"></div>
+      <div class="role-hint">ไม่จำเป็นต้องเลือกครบทุกบัญชี — เพิ่ม/ลบรายการบัญชีทีหลังได้เสมอ</div>
     </div>
     <div class="modal-actions">
       <button class="btn btn-outline" onclick="closeModal('newCcModal')">ยกเลิก</button>
@@ -747,6 +764,15 @@ function flashSaved(isError){
   setTimeout(()=> el.classList.remove('show'), 1400);
 }
 function isAdmin(){ return state.userRole === 'admin'; }
+function isDeptAdmin(){ return state.userRole === 'dept_admin'; }
+// True if the user can manage structure (cost centers, budget items/codes) for the given department:
+// full admins can manage any department; dept_admins only their own assigned department.
+function canManageDept(deptKey){
+  if(isAdmin()) return true;
+  return isDeptAdmin() && state.userDept === deptKey;
+}
+const ROLE_LABELS = { member:'สมาชิกทั่วไป', dept_admin:'ผู้ดูแลแผนก', admin:'แอดมิน' };
+const ADMIN_SIGNUP_CODE = 'PEABETONG2569'; // required to register as ผู้ดูแลแผนก or แอดมิน (case-insensitive)
 
 /* ============ Thai date / number-to-words helpers (for withdrawal slip PDF) ============ */
 const THAI_MONTHS = ['','มกราคม','กุมภาพันธ์','มีนาคม','เมษายน','พฤษภาคม','มิถุนายน','กรกฎาคม','สิงหาคม','กันยายน','ตุลาคม','พฤศจิกายน','ธันวาคม'];
@@ -967,15 +993,14 @@ function wrapSlipDocument(bodyHtml, docTitle){
   table{ width:100%; border-collapse:collapse; margin-bottom:10px; }
   td, th{ border:1px solid #000; padding:6px 8px; vertical-align:top; }
   th{ font-weight:700; }
-  .hdr td{ vertical-align:top; }
-  .seal-cell{ width:50%; text-align:center; }
+  .seal-cell{ width:50%; text-align:center; vertical-align:top; }
   .seal-img{
-    width:58px;height:58px;object-fit:contain;
+    width:85px;height:85px;object-fit:contain;
     display:block;margin:0 auto 6px;
   }
   .hdr-title{ font-weight:700; font-size:17px; margin-bottom:4px; text-align:left; }
   .hdr-line{ text-align:left; }
-  .hdr-right{ width:50%; vertical-align:bottom; }
+  .hdr td.hdr-right{ width:50%; vertical-align:bottom; }
   .ctr{ text-align:center; }
   .num{ text-align:right; }
   .bold{ font-weight:700; }
@@ -1102,8 +1127,10 @@ function renderAuthScreen(){
 function updateRolePickUi(){
   const val = document.querySelector('#rolePick input[name="authRole"]:checked')?.value || 'member';
   document.getElementById('roleLabelMember').classList.toggle('checked', val==='member');
+  document.getElementById('roleLabelDeptAdmin').classList.toggle('checked', val==='dept_admin');
   document.getElementById('roleLabelAdmin').classList.toggle('checked', val==='admin');
   document.getElementById('authDeptField').classList.toggle('hidden', val==='admin');
+  document.getElementById('authCodeField').classList.toggle('hidden', val==='member');
 }
 async function submitAuth(){
   const email = document.getElementById('authEmail').value.trim();
@@ -1120,19 +1147,25 @@ async function submitAuth(){
       const displayName = document.getElementById('authName').value.trim();
       const role = document.querySelector('#rolePick input[name="authRole"]:checked')?.value || 'member';
       const deptKey = document.getElementById('authDept').value;
+      const enteredCode = document.getElementById('authCode').value.trim();
       if(!displayName){
         errEl.textContent = 'กรุณากรอกชื่อ-นามสกุล';
         errEl.classList.add('show');
         return;
       }
-      if(role === 'member' && !deptKey){
+      if((role === 'member' || role === 'dept_admin') && !deptKey){
         errEl.textContent = 'กรุณาเลือกแผนก';
+        errEl.classList.add('show');
+        return;
+      }
+      if(role !== 'member' && enteredCode.toUpperCase() !== ADMIN_SIGNUP_CODE.toUpperCase()){
+        errEl.textContent = 'รหัสยืนยันสิทธิ์ไม่ถูกต้อง กรุณาติดต่อผู้ดูแลระบบเพื่อขอรหัส';
         errEl.classList.add('show');
         return;
       }
       const cred = await window.fb.signUp(email, password);
       const profile = { email, displayName, role };
-      if(role === 'member') profile.deptKey = deptKey;
+      if(role === 'member' || role === 'dept_admin') profile.deptKey = deptKey;
       await window.fb.setUserProfile(cred.user.uid, profile);
     } else {
       await window.fb.signIn(email, password);
@@ -1205,7 +1238,7 @@ function ccTotals(cc){
   return {budget, totalPaid, remaining: budget-totalPaid};
 }
 function canDeleteEntry(entry){
-  if(isAdmin()) return true;
+  if(canManageDept(state.activeDept)) return true;
   return !!(entry.addedBy && state.user && entry.addedBy === state.user.uid);
 }
 
@@ -1256,20 +1289,31 @@ function promptAddYear(){
 
 /* ============ cost center CRUD ============ */
 function openNewCcModal(){
-  if(!isAdmin()){ alert('เฉพาะแอดมินเท่านั้นที่สร้างศูนย์ต้นทุนได้'); return; }
+  if(!canManageDept(state.activeDept)){ alert('คุณไม่มีสิทธิ์สร้างศูนย์ต้นทุนในแผนกนี้'); return; }
   document.getElementById('ccCode').value='';
   document.getElementById('ccName').value='';
+  renderCcSeedItemList();
   openModal('newCcModal');
   setTimeout(()=>document.getElementById('ccCode').focus(),50);
+}
+function renderCcSeedItemList(){
+  const list = document.getElementById('ccSeedItemList');
+  list.innerHTML = SEED_ITEMS_030.map((s,i)=>`
+    <label class="check-row">
+      <input type="checkbox" class="cc-seed-check" data-idx="${i}" checked>
+      <span><span class="mono" style="color:var(--amber-dark);font-weight:700;">${escapeHtml(s.code)}</span> — ${escapeHtml(s.label)}</span>
+    </label>
+  `).join('');
+}
+function toggleAllCcSeedItems(checked){
+  document.querySelectorAll('.cc-seed-check').forEach(cb=> cb.checked = checked);
 }
 async function submitNewCc(){
   const code = document.getElementById('ccCode').value.trim();
   const name = document.getElementById('ccName').value.trim();
   if(!code || !name){ alert('กรุณากรอกรหัสและชื่อให้ครบ'); return; }
-  // Seed with the standard 34-item list on each department's very first cost center.
-  const isFirstForDept = ccsForYear(state.activeYear).length === 0
-    && !state.costCenters.some(c=>c.deptKey===state.activeDept);
-  const items = isFirstForDept ? SEED_ITEMS_030.map(seedToItem) : [];
+  const checkedIdxs = [...document.querySelectorAll('.cc-seed-check:checked')].map(cb=>Number(cb.dataset.idx));
+  const items = checkedIdxs.map(i=> seedToItem(SEED_ITEMS_030[i]));
   const cc = {
     id: uid(), code, name, year: state.activeYear, deptKey: state.activeDept,
     createdBy: state.user ? state.user.uid : null,
@@ -1291,7 +1335,7 @@ function seedToItem(s){
   return { code:s.code, label:s.label, example:s.example, budget:s.budget, entries:[] };
 }
 function openEditCcModal(){
-  if(!isAdmin()){ alert('เฉพาะแอดมินเท่านั้นที่แก้ไขศูนย์ต้นทุนได้'); return; }
+  if(!canManageDept(state.activeDept)){ alert('คุณไม่มีสิทธิ์แก้ไขศูนย์ต้นทุนในแผนกนี้'); return; }
   const cc = getCc(state.activeCcId);
   if(!cc) return;
   document.getElementById('ecCode').value = cc.code;
@@ -1300,7 +1344,7 @@ function openEditCcModal(){
 }
 function submitEditCc(){
   const cc = getCc(state.activeCcId);
-  if(!cc || !isAdmin()){ alert('เฉพาะแอดมินเท่านั้นที่แก้ไขได้'); return; }
+  if(!cc || !canManageDept(cc.deptKey)){ alert('คุณไม่มีสิทธิ์แก้ไขศูนย์ต้นทุนนี้'); return; }
   const code = document.getElementById('ecCode').value.trim();
   const name = document.getElementById('ecName').value.trim();
   if(!code || !name){ alert('กรุณากรอกให้ครบ'); return; }
@@ -1310,7 +1354,7 @@ function submitEditCc(){
 }
 async function deleteCc(){
   const cc = getCc(state.activeCcId);
-  if(!cc || !isAdmin()){ alert('เฉพาะแอดมินเท่านั้นที่ลบศูนย์ต้นทุนได้'); return; }
+  if(!cc || !canManageDept(cc.deptKey)){ alert('คุณไม่มีสิทธิ์ลบศูนย์ต้นทุนนี้'); return; }
   if(!confirm('ยืนยันลบศูนย์ต้นทุน "'+cc.code+' — '+cc.name+'" ? ข้อมูลทั้งหมดจะหายไป')) return;
   state.activeCcId = null; state.activeItemKey = null;
   render();
@@ -1331,7 +1375,7 @@ function backToItemGrid(){ state.activeItemKey = null; render(); }
 
 /* ============ budget item CRUD ============ */
 function openAddItemModal(){
-  if(!isAdmin()){ alert('เฉพาะแอดมินเท่านั้นที่เพิ่มรายการงบประมาณได้'); return; }
+  if(!canManageDept(state.activeDept)){ alert('คุณไม่มีสิทธิ์เพิ่มรายการงบประมาณในแผนกนี้'); return; }
   document.getElementById('aiCode').value='';
   document.getElementById('aiLabel').value='';
   document.getElementById('aiBudget').value='';
@@ -1339,7 +1383,7 @@ function openAddItemModal(){
 }
 function submitAddItem(){
   const cc = getCc(state.activeCcId);
-  if(!cc || !isAdmin()){ alert('เฉพาะแอดมินเท่านั้นที่เพิ่มรายการได้'); return; }
+  if(!cc || !canManageDept(cc.deptKey)){ alert('คุณไม่มีสิทธิ์เพิ่มรายการนี้'); return; }
   const code = document.getElementById('aiCode').value.trim();
   const label = document.getElementById('aiLabel').value.trim();
   const budget = Math.max(0, Number(document.getElementById('aiBudget').value)||0);
@@ -1353,7 +1397,7 @@ function submitAddItem(){
 }
 function removeItem(itemCode){
   const cc = getCc(state.activeCcId);
-  if(!cc || !isAdmin()){ alert('เฉพาะแอดมินเท่านั้นที่ลบรายการงบประมาณได้'); return; }
+  if(!cc || !canManageDept(cc.deptKey)){ alert('คุณไม่มีสิทธิ์ลบรายการงบประมาณนี้'); return; }
   const item = cc.items.find(i=>i.code===itemCode);
   if(!confirm('ยืนยันลบรายการ "'+item.code+' '+item.label+'" ออกจากศูนย์ต้นทุนนี้? รายการจ่ายทั้งหมดในนี้จะหายไป')) return;
   cc.items = cc.items.filter(i=>i.code!==itemCode);
@@ -1362,14 +1406,14 @@ function removeItem(itemCode){
 }
 function updateItemBudget(itemCode, value){
   const cc = getCc(state.activeCcId);
-  if(!cc || !isAdmin()){ alert('เฉพาะแอดมินเท่านั้นที่แก้ไขงบประมาณได้'); render(); return; }
+  if(!cc || !canManageDept(cc.deptKey)){ alert('คุณไม่มีสิทธิ์แก้ไขงบประมาณนี้'); render(); return; }
   const item = cc.items.find(i=>i.code===itemCode);
   item.budget = Math.max(0, Number(value)||0);
   saveCc(cc); render();
 }
 function updateItemMeta(itemCode, field, value){
   const cc = getCc(state.activeCcId);
-  if(!cc || !isAdmin()){ alert('เฉพาะแอดมินเท่านั้นที่แก้ไขได้'); render(); return; }
+  if(!cc || !canManageDept(cc.deptKey)){ alert('คุณไม่มีสิทธิ์แก้ไขรายการนี้'); render(); return; }
   const item = cc.items.find(i=>i.code===itemCode);
   item[field] = value;
   saveCc(cc); render();
@@ -1429,12 +1473,16 @@ function render(){
 
 function renderRoleBadge(){
   const el = document.getElementById('roleBadgeWrap');
-  el.innerHTML = isAdmin()
-    ? `<div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
-        <span class="role-badge admin">★ แอดมิน</span>
+  if(isAdmin()){
+    el.innerHTML = `<div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
+        <span class="role-badge admin">★ ${ROLE_LABELS.admin}</span>
         <button onclick="openOrgSettingsModal()" style="background:none;border:1px solid rgba(255,255,255,.22);border-radius:6px;padding:3px 9px;font-size:11px;font-weight:600;color:#B7C2C6;cursor:pointer;font-family:'Noto Sans Thai',sans-serif;">ตั้งค่าหน่วยงาน</button>
-       </div>`
-    : `<span class="role-badge member">สมาชิกทั่วไป</span>`;
+       </div>`;
+  } else if(isDeptAdmin()){
+    el.innerHTML = `<span class="role-badge deptadmin">◆ ${ROLE_LABELS.dept_admin}</span>`;
+  } else {
+    el.innerHTML = `<span class="role-badge member">${ROLE_LABELS.member}</span>`;
+  }
 }
 function renderAccountRow(){
   const el = document.getElementById('accountRow');
@@ -1525,10 +1573,11 @@ function renderYearPicker(){
 function renderSidebar(){
   const list = document.getElementById('ccList');
   const ccs = ccsForYear(state.activeYear);
-  document.getElementById('newCcBtn').classList.toggle('hidden', !isAdmin());
+  const canManage = canManageDept(state.activeDept);
+  document.getElementById('newCcBtn').classList.toggle('hidden', !canManage);
   if(!ccs.length){
     const dName = deptByKey(state.activeDept)?.abbr || '';
-    list.innerHTML = `<div class="list-empty">ยังไม่มีศูนย์ต้นทุนของ ${dName} ในปี ${state.activeYear}${isAdmin() ? '<br>กด "+ ศูนย์ต้นทุนใหม่" เพื่อเริ่มต้น' : '<br>รอแอดมินสร้างศูนย์ต้นทุน'}</div>`;
+    list.innerHTML = `<div class="list-empty">ยังไม่มีศูนย์ต้นทุนของ ${dName} ในปี ${state.activeYear}${canManage ? '<br>กด "+ ศูนย์ต้นทุนใหม่" เพื่อเริ่มต้น' : '<br>รอผู้ดูแลแผนกหรือแอดมินสร้างศูนย์ต้นทุน'}</div>`;
     return;
   }
   list.innerHTML = ccs.map(c=>{
@@ -1545,12 +1594,13 @@ function renderMain(){
   const cc = getCc(state.activeCcId);
   const dName = deptByKey(state.activeDept);
   const deptLabel = dName ? dName.abbr+' '+dName.name : '';
+  const canManage = canManageDept(state.activeDept);
   if(!cc || cc.year !== state.activeYear || cc.deptKey !== state.activeDept){
     main.innerHTML = `<div class="welcome">
       <h1>สมุดคุมงบประมาณ — ${escapeHtml(deptLabel)}</h1>
       <p>เลือกศูนย์ต้นทุนจากเมนูด้านซ้าย เพื่อดูรายการงบประมาณและบันทึกรายการจ่าย
-      ${isAdmin() ? 'กด "+ ศูนย์ต้นทุนใหม่" เพื่อสร้างศูนย์ต้นทุนสำหรับแผนกและปีงบประมาณนี้' : 'หากยังไม่มีศูนย์ต้นทุน กรุณาติดต่อแอดมิน'}</p>
-      ${isAdmin() ? `<button class="btn btn-primary" onclick="openNewCcModal()">+ สร้างศูนย์ต้นทุนแรก</button>` : ''}
+      ${canManage ? 'กด "+ ศูนย์ต้นทุนใหม่" เพื่อสร้างศูนย์ต้นทุนสำหรับแผนกและปีงบประมาณนี้' : 'หากยังไม่มีศูนย์ต้นทุน กรุณาติดต่อผู้ดูแลแผนกหรือแอดมิน'}</p>
+      ${canManage ? `<button class="btn btn-primary" onclick="openNewCcModal()">+ สร้างศูนย์ต้นทุนแรก</button>` : ''}
     </div>`;
     return;
   }
@@ -1562,7 +1612,7 @@ function renderMain(){
         <h1>${escapeHtml(cc.name)}</h1>
       </div>
       <div class="header-actions">
-        ${isAdmin() ? `
+        ${canManage ? `
           <button class="btn btn-outline btn-sm" onclick="openEditCcModal()">แก้ไข</button>
           <button class="btn btn-danger-ghost btn-sm" onclick="deleteCc()">ลบศูนย์ต้นทุน</button>
         ` : `<span class="eyebrow" style="color:var(--text-faint);">ดูอย่างเดียว · เพิ่มรายการจ่ายได้</span>`}
@@ -1584,11 +1634,11 @@ function renderMain(){
   if(!state.activeItemKey){
     if(!items.length){
       html += `<div class="empty-state"><p>ยังไม่มีรายการงบประมาณในศูนย์ต้นทุนนี้</p>
-        ${isAdmin() ? `<button class="btn btn-primary btn-sm" onclick="openAddItemModal()">+ เพิ่มรายการงบประมาณ</button>` : `<span style="font-size:12.5px;color:var(--text-faint);">รอแอดมินเพิ่มรายการ</span>`}</div>`;
+        ${canManage ? `<button class="btn btn-primary btn-sm" onclick="openAddItemModal()">+ เพิ่มรายการงบประมาณ</button>` : `<span style="font-size:12.5px;color:var(--text-faint);">รอผู้ดูแลแผนกหรือแอดมินเพิ่มรายการ</span>`}</div>`;
     } else {
       html += `<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
         <div class="eyebrow" style="color:var(--text-faint);">รายการงบประมาณ (${items.length})</div>
-        ${isAdmin() ? `<button class="btn btn-outline btn-sm" onclick="openAddItemModal()">+ เพิ่มรายการ</button>` : ''}
+        ${canManage ? `<button class="btn btn-outline btn-sm" onclick="openAddItemModal()">+ เพิ่มรายการ</button>` : ''}
       </div>`;
       html += `<div style="display:flex;gap:14px;padding:0 16px;margin-bottom:6px;font-size:11px;color:var(--text-faint);font-weight:700;text-transform:uppercase;letter-spacing:.04em;">
         <span style="width:76px;flex-shrink:0;">รหัสบัญชี</span>
@@ -1654,7 +1704,7 @@ function renderItemDetail(cc, item){
   const barWidth = Math.min(pct,100);
   const gClass = gaugeClass(pct);
   const remainCls = t.remaining<0?'neg':'pos';
-  const admin = isAdmin();
+  const admin = canManageDept(cc.deptKey);
 
   let rowsHtml = '';
   if(!t.rows.length){
@@ -1728,7 +1778,7 @@ function renderItemDetail(cc, item){
       </div>
       ${admin
         ? `<div style="margin-top:14px;"><button class="btn btn-danger-ghost btn-sm" onclick="removeItem('${escapeHtml(item.code)}')">ลบรายการนี้ออกจากศูนย์ต้นทุน</button></div>`
-        : `<div style="margin-top:12px;font-size:11.5px;color:var(--text-faint);">งบและรหัสแก้ไขได้เฉพาะแอดมิน — คุณเพิ่มรายการจ่ายได้ และลบได้เฉพาะรายการที่คุณเพิ่มเอง</div>`}
+        : `<div style="margin-top:12px;font-size:11.5px;color:var(--text-faint);">งบและรหัสแก้ไขได้เฉพาะผู้ดูแลแผนกหรือแอดมิน — คุณเพิ่มรายการจ่ายได้ และลบได้เฉพาะรายการที่คุณเพิ่มเอง</div>`}
     </div>
 
     <div class="entry-form">
@@ -1757,7 +1807,8 @@ function initAuthListener(){
     state.user = {uid:user.uid, email:user.email, displayName:'', position:'', employeeCode:''};
     let profile = null;
     try{ profile = await window.fb.getUserProfile(user.uid); }catch(e){ console.error(e); }
-    state.userRole = (profile && profile.role === 'admin') ? 'admin' : 'member';
+    const loadedRole = profile && profile.role;
+    state.userRole = (loadedRole === 'admin' || loadedRole === 'dept_admin') ? loadedRole : 'member';
     state.user.displayName = (profile && profile.displayName) ? profile.displayName : '';
     state.user.position = (profile && profile.position) ? profile.position : '';
     state.user.employeeCode = (profile && profile.employeeCode) ? profile.employeeCode : '';
