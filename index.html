@@ -772,7 +772,8 @@ function canManageDept(deptKey){
   return isDeptAdmin() && state.userDept === deptKey;
 }
 const ROLE_LABELS = { member:'สมาชิกทั่วไป', dept_admin:'ผู้ดูแลแผนก', admin:'แอดมิน' };
-const ADMIN_SIGNUP_CODE = 'PEABETONG2569'; // required to register as ผู้ดูแลแผนก or แอดมิน (case-insensitive)
+const ADMIN_SIGNUP_CODE = 'PEABETONG2569';       // required to register as แอดมิน (case-insensitive)
+const DEPT_ADMIN_SIGNUP_CODE = 'PEABETONGDEPT';  // required to register as ผู้ดูแลแผนก (case-insensitive)
 
 /* ============ Thai date / number-to-words helpers (for withdrawal slip PDF) ============ */
 const THAI_MONTHS = ['','มกราคม','กุมภาพันธ์','มีนาคม','เมษายน','พฤษภาคม','มิถุนายน','กรกฎาคม','สิงหาคม','กันยายน','ตุลาคม','พฤศจิกายน','ธันวาคม'];
@@ -834,7 +835,7 @@ function buildSlipBodyHtml(cc, entries, payerName, payerCode, payerPosition, doc
           <td class="ctr">-</td>
           <td class="num hl">${fmt2(e.row.amount)}</td>
         </tr>`).join('');
-  const blankItemRowCount = Math.max(0, 6 - entries.length);
+  const blankItemRowCount = Math.max(0, 5 - entries.length);
   const blankItemRows = Array.from({length:blankItemRowCount}).map(()=>`<tr><td>&nbsp;</td><td></td><td></td><td></td><td></td></tr>`).join('');
 
   const s0 = slot(0), s1 = slot(1), s2 = slot(2);
@@ -983,19 +984,19 @@ function wrapSlipDocument(bodyHtml, docTitle){
 <title>${escapeHtml(docTitle)}</title>
 <style>
   @import url('https://fonts.googleapis.com/css2?family=Sarabun:wght@400;500;600;700&family=Noto+Sans+Thai:wght@400;500;600;700&display=swap');
-  @page { size: A4; margin: 14mm; }
+  @page { size: A4; margin: 11mm; }
   *{ box-sizing:border-box; }
   body{
     font-family:'TH SarabunPSK','Sarabun','Noto Sans Thai', sans-serif;
-    color:#000; font-size:16px; margin:0; padding:16px;
+    color:#000; font-size:16px; margin:0; padding:0;
     background:#fff;
   }
-  table{ width:100%; border-collapse:collapse; margin-bottom:10px; }
-  td, th{ border:1px solid #000; padding:6px 8px; vertical-align:top; }
+  table{ width:100%; border-collapse:collapse; margin-bottom:7px; page-break-inside:avoid; }
+  td, th{ border:1px solid #000; padding:5px 7px; vertical-align:top; }
   th{ font-weight:700; }
   .seal-cell{ width:50%; text-align:center; vertical-align:top; }
   .seal-img{
-    width:85px;height:85px;object-fit:contain;
+    width:80px;height:80px;object-fit:contain;
     display:block;margin:0 auto 6px;
   }
   .hdr-title{ font-weight:700; font-size:17px; margin-bottom:4px; text-align:left; }
@@ -1005,20 +1006,20 @@ function wrapSlipDocument(bodyHtml, docTitle){
   .num{ text-align:right; }
   .bold{ font-weight:700; }
   .hl{ color:#000; }
-  .section-label{ text-align:center; font-size:15px; margin-bottom:8px; }
+  .section-label{ text-align:center; font-size:14px; margin-bottom:6px; }
   .detail{ table-layout:fixed; }
-  .detail td{ font-size:15px; word-wrap:break-word; overflow-wrap:break-word; }
+  .detail td{ font-size:14px; word-wrap:break-word; overflow-wrap:break-word; }
   .note-sig-row{
     display:flex; justify-content:space-between; align-items:flex-start;
-    margin-top:34px; gap:20px; flex-wrap:wrap;
+    margin-top:18px; gap:20px; flex-wrap:wrap;
   }
-  .note{ font-size:13.5px; line-height:1.7; flex:1; min-width:260px; }
-  .sig-block{ font-size:13.5px; width:auto; border-collapse:collapse; }
+  .note{ font-size:13px; line-height:1.6; flex:1; min-width:260px; }
+  .sig-block{ font-size:13px; width:auto; border-collapse:collapse; }
   .sig-block td{ border:none; padding:2px 4px; white-space:nowrap; }
   .sig-block .sig-label{ text-align:left; }
   .sig-block .sig-blank{ text-align:center; }
   @media print{
-    body{ padding:0; }
+    body{ padding:0; margin:0; }
   }
 </style>
 </head>
@@ -1158,7 +1159,8 @@ async function submitAuth(){
         errEl.classList.add('show');
         return;
       }
-      if(role !== 'member' && enteredCode.toUpperCase() !== ADMIN_SIGNUP_CODE.toUpperCase()){
+      const requiredCode = role === 'admin' ? ADMIN_SIGNUP_CODE : (role === 'dept_admin' ? DEPT_ADMIN_SIGNUP_CODE : null);
+      if(requiredCode && enteredCode.toUpperCase() !== requiredCode.toUpperCase()){
         errEl.textContent = 'รหัสยืนยันสิทธิ์ไม่ถูกต้อง กรุณาติดต่อผู้ดูแลระบบเพื่อขอรหัส';
         errEl.classList.add('show');
         return;
@@ -1299,9 +1301,9 @@ function openNewCcModal(){
 function renderCcSeedItemList(){
   const list = document.getElementById('ccSeedItemList');
   list.innerHTML = SEED_ITEMS_030.map((s,i)=>`
-    <label class="check-row">
-      <input type="checkbox" class="cc-seed-check" data-idx="${i}" checked>
-      <span><span class="mono" style="color:var(--amber-dark);font-weight:700;">${escapeHtml(s.code)}</span> — ${escapeHtml(s.label)}</span>
+    <label style="display:flex;align-items:flex-start;gap:10px;padding:9px 11px;border:1px solid #D9DEE0;border-radius:8px;cursor:pointer;font-size:13px;line-height:1.45;background:#fff;">
+      <input type="checkbox" class="cc-seed-check" data-idx="${i}" checked style="margin-top:2px;flex-shrink:0;width:15px;height:15px;">
+      <span style="flex:1;color:#1C2B33;"><span style="font-family:'JetBrains Mono',monospace;color:#C7841E;font-weight:700;">${escapeHtml(s.code)}</span> — ${escapeHtml(s.label)}</span>
     </label>
   `).join('');
 }
