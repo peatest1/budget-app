@@ -1445,7 +1445,20 @@ function deleteEntry(itemCode, entryId){
   const item = cc.items.find(i=>i.code===itemCode);
   const entry = item.entries.find(e=>e.id===entryId);
   if(!entry || !canDeleteEntry(entry)){ alert('ลบได้เฉพาะรายการที่แอดมิน หรือตัวคุณเองเป็นคนเพิ่มเข้ามาเท่านั้น'); return; }
-  if(!confirm('ยืนยันลบรายการนี้?')) return;
+
+  const t = itemTotals(item);
+  const idx = t.rows.findIndex(r=>r.id===entryId);
+  const isLast = idx === t.rows.length - 1;
+  const laterCount = t.rows.length - 1 - idx;
+
+  let msg = 'ยืนยันลบรายการนี้?';
+  if(!isLast){
+    msg = `⚠️ รายการนี้ไม่ใช่รายการล่าสุด ยังมีอีก ${laterCount} รายการที่บันทึกไว้หลังจากนี้\n\n`
+        + `การลบจะทำให้ยอด "รวมจ่าย" และ "คงเหลือ" ของทุกรายการที่อยู่หลังจากนี้เปลี่ยนไปทันที `
+        + `และถ้าเคยพิมพ์ใบตัดงบของรายการเหล่านั้นไปแล้ว ตัวเลขในกระดาษที่พิมพ์ไปจะไม่ตรงกับในระบบอีกต่อไป\n\n`
+        + `ยืนยันจะลบหรือไม่?`;
+  }
+  if(!confirm(msg)) return;
   item.entries = item.entries.filter(e=>e.id!==entryId);
   saveCc(cc); render();
 }
