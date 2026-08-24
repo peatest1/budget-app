@@ -521,7 +521,8 @@ table.ledger .del-x:hover{color:var(--rust);}
         </span>
       </label>
       <div class="check-list" id="ccSeedItemList" style="max-height:260px;"></div>
-      <div class="role-hint">ไม่จำเป็นต้องเลือกครบทุกบัญชี — เพิ่ม/ลบรายการบัญชีทีหลังได้เสมอ</div>
+      <button type="button" onclick="addCustomCcItemRow()" style="margin-top:8px;background:none;border:1px dashed var(--amber);color:var(--amber-dark);font-size:12px;font-weight:700;cursor:pointer;padding:7px 10px;border-radius:7px;width:100%;">+ เพิ่มบัญชีเอง (นอกเหนือจากลิสต์)</button>
+      <div class="role-hint">ไม่จำเป็นต้องเลือกครบทุกบัญชี — แก้ไขงบ/เพิ่ม/ลบรายการบัญชีทีหลังได้เสมอ</div>
     </div>
     <div class="modal-actions">
       <button class="btn btn-outline" onclick="closeModal('newCcModal')">ยกเลิก</button>
@@ -1035,14 +1036,22 @@ ${bodyHtml}
 
 function openSlipPrintWindow(bodyHtml, docTitle){
   const fullHtml = wrapSlipDocument(bodyHtml, docTitle);
-  const win = window.open('', '_blank');
-  if(!win){
-    alert('เบราว์เซอร์บล็อกการเปิดหน้าต่างใหม่ กรุณาอนุญาตป๊อปอัปสำหรับเว็บนี้แล้วลองใหม่');
-    return;
-  }
-  win.document.open();
-  win.document.write(fullHtml);
-  win.document.close();
+  const existing = document.getElementById('slipPrintFrame');
+  if(existing) existing.remove();
+  const iframe = document.createElement('iframe');
+  iframe.id = 'slipPrintFrame';
+  iframe.style.position = 'fixed';
+  iframe.style.right = '0';
+  iframe.style.bottom = '0';
+  iframe.style.width = '0';
+  iframe.style.height = '0';
+  iframe.style.border = '0';
+  iframe.setAttribute('aria-hidden', 'true');
+  document.body.appendChild(iframe);
+  const doc = iframe.contentWindow.document;
+  doc.open();
+  doc.write(fullHtml);
+  doc.close();
 }
 
 function downloadWithdrawalSlip(itemCode, entryId){
@@ -1211,6 +1220,16 @@ function getCc(id){ return state.costCenters.find(c=>c.id===id); }
 function ccsForYear(year){
   return state.costCenters.filter(c=>c.year===year && c.deptKey===state.activeDept);
 }
+// If the current department/year has at least one cost center and none is selected yet,
+// jump straight into the first one instead of showing the empty welcome screen.
+function autoSelectFirstCc(){
+  if(state.activeCcId) return;
+  const ccs = ccsForYear(state.activeYear);
+  if(ccs.length){
+    state.activeCcId = ccs[0].id;
+    state.activeItemKey = null;
+  }
+}
 function recomputeYears(){
   const set = new Set([DEFAULT_YEAR]);
   state.costCenters.forEach(c=>set.add(c.year));
@@ -1274,6 +1293,7 @@ function closeModal(id){ document.getElementById(id).classList.add('hidden'); }
 function onYearChange(val){
   state.activeYear = Number(val);
   state.activeCcId = null; state.activeItemKey = null; state.slipSelection = [];
+  autoSelectFirstCc();
   render();
 }
 function promptAddYear(){
@@ -1297,14 +1317,28 @@ function openNewCcModal(){
   openModal('newCcModal');
   setTimeout(()=>document.getElementById('ccCode').focus(),50);
 }
+function ccItemRowHtml(code, label, budget, isCustom){
+  return `
+    <label style="display:flex;align-items:flex-start;gap:8px;padding:9px 11px;border:1px solid #D9DEE0;border-radius:8px;cursor:pointer;font-size:13px;line-height:1.45;background:#fff;" class="cc-item-row">
+      <input type="checkbox" class="cc-seed-check" checked style="margin-top:6px;flex-shrink:0;width:15px;height:15px;">
+      <input type="text" class="cc-item-code" value="${escapeHtml(code)}" placeholder="รหัสบัญชี" style="width:92px;flex-shrink:0;font-family:'JetBrains Mono',monospace;color:#C7841E;font-weight:700;font-size:12.5px;padding:6px 7px;border:1px solid #E6E9EA;border-radius:6px;">
+      <input type="text" class="cc-item-label" value="${escapeHtml(label)}" placeholder="ชื่อรายการบัญชี" style="flex:1;min-width:0;color:#1C2B33;font-size:12.5px;padding:6px 7px;border:1px solid #E6E9EA;border-radius:6px;font-family:'Noto Sans Thai',sans-serif;">
+      <input type="number" class="cc-item-budget" value="${budget}" min="0" step="0.01" placeholder="งบ" style="width:100px;flex-shrink:0;font-family:'JetBrains Mono',monospace;font-size:12.5px;padding:6px 7px;border:1px solid #E6E9EA;border-radius:6px;text-align:right;">
+    </label>
+  `;
+}
 function renderCcSeedItemList(){
   const list = document.getElementById('ccSeedItemList');
-  list.innerHTML = SEED_ITEMS_030.map((s,i)=>`
-    <label style="display:flex;align-items:flex-start;gap:10px;padding:9px 11px;border:1px solid #D9DEE0;border-radius:8px;cursor:pointer;font-size:13px;line-height:1.45;background:#fff;">
-      <input type="checkbox" class="cc-seed-check" data-idx="${i}" checked style="margin-top:2px;flex-shrink:0;width:15px;height:15px;">
-      <span style="flex:1;color:#1C2B33;"><span style="font-family:'JetBrains Mono',monospace;color:#C7841E;font-weight:700;">${escapeHtml(s.code)}</span> — ${escapeHtml(s.label)}</span>
-    </label>
-  `).join('');
+  list.innerHTML = SEED_ITEMS_030.map(s => ccItemRowHtml(s.code, s.label, s.budget, false)).join('');
+}
+function addCustomCcItemRow(){
+  const list = document.getElementById('ccSeedItemList');
+  list.insertAdjacentHTML('beforeend', ccItemRowHtml('', '', 0, true));
+  const rows = list.querySelectorAll('.cc-item-row');
+  const lastRow = rows[rows.length-1];
+  lastRow.scrollIntoView({block:'nearest'});
+  const codeInput = lastRow.querySelector('.cc-item-code');
+  if(codeInput) codeInput.focus();
 }
 function toggleAllCcSeedItems(checked){
   document.querySelectorAll('.cc-seed-check').forEach(cb=> cb.checked = checked);
@@ -1313,8 +1347,23 @@ async function submitNewCc(){
   const code = document.getElementById('ccCode').value.trim();
   const name = document.getElementById('ccName').value.trim();
   if(!code || !name){ alert('กรุณากรอกรหัสและชื่อให้ครบ'); return; }
-  const checkedIdxs = [...document.querySelectorAll('.cc-seed-check:checked')].map(cb=>Number(cb.dataset.idx));
-  const items = checkedIdxs.map(i=> seedToItem(SEED_ITEMS_030[i]));
+
+  const rows = [...document.querySelectorAll('#ccSeedItemList .cc-item-row')];
+  const items = [];
+  const seenCodes = new Set();
+  for(const row of rows){
+    const checked = row.querySelector('.cc-seed-check').checked;
+    if(!checked) continue;
+    const itemCode = row.querySelector('.cc-item-code').value.trim();
+    const itemLabel = row.querySelector('.cc-item-label').value.trim();
+    const itemBudget = Math.max(0, Number(row.querySelector('.cc-item-budget').value)||0);
+    if(!itemCode || !itemLabel) continue; // skip incomplete custom rows silently
+    if(seenCodes.has(itemCode)){ alert('มีรหัสบัญชีซ้ำกัน: '+itemCode); return; }
+    seenCodes.add(itemCode);
+    const seedMatch = SEED_ITEMS_030.find(s=>s.code===itemCode);
+    items.push({ code:itemCode, label:itemLabel, budget:itemBudget, example: seedMatch ? seedMatch.example : undefined, entries:[] });
+  }
+
   const cc = {
     id: uid(), code, name, year: state.activeYear, deptKey: state.activeDept,
     createdBy: state.user ? state.user.uid : null,
@@ -1331,9 +1380,6 @@ async function submitNewCc(){
   }catch(e){
     alert('สร้างศูนย์ต้นทุนไม่สำเร็จ: ' + e.message);
   }
-}
-function seedToItem(s){
-  return { code:s.code, label:s.label, example:s.example, budget:s.budget, entries:[] };
 }
 function openEditCcModal(){
   if(!canManageDept(state.activeDept)){ alert('คุณไม่มีสิทธิ์แก้ไขศูนย์ต้นทุนในแผนกนี้'); return; }
@@ -1557,6 +1603,7 @@ async function submitOrgSettings(){
 function switchDept(key){
   state.activeDept = key;
   state.activeCcId = null; state.activeItemKey = null; state.slipSelection = [];
+  autoSelectFirstCc();
   render();
 }
 function renderDeptWrap(){
@@ -1833,6 +1880,7 @@ function initAuthListener(){
       if(state.activeCcId && !ccs.find(c=>c.id===state.activeCcId)){
         state.activeCcId=null; state.activeItemKey=null;
       }
+      autoSelectFirstCc();
       render();
     });
     orgUnsub = window.fb.subscribeOrgSettings((settings)=>{
