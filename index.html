@@ -977,7 +977,7 @@ function buildSlipBodyHtml(cc, entries, payerName, payerCode, payerPosition, doc
 
 function wrapSlipDocument(bodyHtml, docTitle){
   return `<!DOCTYPE html>
-<html lang="th">
+<html lang="en">
 <head>
 <meta charset="UTF-8">
 <title>${escapeHtml(docTitle)}</title>
@@ -989,7 +989,10 @@ function wrapSlipDocument(bodyHtml, docTitle){
     font-family:'TH SarabunPSK','Sarabun','Noto Sans Thai', sans-serif;
     color:#000; font-size:16px; margin:0; padding:0;
     background:#fff;
+    font-feature-settings:"locl" 0, "numr" 0, "dnom" 0;
+    font-variant-numeric: normal;
   }
+  .num, .mono, td, th{ font-feature-settings:"locl" 0; font-variant-numeric: normal; }
   table{ width:100%; border-collapse:collapse; margin-bottom:7px; page-break-inside:avoid; }
   td, th{ border:1px solid #000; padding:5px 7px; vertical-align:top; }
   th{ font-weight:700; }
