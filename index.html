@@ -181,6 +181,17 @@ body{
 .dept-switcher select option{color:#1C2B33;}
 
 /* year selector in sidebar */
+.mode-switch{
+  display:flex;gap:4px;background:rgba(255,255,255,.06);border-radius:9px;padding:4px;
+}
+.mode-switch button{
+  flex:1;background:none;border:none;border-radius:6px;padding:8px 6px;
+  font-family:'Noto Sans Thai',sans-serif;font-size:12px;font-weight:700;color:#8B9BA2;
+  cursor:pointer;transition:background .12s, color .12s;line-height:1.3;
+}
+.mode-switch button.active{background:var(--amber);color:var(--ink);}
+.mode-switch button:not(.active):hover{background:rgba(255,255,255,.08);color:#DCE3E6;}
+
 .year-picker{
   display:flex;align-items:center;gap:8px;
   background:rgba(232,163,61,.1);border:1px solid rgba(232,163,61,.3);
@@ -303,6 +314,84 @@ body{
 .gauge-fill.ok{background:linear-gradient(90deg,var(--teal),#3E9484);}
 .gauge-fill.warn{background:linear-gradient(90deg,var(--amber-dark),var(--amber));}
 .gauge-fill.over{background:linear-gradient(90deg,var(--rust),#D9613F);}
+.gauge-marker{
+  position:absolute;top:-3px;bottom:-3px;left:80%;width:2px;background:var(--ink);
+}
+.gauge-marker::after{
+  content:'80%';position:absolute;top:-16px;left:50%;transform:translateX(-50%);
+  font-family:'JetBrains Mono';font-size:9.5px;color:var(--text-muted);white-space:nowrap;
+}
+
+/* WBS project mode: work-type tabs */
+.dept-tabs{
+  display:flex;flex-wrap:wrap;gap:8px;margin-bottom:0;
+}
+.dept-tab{
+  font-size:13px;font-weight:600;padding:8px 14px;border-radius:20px 20px 0 0;
+  border:1px solid var(--border);border-bottom:none;background:#fff;cursor:pointer;color:var(--text-muted);
+  transition:all .12s;white-space:nowrap;
+}
+.dept-tab:hover{border-color:var(--amber);color:var(--text);}
+.dept-tab.active{background:var(--ink);border-color:var(--ink);color:#fff;}
+.dept-tab.add{border-radius:20px;border:1px dashed var(--amber);color:var(--amber-dark);background:#FFFCF6;}
+
+.empty-dept{
+  border:1px dashed var(--border);border-radius:var(--radius);
+  padding:40px 20px;text-align:center;color:var(--text-muted);
+  background:#fff;
+}
+.empty-dept p{margin:0 0 14px;font-size:13.5px;}
+
+.dept-info-bar{
+  display:flex;justify-content:space-between;align-items:center;
+  gap:16px;flex-wrap:wrap;margin-bottom:18px;
+  background:var(--ink);color:#EDEFEF;
+  border-radius:0 10px 10px 10px;
+  padding:12px 16px;
+}
+.dept-info-left{display:flex;align-items:center;gap:8px;flex-wrap:wrap;font-size:13px;}
+.dept-info-bar .field{margin-bottom:0;}
+.dept-info-bar .field label{display:none;}
+.dept-info-bar .field input{
+  font-family:'JetBrains Mono';font-size:13.5px;padding:6px 10px;border:1px solid rgba(255,255,255,.25);
+  border-radius:7px;width:190px;background:rgba(255,255,255,.08);color:#fff;
+}
+.network-display{display:flex;align-items:center;gap:8px;}
+.network-value{
+  font-size:13.5px;color:var(--amber);background:rgba(232,163,61,.14);
+  border:1px solid rgba(232,163,61,.35);
+  padding:4px 10px;border-radius:6px;letter-spacing:.02em;font-weight:700;
+}
+.edit-pencil{
+  font-family:'Noto Sans Thai';font-size:11.5px;font-weight:600;color:#B7C2C6;
+  background:none;border:1px solid rgba(255,255,255,.22);border-radius:6px;padding:5px 9px;cursor:pointer;
+}
+.edit-pencil:hover{color:var(--amber);border-color:var(--amber);}
+
+/* WBS project mode: category cards */
+.cat-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:14px;}
+@media (max-width:900px){.cat-grid{grid-template-columns:1fr;}}
+.cat-card{
+  background:var(--card);border:1px solid var(--border-soft);border-radius:var(--radius);
+  padding:16px;cursor:pointer;transition:box-shadow .15s, border-color .15s;
+  display:flex;flex-direction:column;gap:10px;
+}
+.cat-card:hover{box-shadow:0 4px 16px rgba(22,33,43,.08);border-color:var(--border);}
+.cat-card-top{display:flex;justify-content:space-between;align-items:center;}
+.cat-card .cat-label{font-weight:700;font-size:14.5px;}
+.cat-code{
+  font-family:'JetBrains Mono';font-size:11.5px;font-weight:700;color:var(--amber-dark);
+  background:#FCEED2;padding:3px 9px;border-radius:20px;letter-spacing:.02em;
+}
+.cat-card .num-row{display:flex;justify-content:space-between;font-size:12.5px;color:var(--text-muted);}
+.cat-card .num-row .v{font-family:'JetBrains Mono';font-weight:600;color:var(--text);}
+.cat-card .remain{font-size:12.5px;color:var(--text-muted);}
+.cat-card .remain .v.neg{color:var(--rust);}
+.cat-card .remain .v.pos{color:var(--teal);}
+.detail-network-badge{
+  font-family:'JetBrains Mono';font-size:12.5px;font-weight:700;color:var(--amber-dark);
+  background:#FCEED2;padding:3px 10px;border-radius:6px;letter-spacing:.02em;margin-left:6px;
+}
 
 /* item detail */
 .detail-back{
@@ -388,8 +477,9 @@ table.ledger .del-x:hover{color:var(--rust);}
 .check-list{display:flex;flex-direction:column;gap:8px;max-height:280px;overflow-y:auto;}
 .check-row{
   display:flex;align-items:center;gap:10px;padding:10px 12px;border:1px solid var(--border);
-  border-radius:8px;font-size:13.5px;
+  border-radius:8px;font-size:13.5px;cursor:pointer;
 }
+.check-row.disabled{opacity:.4;cursor:not-allowed;}
 
 .save-indicator{
   position:fixed;bottom:16px;right:20px;background:var(--ink);color:#fff;
@@ -482,15 +572,27 @@ table.ledger .del-x:hover{color:var(--rust);}
     <div class="account-row" id="accountRow"></div>
     <div id="deptWrap"></div>
 
-    <div class="year-picker">
-      <select id="yearSelect" onchange="onYearChange(this.value)"></select>
-      <button title="เพิ่มปีงบประมาณใหม่" onclick="promptAddYear()">+</button>
+    <div class="mode-switch" id="modeSwitchWrap"></div>
+
+    <div id="budgetModeSection">
+      <div class="year-picker">
+        <select id="yearSelect" onchange="onYearChange(this.value)"></select>
+        <button title="เพิ่มปีงบประมาณใหม่" onclick="promptAddYear()">+</button>
+      </div>
+
+      <button class="btn btn-primary btn-block" id="newCcBtn" onclick="openNewCcModal()">+ ศูนย์ต้นทุนใหม่</button>
+      <div>
+        <div class="eyebrow list-eyebrow"><span>ศูนย์ต้นทุน</span></div>
+        <div class="cc-list" id="ccList"></div>
+      </div>
     </div>
 
-    <button class="btn btn-primary btn-block" id="newCcBtn" onclick="openNewCcModal()">+ ศูนย์ต้นทุนใหม่</button>
-    <div>
-      <div class="eyebrow list-eyebrow"><span>ศูนย์ต้นทุน</span></div>
-      <div class="cc-list" id="ccList"></div>
+    <div id="projectModeSection" class="hidden">
+      <button class="btn btn-primary btn-block" id="newProjectBtn" onclick="openNewProjectModal()">+ แฟ้มงานใหม่</button>
+      <div>
+        <div class="eyebrow list-eyebrow"><span>แฟ้มงาน (WBS)</span></div>
+        <div class="cc-list" id="projectList"></div>
+      </div>
     </div>
   </aside>
 
@@ -569,6 +671,56 @@ table.ledger .del-x:hover{color:var(--rust);}
     <div class="modal-actions">
       <button class="btn btn-outline" onclick="closeModal('addItemModal')">ยกเลิก</button>
       <button class="btn btn-primary" onclick="submitAddItem()">เพิ่มรายการ</button>
+    </div>
+  </div>
+</div>
+
+<!-- New WBS project modal -->
+<div class="modal-overlay hidden" id="newProjectModal">
+  <div class="modal">
+    <h2>สร้างแฟ้มงานใหม่ (WBS)</h2>
+    <div class="field">
+      <label>หมายเลขงาน (WBS)</label>
+      <input type="text" id="npWbs" placeholder="เช่น WBS-2569-001">
+    </div>
+    <div class="field">
+      <label>ชื่องาน</label>
+      <input type="text" id="npName" placeholder="เช่น งานก่อสร้างสายส่งแรงสูง...">
+    </div>
+    <div class="modal-actions">
+      <button class="btn btn-outline" onclick="closeModal('newProjectModal')">ยกเลิก</button>
+      <button class="btn btn-primary" onclick="submitNewProject()">สร้างแฟ้มงาน</button>
+    </div>
+  </div>
+</div>
+
+<!-- Add work-type modal -->
+<div class="modal-overlay hidden" id="addWorkTypeModal">
+  <div class="modal">
+    <h2>เพิ่มประเภทงาน</h2>
+    <div class="check-list" id="workTypeCheckList"></div>
+    <div class="modal-actions">
+      <button class="btn btn-outline" onclick="closeModal('addWorkTypeModal')">ยกเลิก</button>
+      <button class="btn btn-primary" onclick="submitAddWorkType()">เพิ่มประเภทที่เลือก</button>
+    </div>
+  </div>
+</div>
+
+<!-- Edit WBS project modal -->
+<div class="modal-overlay hidden" id="editProjectModal">
+  <div class="modal">
+    <h2>แก้ไขแฟ้มงาน</h2>
+    <div class="field">
+      <label>หมายเลขงาน (WBS)</label>
+      <input type="text" id="epWbs">
+    </div>
+    <div class="field">
+      <label>ชื่องาน</label>
+      <input type="text" id="epName">
+    </div>
+    <div class="modal-actions">
+      <button class="btn btn-outline" onclick="closeModal('editProjectModal')">ยกเลิก</button>
+      <button class="btn btn-primary" onclick="submitEditProject()">บันทึก</button>
     </div>
   </div>
 </div>
@@ -670,6 +822,13 @@ table.ledger .del-x:hover{color:var(--rust);}
       });
     },
     setOrgSettings: (data) => setDoc(doc(db, 'settings', 'org'), data, { merge: true }),
+    subscribeProjects: (cb) => {
+      return onSnapshot(collection(db, 'constructionProjects'), (snap) => cb(snap.docs.map(d => d.data())), (err) => {
+        console.error('subscribeProjects error', err);
+      });
+    },
+    saveProject: (p) => setDoc(doc(db, 'constructionProjects', p.id), p),
+    deleteProjectDoc: (id) => deleteDoc(doc(db, 'constructionProjects', id)),
   };
 
   window.__fbReady = true;
@@ -728,6 +887,31 @@ const DEPARTMENTS = [
 ];
 function deptByKey(key){ return DEPARTMENTS.find(d=>d.key===key); }
 
+/* ============ WBS construction-project mode (shares the same 7 departments/roles) ============ */
+const WBS_ALLOWED_DEPTS = ['om','construct','meter']; // only these 3 departments can create WBS project books
+const WORK_TYPES = [
+  {key:'hv_construct', name:'แผนกก่อสร้างแรงสูง'},
+  {key:'hv_demolish',  name:'แผนกรื้อถอนแรงสูง'},
+  {key:'lv_construct', name:'แผนกก่อสร้างแรงต่ำ'},
+  {key:'lv_demolish',  name:'แผนกรื้อถอนแรงต่ำ'},
+  {key:'tr_construct', name:'แผนกก่อสร้างหม้อแปลง'},
+  {key:'tr_demolish',  name:'แผนกรื้อถอนหม้อแปลง'},
+];
+const PROJECT_CATEGORY_DEFS = [
+  {key:'labor',   label:'ค่าแรง',        code:'0030'},
+  {key:'control', label:'ค่าควบคุมงาน',  code:'0040'},
+  {key:'misc',    label:'เบ็ดเตล็ด',     code:'0050'},
+];
+const USABLE_RATIO = 0.8;
+function newProjectBudgetCat(def){
+  return {label:def.label, code:def.code, amount100:0, entries:[]};
+}
+function newProjectWorkType(){
+  const budgets = {};
+  PROJECT_CATEGORY_DEFS.forEach(d=> budgets[d.key] = newProjectBudgetCat(d));
+  return {networkNo:'', budgets};
+}
+
 /* ============ state ============ */
 let state = {
   user: null,             // {uid, email, displayName, position, employeeCode}
@@ -742,9 +926,16 @@ let state = {
   authMode: 'login',       // 'login' | 'signup'
   orgSettings: {},         // { officeName }
   slipSelection: [],       // [{itemCode, entryId}] entries picked to combine into one printed slip (max 3), scoped to activeCcId
+  appMode: 'budget',       // 'budget' | 'project' — which mode's UI is showing
+  projects: [],            // WBS construction-project books (not year-scoped)
+  activeProjectId: null,
+  activeWorkTypeKey: null,
+  activeProjectCatKey: null,
+  editingNetworkKey: null,
 };
 let ccUnsub = null;
 let orgUnsub = null;
+let projectsUnsub = null;
 
 function uid(){ return Date.now().toString(36)+Math.random().toString(36).slice(2,7); }
 function todayStr(){ return new Date().toISOString().slice(0,10); }
@@ -1200,6 +1391,7 @@ async function logout(){
   if(!confirm('ออกจากระบบ?')) return;
   if(ccUnsub){ ccUnsub(); ccUnsub = null; }
   if(orgUnsub){ orgUnsub(); orgUnsub = null; }
+  if(projectsUnsub){ projectsUnsub(); projectsUnsub = null; }
   await window.fb.signOutUser();
 }
 
@@ -1512,6 +1704,226 @@ function deleteEntry(itemCode, entryId){
   saveCc(cc); render();
 }
 
+/* ============ WBS project mode: data helpers ============ */
+function isProjectModeAllowed(deptKey){ return WBS_ALLOWED_DEPTS.includes(deptKey); }
+function projectsForDept(){
+  return state.projects.filter(p=>p.deptKey===state.activeDept);
+}
+function getProject(id){ return state.projects.find(p=>p.id===id); }
+function projCatTotals(cat){
+  const amount100 = Number(cat.amount100)||0;
+  const usable80 = amount100 * USABLE_RATIO;
+  const sortedEntries = [...(cat.entries||[])].sort((a,b)=> (a.date||'').localeCompare(b.date||'') || a.createdAt-b.createdAt);
+  let running = 0;
+  const rows = sortedEntries.map(e=>{
+    running += Number(e.amount)||0;
+    return {...e, cumulative: running};
+  });
+  const totalPaid = running;
+  const remaining = usable80 - totalPaid;
+  return {amount100, usable80, totalPaid, remaining, rows};
+}
+function projTotals(project){
+  let amount100=0, usable80=0, totalPaid=0;
+  Object.values(project.departments||{}).forEach(dept=>{
+    Object.values(dept.budgets).forEach(cat=>{
+      const t = projCatTotals(cat);
+      amount100 += t.amount100; usable80 += t.usable80; totalPaid += t.totalPaid;
+    });
+  });
+  return {amount100, usable80, totalPaid, remaining: usable80-totalPaid};
+}
+function canDeleteProjectEntry(project, entry){
+  if(canManageDept(project.deptKey)) return true;
+  return !!(entry.addedBy && state.user && entry.addedBy === state.user.uid);
+}
+
+/* ============ WBS project mode: persistence ============ */
+let projectSaveTimer=null;
+function saveProject(p){
+  clearTimeout(projectSaveTimer);
+  projectSaveTimer = setTimeout(async ()=>{
+    try{
+      await window.fb.saveProject(p);
+      flashSaved(false);
+    }catch(e){
+      console.error(e);
+      flashSaved(true);
+    }
+  }, 250);
+}
+
+/* ============ WBS project mode: mode switching ============ */
+function switchAppMode(mode){
+  if(state.appMode === mode) return;
+  state.appMode = mode;
+  render();
+}
+
+/* ============ WBS project mode: project CRUD ============ */
+function openNewProjectModal(){
+  if(!isProjectModeAllowed(state.activeDept) || !canManageDept(state.activeDept)){
+    alert('สร้างแฟ้มงาน WBS ได้เฉพาะผู้ดูแลแผนก/แอดมินของแผนก ผปบ., ผกส., หรือ ผมต. เท่านั้น');
+    return;
+  }
+  document.getElementById('npWbs').value='';
+  document.getElementById('npName').value='';
+  openModal('newProjectModal');
+  setTimeout(()=>document.getElementById('npWbs').focus(),50);
+}
+async function submitNewProject(){
+  const wbs = document.getElementById('npWbs').value.trim();
+  const name = document.getElementById('npName').value.trim();
+  if(!wbs || !name){ alert('กรุณากรอกหมายเลขงานและชื่องานให้ครบ'); return; }
+  const project = {
+    id: uid(), wbs, name, deptKey: state.activeDept,
+    createdBy: state.user ? state.user.uid : null,
+    createdAt: Date.now(), departments: {}
+  };
+  state.projects.push(project);
+  state.activeProjectId = project.id;
+  state.activeWorkTypeKey = null;
+  state.activeProjectCatKey = null;
+  closeModal('newProjectModal');
+  render();
+  try{
+    await window.fb.saveProject(project);
+    flashSaved(false);
+  }catch(e){
+    alert('สร้างแฟ้มงานไม่สำเร็จ: ' + e.message);
+  }
+  openAddWorkTypeModal();
+}
+function openEditProjectModal(){
+  const p = getProject(state.activeProjectId);
+  if(!p || !canManageDept(p.deptKey)){ alert('คุณไม่มีสิทธิ์แก้ไขแฟ้มงานนี้'); return; }
+  document.getElementById('epWbs').value = p.wbs;
+  document.getElementById('epName').value = p.name;
+  openModal('editProjectModal');
+}
+function submitEditProject(){
+  const p = getProject(state.activeProjectId);
+  if(!p || !canManageDept(p.deptKey)){ alert('คุณไม่มีสิทธิ์แก้ไขแฟ้มงานนี้'); return; }
+  const wbs = document.getElementById('epWbs').value.trim();
+  const name = document.getElementById('epName').value.trim();
+  if(!wbs || !name){ alert('กรุณากรอกให้ครบ'); return; }
+  p.wbs = wbs; p.name = name;
+  closeModal('editProjectModal');
+  saveProject(p); render();
+}
+async function deleteProject(){
+  const p = getProject(state.activeProjectId);
+  if(!p || !canManageDept(p.deptKey)){ alert('คุณไม่มีสิทธิ์ลบแฟ้มงานนี้'); return; }
+  if(!confirm('ยืนยันลบแฟ้มงาน "'+p.name+'" ? ข้อมูลทั้งหมดในแฟ้มนี้จะหายไป')) return;
+  state.activeProjectId = null; state.activeWorkTypeKey=null; state.activeProjectCatKey=null;
+  render();
+  try{
+    await window.fb.deleteProjectDoc(p.id);
+    flashSaved(false);
+  }catch(e){
+    alert('ลบแฟ้มงานไม่สำเร็จ: ' + e.message);
+  }
+}
+
+/* ============ WBS project mode: work-type CRUD ============ */
+function openAddWorkTypeModal(){
+  const p = getProject(state.activeProjectId);
+  if(!p) return;
+  if(!canManageDept(p.deptKey)){ alert('เพิ่มประเภทงานได้เฉพาะผู้ดูแลแผนกหรือแอดมิน'); return; }
+  const list = document.getElementById('workTypeCheckList');
+  list.innerHTML = WORK_TYPES.map(d=>{
+    const added = !!p.departments[d.key];
+    return `<label class="check-row ${added?'disabled':''}">
+      <input type="checkbox" value="${d.key}" ${added?'disabled':''}>
+      <span>${d.name}${added?' <span style="color:var(--text-faint)">(เพิ่มแล้ว)</span>':''}</span>
+    </label>`;
+  }).join('');
+  openModal('addWorkTypeModal');
+}
+function submitAddWorkType(){
+  const p = getProject(state.activeProjectId);
+  if(!p || !canManageDept(p.deptKey)){ alert('คุณไม่มีสิทธิ์เพิ่มประเภทงานนี้'); return; }
+  const checked = [...document.querySelectorAll('#workTypeCheckList input:checked')].map(c=>c.value);
+  checked.forEach(key=>{ if(!p.departments[key]) p.departments[key] = newProjectWorkType(); });
+  if(checked.length){ state.activeWorkTypeKey = checked[0]; state.activeProjectCatKey = null; }
+  closeModal('addWorkTypeModal');
+  saveProject(p); render();
+}
+function removeWorkType(workTypeKey){
+  const p = getProject(state.activeProjectId);
+  if(!p || !canManageDept(p.deptKey)){ alert('คุณไม่มีสิทธิ์ลบประเภทงานนี้'); return; }
+  const wtName = WORK_TYPES.find(d=>d.key===workTypeKey).name;
+  if(!confirm('ยืนยันลบ "'+wtName+'" ออกจากแฟ้มงานนี้?')) return;
+  delete p.departments[workTypeKey];
+  if(state.activeWorkTypeKey===workTypeKey){ state.activeWorkTypeKey=null; state.activeProjectCatKey=null; }
+  saveProject(p); render();
+}
+
+/* ============ WBS project mode: selection ============ */
+function selectProject(id){
+  state.activeProjectId = id; state.activeWorkTypeKey=null; state.activeProjectCatKey=null; state.editingNetworkKey=null; render();
+}
+function selectWorkType(key){ state.activeWorkTypeKey = key; state.activeProjectCatKey=null; state.editingNetworkKey=null; render(); }
+function selectProjectCat(key){ state.activeProjectCatKey = key; render(); }
+function backToProjectCatGrid(){ state.activeProjectCatKey = null; render(); }
+
+/* ============ WBS project mode: network number ============ */
+function editNetworkNo(workTypeKey){
+  const p = getProject(state.activeProjectId);
+  if(!canManageDept(p.deptKey)){ alert('แก้ไขเลขที่โครงข่ายได้เฉพาะผู้ดูแลแผนกหรือแอดมิน'); return; }
+  state.editingNetworkKey = workTypeKey;
+  render();
+  setTimeout(()=>{ const el=document.getElementById('networkNoInput'); if(el) el.focus(); }, 30);
+}
+function cancelEditNetworkNo(){
+  state.editingNetworkKey = null;
+  render();
+}
+function saveNetworkNo(workTypeKey){
+  const p = getProject(state.activeProjectId);
+  if(!canManageDept(p.deptKey)){ alert('แก้ไขเลขที่โครงข่ายได้เฉพาะผู้ดูแลแผนกหรือแอดมิน'); return; }
+  const value = document.getElementById('networkNoInput').value.trim();
+  p.departments[workTypeKey].networkNo = value;
+  state.editingNetworkKey = null;
+  saveProject(p); render();
+}
+
+/* ============ WBS project mode: budget amounts ============ */
+function updateProjectAmount100(workTypeKey, catKey, value){
+  const p = getProject(state.activeProjectId);
+  if(!canManageDept(p.deptKey)){ alert('แก้ไขงบประมาณได้เฉพาะผู้ดูแลแผนกหรือแอดมิน'); render(); return; }
+  const cat = p.departments[workTypeKey].budgets[catKey];
+  cat.amount100 = Math.max(0, Number(value)||0);
+  saveProject(p); render();
+}
+
+/* ============ WBS project mode: ledger entries ============ */
+function addProjectEntry(workTypeKey, catKey){
+  const p = getProject(state.activeProjectId);
+  const cat = p.departments[workTypeKey].budgets[catKey];
+  const date = document.getElementById('projEntryDate').value || todayStr();
+  const desc = document.getElementById('projEntryDesc').value.trim();
+  const amount = Number(document.getElementById('projEntryAmount').value);
+  if(!desc || !amount || amount<=0){ alert('กรุณากรอกรายการและจำนวนเงินให้ถูกต้อง'); return false; }
+  cat.entries.push({
+    id:uid(), date, desc, amount, createdAt:Date.now(),
+    addedBy: state.user ? state.user.uid : null,
+    addedByName: state.user ? (state.user.displayName || state.user.email) : null,
+    addedByEmail: state.user ? state.user.email : null,
+  });
+  saveProject(p); render();
+  return false;
+}
+function deleteProjectEntry(workTypeKey, catKey, entryId){
+  const p = getProject(state.activeProjectId);
+  const cat = p.departments[workTypeKey].budgets[catKey];
+  const entry = cat.entries.find(e=>e.id===entryId);
+  if(!entry || !canDeleteProjectEntry(p, entry)){ alert('ลบได้เฉพาะรายการที่ผู้ดูแลแผนก/แอดมิน หรือตัวคุณเองเป็นคนเพิ่มเข้ามาเท่านั้น'); return; }
+  if(!confirm('ยืนยันลบรายการนี้?')) return;
+  cat.entries = cat.entries.filter(e=>e.id!==entryId);
+  saveProject(p); render();
+}
+
 /* ============ render ============ */
 function render(){
   const authScreen = document.getElementById('authScreen');
@@ -1529,9 +1941,30 @@ function render(){
   renderRoleBadge();
   renderAccountRow();
   renderDeptWrap();
-  renderYearPicker();
-  renderSidebar();
-  renderMain();
+  renderModeSwitcher();
+
+  const budgetSection = document.getElementById('budgetModeSection');
+  const projectSection = document.getElementById('projectModeSection');
+  if(state.appMode === 'project'){
+    budgetSection.classList.add('hidden');
+    projectSection.classList.remove('hidden');
+    renderProjectSidebar();
+    renderProjectMain();
+  } else {
+    projectSection.classList.add('hidden');
+    budgetSection.classList.remove('hidden');
+    renderYearPicker();
+    renderSidebar();
+    renderMain();
+  }
+}
+
+function renderModeSwitcher(){
+  const el = document.getElementById('modeSwitchWrap');
+  el.innerHTML = `
+    <button class="${state.appMode==='budget'?'active':''}" onclick="switchAppMode('budget')">คุมงบทั่วไป</button>
+    <button class="${state.appMode==='project'?'active':''}" onclick="switchAppMode('project')">คุมงบโครงการก่อสร้าง</button>
+  `;
 }
 
 function renderRoleBadge(){
@@ -1856,15 +2289,269 @@ function renderItemDetail(cc, item){
   `;
 }
 
+/* ============ WBS project mode: sidebar ============ */
+function renderProjectSidebar(){
+  const list = document.getElementById('projectList');
+  const newBtn = document.getElementById('newProjectBtn');
+  const deptOk = isProjectModeAllowed(state.activeDept);
+  const canManage = deptOk && canManageDept(state.activeDept);
+  newBtn.classList.toggle('hidden', !canManage);
+  if(!deptOk){
+    list.innerHTML = `<div class="list-empty">โหมดคุมงบโครงการก่อสร้างใช้ได้เฉพาะแผนก<br>ผปบ. / ผกส. / ผมต. เท่านั้น</div>`;
+    return;
+  }
+  const projects = projectsForDept();
+  if(!projects.length){
+    list.innerHTML = `<div class="list-empty">ยังไม่มีแฟ้มงานของแผนกนี้${canManage ? '<br>กด "+ แฟ้มงานใหม่" เพื่อเริ่มต้น' : '<br>รอผู้ดูแลแผนกหรือแอดมินสร้างแฟ้มงาน'}</div>`;
+    return;
+  }
+  list.innerHTML = projects.map(p=>{
+    const active = p.id===state.activeProjectId;
+    return `<div class="cc-item ${active?'active':''}" onclick="selectProject('${p.id}')">
+      <div class="code">${escapeHtml(p.wbs)}</div>
+      <div class="name">${escapeHtml(p.name)}</div>
+    </div>`;
+  }).join('');
+}
+
+/* ============ WBS project mode: main content ============ */
+function renderProjectMain(){
+  const main = document.getElementById('main');
+  const deptOk = isProjectModeAllowed(state.activeDept);
+  const dName = deptByKey(state.activeDept);
+  const deptLabel = dName ? dName.abbr+' '+dName.name : '';
+
+  if(!deptOk){
+    main.innerHTML = `<div class="welcome">
+      <h1>คุมงบโครงการก่อสร้าง</h1>
+      <p>โหมดนี้ใช้ได้เฉพาะแผนก <b>ผปบ.</b>, <b>ผกส.</b> และ <b>ผมต.</b> เท่านั้น
+      ${isAdmin() ? 'สลับไปแผนกใดแผนกหนึ่งข้างต้นจากเมนู "กำลังดูแผนก" ด้านซ้าย เพื่อใช้งานโหมดนี้' : 'บัญชีของคุณสังกัดแผนก '+escapeHtml(deptLabel)+' ซึ่งไม่ได้ใช้งานโหมดนี้'}</p>
+    </div>`;
+    return;
+  }
+
+  const p = getProject(state.activeProjectId);
+  if(!p || p.deptKey !== state.activeDept){
+    main.innerHTML = `<div class="welcome">
+      <h1>คุมงบโครงการก่อสร้าง — ${escapeHtml(deptLabel)}</h1>
+      <p>เลือกแฟ้มงานจากเมนูด้านซ้าย เพื่อดูรายการงบประมาณและบันทึกรายการจ่าย
+      ${canManageDept(state.activeDept) ? 'กด "+ แฟ้มงานใหม่" เพื่อสร้างแฟ้มงานสำหรับแผนกนี้' : 'หากยังไม่มีแฟ้มงาน กรุณาติดต่อผู้ดูแลแผนกหรือแอดมิน'}</p>
+      ${canManageDept(state.activeDept) ? `<button class="btn btn-primary" onclick="openNewProjectModal()">+ สร้างแฟ้มงานแรก</button>` : ''}
+    </div>`;
+    return;
+  }
+
+  const totals = projTotals(p);
+  const remainCls = totals.remaining<0?'neg':'pos';
+  const canManage = canManageDept(p.deptKey);
+
+  let html = `
+    <div class="page-header">
+      <div>
+        <div class="code-tag mono">${escapeHtml(p.wbs)}</div>
+        <h1>${escapeHtml(p.name)}</h1>
+      </div>
+      <div class="header-actions">
+        ${canManage ? `
+          <button class="btn btn-outline btn-sm" onclick="openEditProjectModal()">แก้ไข</button>
+          <button class="btn btn-danger-ghost btn-sm" onclick="deleteProject()">ลบแฟ้มงาน</button>
+        ` : `<span class="eyebrow" style="color:var(--text-faint);">ดูอย่างเดียว · เพิ่มรายการจ่ายได้</span>`}
+      </div>
+    </div>
+
+    <div class="stat-strip">
+      <div class="stat-box"><div class="label">งบทั้งหมด (100%)</div><div class="value">${fmt(totals.amount100)}</div></div>
+      <div class="stat-box"><div class="label">งบใช้ได้ (80%)</div><div class="value">${fmt(totals.usable80)}</div></div>
+      <div class="stat-box"><div class="label">จ่ายไปแล้ว</div><div class="value">${fmt(totals.totalPaid)}</div></div>
+      <div class="stat-box remain"><div class="label">คงเหลือ</div><div class="value ${remainCls}">${fmt(totals.remaining)}</div></div>
+    </div>
+
+    <div class="dept-tabs">
+  `;
+
+  const addedKeys = Object.keys(p.departments);
+  if(!state.activeWorkTypeKey && addedKeys.length){
+    const firstInOrder = WORK_TYPES.find(d=>addedKeys.includes(d.key));
+    state.activeWorkTypeKey = firstInOrder ? firstInOrder.key : addedKeys[0];
+  }
+  WORK_TYPES.forEach(d=>{
+    if(addedKeys.includes(d.key)){
+      const active = state.activeWorkTypeKey===d.key;
+      html += `<div class="dept-tab ${active?'active':''}" onclick="selectWorkType('${d.key}')">${d.name}</div>`;
+    }
+  });
+  if(canManage){
+    html += `<div class="dept-tab add" onclick="openAddWorkTypeModal()">+ เพิ่มประเภทงาน</div>`;
+  }
+  html += `</div>`;
+
+  if(!addedKeys.length){
+    html += `<div class="empty-dept"><p>ยังไม่มีประเภทงานในแฟ้มงานนี้</p>
+      ${canManage ? `<button class="btn btn-primary btn-sm" onclick="openAddWorkTypeModal()">+ เพิ่มประเภทงาน</button>` : `<span style="font-size:12.5px;color:var(--text-faint);">รอผู้ดูแลแผนกหรือแอดมินเพิ่มประเภทงาน</span>`}</div>`;
+  } else {
+    const workTypeKey = state.activeWorkTypeKey;
+    const workType = p.departments[workTypeKey];
+    const wtName = WORK_TYPES.find(d=>d.key===workTypeKey).name;
+
+    if(state.activeProjectCatKey && workType.budgets[state.activeProjectCatKey]){
+      html += renderProjectCatDetail(p, workTypeKey, wtName, workType.networkNo, state.activeProjectCatKey, workType.budgets[state.activeProjectCatKey], canManage);
+    } else {
+      html += `<div class="dept-info-bar">
+        <div class="dept-info-left">
+          ${state.editingNetworkKey===workTypeKey ? `
+            <div class="field">
+              <input type="text" id="networkNoInput" value="${escapeHtml(workType.networkNo||'')}" placeholder="เช่น 6001423758" onkeydown="if(event.key==='Enter')saveNetworkNo('${workTypeKey}'); if(event.key==='Escape')cancelEditNetworkNo();">
+              <button class="btn btn-primary btn-sm" onclick="saveNetworkNo('${workTypeKey}')">บันทึก</button>
+              <button class="btn btn-outline btn-sm" onclick="cancelEditNetworkNo()">ยกเลิก</button>
+            </div>
+          ` : `
+            <div class="network-display">
+              <span>เลขที่โครงข่าย</span>
+              <span class="mono network-value">${workType.networkNo ? escapeHtml(workType.networkNo) : 'ยังไม่ได้กรอก'}</span>
+              ${canManage ? `<button class="edit-pencil" onclick="editNetworkNo('${workTypeKey}')" title="แก้ไขเลขที่โครงข่าย">แก้ไข</button>` : ''}
+            </div>
+          `}
+        </div>
+        ${canManage ? `<button class="btn btn-danger-ghost btn-sm" onclick="removeWorkType('${workTypeKey}')">ลบประเภทงานนี้</button>` : ''}
+      </div>`;
+      html += `<div class="cat-grid">`;
+      PROJECT_CATEGORY_DEFS.forEach(def=>{
+        const cat = workType.budgets[def.key];
+        html += renderProjectCatCard(workTypeKey, def.key, cat);
+      });
+      html += `</div>`;
+    }
+  }
+
+  main.innerHTML = html;
+
+  const dateInput = document.getElementById('projEntryDate');
+  if(dateInput && !dateInput.value) dateInput.value = todayStr();
+}
+
+function renderProjectCatCard(workTypeKey, catKey, cat){
+  const t = projCatTotals(cat);
+  const pct = t.amount100>0 ? (t.totalPaid/t.amount100*100) : 0;
+  const barWidth = Math.min(pct,100);
+  const gClass = gaugeClass(pct);
+  const remainCls = t.remaining<0?'neg':'pos';
+  return `<div class="cat-card" onclick="selectProjectCat('${catKey}')">
+    <div class="cat-card-top">
+      <span class="cat-label">${cat.label}</span>
+      <span class="cat-code mono">${escapeHtml(cat.code||'—')}</span>
+    </div>
+    <div class="gauge-wrap">
+      <div class="gauge">
+        <div class="gauge-fill ${gClass}" style="width:${barWidth}%"></div>
+        <div class="gauge-marker"></div>
+      </div>
+    </div>
+    <div class="num-row"><span>งบ 100%</span><span class="v">${fmt(t.amount100)}</span></div>
+    <div class="num-row"><span>งบใช้ได้ (80%)</span><span class="v">${fmt(t.usable80)}</span></div>
+    <div class="num-row"><span>จ่ายแล้ว</span><span class="v">${fmt(t.totalPaid)}</span></div>
+    <div class="remain num-row"><span>คงเหลือ</span><span class="v ${remainCls}">${fmt(t.remaining)}</span></div>
+  </div>`;
+}
+
+function renderProjectCatDetail(p, workTypeKey, wtName, networkNo, catKey, cat, canManage){
+  const t = projCatTotals(cat);
+  const pct = t.amount100>0 ? (t.totalPaid/t.amount100*100) : 0;
+  const barWidth = Math.min(pct,100);
+  const gClass = gaugeClass(pct);
+  const remainCls = t.remaining<0?'neg':'pos';
+
+  let rowsHtml = '';
+  if(!t.rows.length){
+    rowsHtml = `<div class="ledger-empty">ยังไม่มีรายการจ่าย เพิ่มรายการแรกด้านบน</div>`;
+  } else {
+    rowsHtml = `<table class="ledger">
+      <thead><tr>
+        <th>วันที่</th><th>รายการ</th>
+        <th style="text-align:right">จ่ายรอบนี้</th>
+        <th style="text-align:right">รวมจ่าย</th>
+        <th style="text-align:right">คงเหลือ</th>
+        <th></th>
+      </tr></thead>
+      <tbody>
+        ${t.rows.map(r=>{
+          const rowRemaining = t.usable80 - r.cumulative;
+          const canDelete = canDeleteProjectEntry(p, r);
+          return `<tr>
+            <td class="mono">${escapeHtml(r.date)}</td>
+            <td>${escapeHtml(r.desc)}${(r.addedByName || r.addedByEmail) ? `<div style="font-size:10.5px;color:var(--text-faint);margin-top:2px;">เพิ่มโดย ${escapeHtml(r.addedByName || r.addedByEmail)}</div>` : ''}</td>
+            <td class="num">${fmt(r.amount)}</td>
+            <td class="num">${fmt(r.cumulative)}</td>
+            <td class="num ${rowRemaining<0?'neg':''}">${fmt(rowRemaining)}</td>
+            <td>${canDelete ? `<button class="del-x" onclick="deleteProjectEntry('${workTypeKey}','${catKey}','${r.id}')" title="ลบรายการ">✕</button>` : ''}</td>
+          </tr>`;
+        }).join('')}
+      </tbody>
+    </table>`;
+  }
+
+  return `
+    <div class="detail-back" onclick="backToProjectCatGrid()">← กลับไปที่ ${wtName}</div>
+    <div class="detail-head">
+      <div class="detail-title-row">
+        <div>
+          <div class="detail-title">${cat.label}</div>
+          <div style="color:var(--text-muted);font-size:12.5px;margin-top:4px;display:flex;align-items:center;flex-wrap:wrap;">${wtName}${networkNo ? '<span class="detail-network-badge">เลขที่โครงข่าย '+escapeHtml(networkNo)+'</span>' : ''}</div>
+        </div>
+        <div class="detail-code-edit">
+          <span>กิจกรรม</span>
+          <span class="cat-code mono">${escapeHtml(cat.code||'—')}</span>
+        </div>
+      </div>
+
+      <div class="budget-input-row">
+        <div class="field">
+          <label>งบประมาณ (100%)</label>
+          ${canManage
+            ? `<input type="number" min="0" step="0.01" value="${cat.amount100}" onchange="updateProjectAmount100('${workTypeKey}','${catKey}', this.value)">`
+            : `<div class="readout">${fmt(cat.amount100)}</div>`}
+        </div>
+        <div class="field">
+          <label>งบที่ใช้ได้ (80%)</label>
+          <div class="readout">${fmt(t.usable80)}</div>
+        </div>
+      </div>
+
+      <div class="gauge-wrap">
+        <div class="gauge">
+          <div class="gauge-fill ${gClass}" style="width:${barWidth}%"></div>
+          <div class="gauge-marker"></div>
+        </div>
+      </div>
+
+      <div class="detail-summary-row">
+        <div class="summary-item"><div class="label">รวมจ่ายแล้ว</div><div class="val">${fmt(t.totalPaid)}</div></div>
+        <div class="summary-item"><div class="label">คงเหลือ</div><div class="val ${remainCls}">${fmt(t.remaining)}</div></div>
+      </div>
+      ${canManage ? '' : `<div style="margin-top:12px;font-size:11.5px;color:var(--text-faint);">งบแก้ไขได้เฉพาะผู้ดูแลแผนกหรือแอดมิน — คุณเพิ่มรายการจ่ายได้ และลบได้เฉพาะรายการที่คุณเพิ่มเอง</div>`}
+    </div>
+
+    <div class="entry-form">
+      <div class="field"><label>วันที่</label><input type="date" id="projEntryDate"></div>
+      <div class="field desc"><label>รายการ</label><input type="text" id="projEntryDesc" placeholder="เช่น ค่าแรงคนงาน 1-15 ส.ค. 69" onkeydown="if(event.key==='Enter'){addProjectEntry('${workTypeKey}','${catKey}');}"></div>
+      <div class="field amt"><label>จ่ายรอบนี้ (บาท)</label><input type="number" id="projEntryAmount" min="0" step="0.01" placeholder="0.00" onkeydown="if(event.key==='Enter'){addProjectEntry('${workTypeKey}','${catKey}');}"></div>
+      <button class="btn btn-primary" type="button" onclick="addProjectEntry('${workTypeKey}','${catKey}')">+ เพิ่มรายการ</button>
+    </div>
+
+    ${rowsHtml}
+  `;
+}
+
 /* ============ init ============ */
 function initAuthListener(){
   window.fb.onAuthChange(async (user)=>{
     if(ccUnsub){ ccUnsub(); ccUnsub = null; }
     if(orgUnsub){ orgUnsub(); orgUnsub = null; }
+    if(projectsUnsub){ projectsUnsub(); projectsUnsub = null; }
     if(!user){
       state.user = null; state.userRole = 'member';
       state.costCenters = []; state.activeCcId = null; state.activeItemKey = null; state.slipSelection = [];
       state.orgSettings = {};
+      state.projects = []; state.activeProjectId = null; state.activeWorkTypeKey = null; state.activeProjectCatKey = null;
       render();
       return;
     }
@@ -1888,6 +2575,13 @@ function initAuthListener(){
     });
     orgUnsub = window.fb.subscribeOrgSettings((settings)=>{
       state.orgSettings = settings || {};
+      render();
+    });
+    projectsUnsub = window.fb.subscribeProjects((projects)=>{
+      state.projects = projects;
+      if(state.activeProjectId && !projects.find(p=>p.id===state.activeProjectId)){
+        state.activeProjectId=null; state.activeWorkTypeKey=null; state.activeProjectCatKey=null;
+      }
       render();
     });
     render();
