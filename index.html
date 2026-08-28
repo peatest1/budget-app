@@ -2039,6 +2039,7 @@ async function submitOrgSettings(){
 function switchDept(key){
   state.activeDept = key;
   state.activeCcId = null; state.activeItemKey = null; state.slipSelection = [];
+  state.activeProjectId = null; state.activeWorkTypeKey = null; state.activeProjectCatKey = null;
   autoSelectFirstCc();
   render();
 }
