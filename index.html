@@ -1896,6 +1896,13 @@ function updateProjectAmount100(workTypeKey, catKey, value){
   cat.amount100 = Math.max(0, Number(value)||0);
   saveProject(p); render();
 }
+function updateProjectCode(workTypeKey, catKey, value){
+  const p = getProject(state.activeProjectId);
+  if(!canManageDept(p.deptKey)){ alert('แก้ไขรหัสกิจกรรมได้เฉพาะผู้ดูแลแผนกหรือแอดมิน'); render(); return; }
+  const cat = p.departments[workTypeKey].budgets[catKey];
+  cat.code = value;
+  saveProject(p); render();
+}
 
 /* ============ WBS project mode: ledger entries ============ */
 function addProjectEntry(workTypeKey, catKey){
@@ -2500,7 +2507,9 @@ function renderProjectCatDetail(p, workTypeKey, wtName, networkNo, catKey, cat, 
         </div>
         <div class="detail-code-edit">
           <span>กิจกรรม</span>
-          <span class="cat-code mono">${escapeHtml(cat.code||'—')}</span>
+          ${canManage
+            ? `<input type="text" class="code-highlight-input" value="${escapeHtml(cat.code)}" onchange="updateProjectCode('${workTypeKey}','${catKey}', this.value)">`
+            : `<span class="cat-code mono">${escapeHtml(cat.code||'—')}</span>`}
         </div>
       </div>
 
