@@ -152,6 +152,7 @@ body{
 }
 .role-badge.admin{background:rgba(232,163,61,.16);color:var(--amber);border:1px solid rgba(232,163,61,.4);}
 .role-badge.deptadmin{background:rgba(47,122,110,.18);color:#5FC2AE;border:1px solid rgba(47,122,110,.45);}
+.role-badge.rep{background:rgba(99,102,241,.18);color:#A5A9FA;border:1px solid rgba(99,102,241,.45);}
 .role-badge.member{background:rgba(255,255,255,.08);color:#B7C2C6;border:1px solid rgba(255,255,255,.16);}
 
 .account-row{
@@ -247,7 +248,7 @@ body{
 .header-actions{display:flex;gap:8px;flex-shrink:0;}
 
 .stat-strip{
-  display:grid;grid-template-columns:repeat(3,1fr);
+  display:grid;grid-template-columns:repeat(4,1fr);
   gap:10px;margin-bottom:22px;
 }
 @media (max-width:700px){.stat-strip{grid-template-columns:1fr 1fr;}}
@@ -539,11 +540,12 @@ table.ledger .del-x:hover{color:var(--rust);}
           <label id="roleLabelMember"><input type="radio" name="authRole" value="member" checked> สมาชิกทั่วไป</label>
           <label id="roleLabelDeptAdmin"><input type="radio" name="authRole" value="dept_admin"> ผู้ดูแลแผนก</label>
           <label id="roleLabelAdmin"><input type="radio" name="authRole" value="admin"> แอดมิน</label>
+          <label id="roleLabelRep"><input type="radio" name="authRole" value="rep"> ตัวแทนบริษัท</label>
         </div>
-        <div class="role-hint">สมาชิกทั่วไป: เห็น/เพิ่มรายการได้เฉพาะแผนกตัวเอง · ผู้ดูแลแผนก: จัดการศูนย์ต้นทุนและงบได้เฉพาะแผนกตัวเอง · แอดมิน: จัดการได้ทุกแผนก</div>
+        <div class="role-hint">สมาชิกทั่วไป: เห็น/เพิ่มรายการได้เฉพาะแผนกตัวเอง · ผู้ดูแลแผนก: จัดการศูนย์ต้นทุนและงบได้เฉพาะแผนกตัวเอง · แอดมิน: จัดการได้ทุกแผนก · ตัวแทนบริษัท: เพิ่มรายการได้ทุกแผนกเหมือนสมาชิกทั่วไป แต่สลับดูได้ทุกแผนก ไม่มีสิทธิ์จัดการงบ</div>
       </div>
       <div class="field hidden" id="authCodeField">
-        <label>รหัสยืนยันสิทธิ์ (สำหรับผู้ดูแลแผนก/แอดมิน)</label>
+        <label>รหัสยืนยันสิทธิ์ (สำหรับผู้ดูแลแผนก/แอดมิน/ตัวแทนบริษัท)</label>
         <input type="text" id="authCode" placeholder="ขอรหัสได้จากผู้ดูแลระบบ">
       </div>
       <div class="field hidden" id="authDeptField">
@@ -955,15 +957,23 @@ function flashSaved(isError){
 }
 function isAdmin(){ return state.userRole === 'admin'; }
 function isDeptAdmin(){ return state.userRole === 'dept_admin'; }
+function isCompanyRep(){ return state.userRole === 'rep'; }
 // True if the user can manage structure (cost centers, budget items/codes) for the given department:
 // full admins can manage any department; dept_admins only their own assigned department.
+// (company reps never manage structure anywhere — same as regular members.)
 function canManageDept(deptKey){
   if(isAdmin()) return true;
   return isDeptAdmin() && state.userDept === deptKey;
 }
-const ROLE_LABELS = { member:'สมาชิกทั่วไป', dept_admin:'ผู้ดูแลแผนก', admin:'แอดมิน' };
+// True if the user is allowed to freely switch between all 7 departments
+// (full admins and company reps; regular members and dept_admins stay locked to their own department).
+function canSwitchAllDepts(){
+  return isAdmin() || isCompanyRep();
+}
+const ROLE_LABELS = { member:'สมาชิกทั่วไป', dept_admin:'ผู้ดูแลแผนก', admin:'แอดมิน', rep:'ตัวแทนบริษัท' };
 const ADMIN_SIGNUP_CODE = 'PEABETONG2569';       // required to register as แอดมิน (case-insensitive)
 const DEPT_ADMIN_SIGNUP_CODE = 'PEABETONGDEPT';  // required to register as ผู้ดูแลแผนก (case-insensitive)
+const REP_SIGNUP_CODE = 'PEABETONGREP';          // required to register as ตัวแทนบริษัท (case-insensitive)
 
 /* ============ Thai date / number-to-words helpers (for withdrawal slip PDF) ============ */
 const THAI_MONTHS = ['','มกราคม','กุมภาพันธ์','มีนาคม','เมษายน','พฤษภาคม','มิถุนายน','กรกฎาคม','สิงหาคม','กันยายน','ตุลาคม','พฤศจิกายน','ธันวาคม'];
@@ -1166,6 +1176,137 @@ function buildSlipBodyHtml(cc, entries, payerName, payerCode, payerPosition, doc
   `;
 }
 
+/* ============ WBS project mode: withdrawal slip (separate from budget-mode slip above — do not merge) ============ */
+function buildProjectSlipBodyHtml(project, catLabel, catCode, networkNo, row, rowRemaining, payerName, payerCode, payerPosition, docDateStr){
+  const dateParts = thaiDateParts(docDateStr);
+  const officeName = state.orgSettings.officeName || '';
+  const amount = Number(row.amount)||0;
+
+  const itemRows = `
+        <tr>
+          <td class="ctr">1</td>
+          <td class="hl">${escapeHtml(row.desc)}</td>
+          <td class="num hl">${fmt2(amount)}</td>
+          <td class="ctr">-</td>
+          <td class="num hl">${fmt2(amount)}</td>
+        </tr>`;
+  const blankItemRows = Array.from({length:5}).map(()=>`<tr><td>&nbsp;</td><td></td><td></td><td></td><td></td></tr>`).join('');
+
+  return `
+    <table class="hdr">
+      <tr>
+        <td class="seal-cell">
+          <img class="seal-img" src="${ORG_LOGO_BASE64}" alt="ตราหน่วยงาน">
+          <div class="hdr-title">แบบขอเบิกจ่ายเงินและตัดงบประมาณ</div>
+          <div class="hdr-line">กฟฟ. &nbsp;${escapeHtml(officeName)}</div>
+          <div class="hdr-line">งบ &nbsp;หมายเลขงาน</div>
+          <div class="hdr-line">หมายเลขงาน &nbsp;${escapeHtml(project.wbs)}</div>
+        </td>
+        <td class="hdr-right">
+          เลขที่ กฟฟ. _____________<br>
+          เลขที่ _____________<br>
+          วันที่ ${escapeHtml(dateParts.day)} &nbsp;เดือน ${escapeHtml(dateParts.month)} &nbsp;พ.ศ. ${escapeHtml(dateParts.year)}<br>
+          ผู้เบิก ${escapeHtml(payerName)} &nbsp;&nbsp;&nbsp; ${escapeHtml(payerCode)}<br>
+          ตำแหน่ง/ที่อยู่ &nbsp;${escapeHtml(payerPosition)}
+        </td>
+      </tr>
+    </table>
+    <table class="items">
+      <thead>
+        <tr>
+          <th style="width:8%;">ลำดับ</th>
+          <th>รายการ</th>
+          <th style="width:16%;">จำนวนเงิน</th>
+          <th style="width:14%;">ภาษีมูลค่าเพิ่ม</th>
+          <th style="width:16%;">รวม</th>
+        </tr>
+      </thead>
+      <tbody>
+        ${itemRows}
+        ${blankItemRows}
+        <tr>
+          <td colspan="5">(มีหลักฐานประกอบแนบ รวม _______ ฉบับ)</td>
+        </tr>
+        <tr>
+          <td colspan="3" class="bold">รวมเงินที่เบิก&nbsp;&nbsp;<span class="hl" style="font-weight:400;">${escapeHtml(bahtText(amount))}</span></td>
+          <td></td>
+          <td class="num bold hl">${fmt2(amount)}</td>
+        </tr>
+      </tbody>
+    </table>
+    <div class="section-label">รายละเอียดค่าใช้จ่ายตามศูนย์ต้นทุนประกอบใบสำคัญจ่ายเงิน</div>
+    <table class="detail">
+      <colgroup>
+        <col style="width:28%;">
+        <col style="width:24%;">
+        <col style="width:24%;">
+        <col style="width:24%;">
+      </colgroup>
+      <tr><td>ชื่อ-รหัสบัญชี</td><td></td><td></td><td class="ctr">รวมค่าใช้จ่าย</td></tr>
+      <tr><td>รหัสศูนย์ต้นทุน</td><td></td><td></td><td></td></tr>
+      <tr><td>&nbsp;</td><td></td><td></td><td></td></tr>
+      <tr><td class="bold">รวม</td><td></td><td></td><td></td></tr>
+      <tr><td colspan="3">งบประมาณคงเหลือหลังเบิกจ่ายครั้งนี้</td><td></td></tr>
+    </table>
+    <table class="detail">
+      <tr>
+        <td style="width:34%;">ชื่อ-รหัสบัญชี</td>
+        <td class="ctr hl" colspan="2">${escapeHtml(catLabel)}</td>
+        <td class="ctr" rowspan="4">รวมค่าใช้จ่าย</td>
+      </tr>
+      <tr><td>WBS / PM order</td><td class="hl" colspan="2">${escapeHtml(project.wbs)}</td></tr>
+      <tr><td>กิจกรรม</td><td class="hl" colspan="2">${escapeHtml(catCode)}</td></tr>
+      <tr><td>โครงข่าย</td><td class="hl" colspan="2">${networkNo ? escapeHtml(networkNo) : '—'}</td></tr>
+      <tr>
+        <td class="bold">รวม</td>
+        <td class="num bold" colspan="2">${fmt2(amount)}</td>
+        <td class="num bold">${fmt2(amount)}</td>
+      </tr>
+      <tr>
+        <td colspan="3">งบประมาณคงเหลือหลังเบิกจ่ายครั้งนี้</td>
+        <td class="num bold hl">${fmt2(rowRemaining)}</td>
+      </tr>
+    </table>
+    <div class="note-sig-row">
+      <div class="note">
+        หมายเหตุ - การระบุจำนวนเงินไม่เครดิตภาษีซื้อ ให้ใช้ยอดเงินรวมภาษี<br>
+        &nbsp;&nbsp;&nbsp;&nbsp; - กรณีค่าใช้จ่ายที่เครดิตภาษีซื้อ ให้ใช้ยอดมูลค่าสินค้าไม่รวมภาษี
+      </div>
+      <table class="sig-block">
+        <tr>
+          <td class="sig-label">ลงชื่อ</td>
+          <td class="sig-blank">________________________</td>
+          <td class="sig-label">ผู้ควบคุมงบ</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td class="ctr">( &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; )</td>
+          <td></td>
+        </tr>
+      </table>
+    </div>
+  `;
+}
+function downloadProjectWithdrawalSlip(workTypeKey, catKey, entryId){
+  const p = getProject(state.activeProjectId);
+  if(!p) return;
+  const workType = p.departments[workTypeKey];
+  if(!workType) return;
+  const cat = workType.budgets[catKey];
+  if(!cat) return;
+  const t = projCatTotals(cat);
+  const row = t.rows.find(r=>r.id===entryId);
+  if(!row) return;
+  const rowRemaining = t.usable80 - row.cumulative;
+  const payerName = row.addedByName || row.addedByEmail || '';
+  const payerCode = row.addedByCode || '';
+  const payerPosition = row.addedByPosition || '';
+  const docTitle = `ใบตัดงบ_${p.wbs}_${cat.code}_${row.date}`;
+
+  const bodyHtml = buildProjectSlipBodyHtml(p, cat.label, cat.code, workType.networkNo, row, rowRemaining, payerName, payerCode, payerPosition, row.date);
+  openSlipPrintWindow(bodyHtml, docTitle);
+}
+
 function wrapSlipDocument(bodyHtml, docTitle){
   return `<!DOCTYPE html>
 <html lang="en">
@@ -1332,7 +1473,8 @@ function updateRolePickUi(){
   document.getElementById('roleLabelMember').classList.toggle('checked', val==='member');
   document.getElementById('roleLabelDeptAdmin').classList.toggle('checked', val==='dept_admin');
   document.getElementById('roleLabelAdmin').classList.toggle('checked', val==='admin');
-  document.getElementById('authDeptField').classList.toggle('hidden', val==='admin');
+  document.getElementById('roleLabelRep').classList.toggle('checked', val==='rep');
+  document.getElementById('authDeptField').classList.toggle('hidden', val==='admin' || val==='rep');
   document.getElementById('authCodeField').classList.toggle('hidden', val==='member');
 }
 async function submitAuth(){
@@ -1361,7 +1503,7 @@ async function submitAuth(){
         errEl.classList.add('show');
         return;
       }
-      const requiredCode = role === 'admin' ? ADMIN_SIGNUP_CODE : (role === 'dept_admin' ? DEPT_ADMIN_SIGNUP_CODE : null);
+      const requiredCode = role === 'admin' ? ADMIN_SIGNUP_CODE : (role === 'dept_admin' ? DEPT_ADMIN_SIGNUP_CODE : (role === 'rep' ? REP_SIGNUP_CODE : null));
       if(requiredCode && enteredCode.toUpperCase() !== requiredCode.toUpperCase()){
         errEl.textContent = 'รหัสยืนยันสิทธิ์ไม่ถูกต้อง กรุณาติดต่อผู้ดูแลระบบเพื่อขอรหัส';
         errEl.classList.add('show');
@@ -1917,6 +2059,8 @@ function addProjectEntry(workTypeKey, catKey){
     addedBy: state.user ? state.user.uid : null,
     addedByName: state.user ? (state.user.displayName || state.user.email) : null,
     addedByEmail: state.user ? state.user.email : null,
+    addedByPosition: state.user ? (state.user.position || '') : '',
+    addedByCode: state.user ? (state.user.employeeCode || '') : '',
   });
   saveProject(p); render();
   return false;
@@ -1983,6 +2127,8 @@ function renderRoleBadge(){
        </div>`;
   } else if(isDeptAdmin()){
     el.innerHTML = `<span class="role-badge deptadmin">◆ ${ROLE_LABELS.dept_admin}</span>`;
+  } else if(isCompanyRep()){
+    el.innerHTML = `<span class="role-badge rep">✦ ${ROLE_LABELS.rep}</span>`;
   } else {
     el.innerHTML = `<span class="role-badge member">${ROLE_LABELS.member}</span>`;
   }
@@ -2052,7 +2198,7 @@ function switchDept(key){
 }
 function renderDeptWrap(){
   const el = document.getElementById('deptWrap');
-  if(isAdmin()){
+  if(canSwitchAllDepts()){
     el.innerHTML = `
       <div class="dept-switcher">
         <div class="dt-label">กำลังดูแผนก</div>
@@ -2333,7 +2479,7 @@ function renderProjectMain(){
     main.innerHTML = `<div class="welcome">
       <h1>คุมงบโครงการก่อสร้าง</h1>
       <p>โหมดนี้ใช้ได้เฉพาะแผนก <b>ผปบ.</b>, <b>ผกส.</b> และ <b>ผมต.</b> เท่านั้น
-      ${isAdmin() ? 'สลับไปแผนกใดแผนกหนึ่งข้างต้นจากเมนู "กำลังดูแผนก" ด้านซ้าย เพื่อใช้งานโหมดนี้' : 'บัญชีของคุณสังกัดแผนก '+escapeHtml(deptLabel)+' ซึ่งไม่ได้ใช้งานโหมดนี้'}</p>
+      ${canSwitchAllDepts() ? 'สลับไปแผนกใดแผนกหนึ่งข้างต้นจากเมนู "กำลังดูแผนก" ด้านซ้าย เพื่อใช้งานโหมดนี้' : 'บัญชีของคุณสังกัดแผนก '+escapeHtml(deptLabel)+' ซึ่งไม่ได้ใช้งานโหมดนี้'}</p>
     </div>`;
     return;
   }
@@ -2490,7 +2636,10 @@ function renderProjectCatDetail(p, workTypeKey, wtName, networkNo, catKey, cat, 
             <td class="num">${fmt(r.amount)}</td>
             <td class="num">${fmt(r.cumulative)}</td>
             <td class="num ${rowRemaining<0?'neg':''}">${fmt(rowRemaining)}</td>
-            <td>${canDelete ? `<button class="del-x" onclick="deleteProjectEntry('${workTypeKey}','${catKey}','${r.id}')" title="ลบรายการ">✕</button>` : ''}</td>
+            <td style="white-space:nowrap;">
+              <button class="del-x" style="color:var(--teal);margin-right:8px;" onclick="downloadProjectWithdrawalSlip('${workTypeKey}','${catKey}','${r.id}')" title="เปิดใบตัดงบเพื่อพิมพ์ / บันทึกเป็น PDF">🖨 ใบตัดงบ</button>
+              ${canDelete ? `<button class="del-x" onclick="deleteProjectEntry('${workTypeKey}','${catKey}','${r.id}')" title="ลบรายการ">✕</button>` : ''}
+            </td>
           </tr>`;
         }).join('')}
       </tbody>
@@ -2569,12 +2718,12 @@ function initAuthListener(){
     let profile = null;
     try{ profile = await window.fb.getUserProfile(user.uid); }catch(e){ console.error(e); }
     const loadedRole = profile && profile.role;
-    state.userRole = (loadedRole === 'admin' || loadedRole === 'dept_admin') ? loadedRole : 'member';
+    state.userRole = (loadedRole === 'admin' || loadedRole === 'dept_admin' || loadedRole === 'rep') ? loadedRole : 'member';
     state.user.displayName = (profile && profile.displayName) ? profile.displayName : '';
     state.user.position = (profile && profile.position) ? profile.position : '';
     state.user.employeeCode = (profile && profile.employeeCode) ? profile.employeeCode : '';
     state.userDept = (profile && profile.deptKey) ? profile.deptKey : null;
-    state.activeDept = isAdmin() ? (state.activeDept || DEPARTMENTS[0].key) : state.userDept;
+    state.activeDept = canSwitchAllDepts() ? (state.activeDept || DEPARTMENTS[0].key) : state.userDept;
     ccUnsub = window.fb.subscribeCostCenters((ccs)=>{
       state.costCenters = ccs;
       if(state.activeCcId && !ccs.find(c=>c.id===state.activeCcId)){
