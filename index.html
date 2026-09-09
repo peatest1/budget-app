@@ -943,7 +943,11 @@ function uid(){ return Date.now().toString(36)+Math.random().toString(36).slice(
 function todayStr(){ return new Date().toISOString().slice(0,10); }
 function fmt(n){
   n = Number(n)||0;
-  return n.toLocaleString('th-TH',{minimumFractionDigits:2,maximumFractionDigits:2});
+  // Use en-US locale (not th-TH) so number formatting is guaranteed to use Arabic numerals
+  // on every device/browser — some th-TH ICU implementations render Thai digits instead,
+  // which no font/CSS trick can fix since the character data itself would be wrong.
+  // Thai and US formatting conventions are identical (comma thousands, period decimal).
+  return n.toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2});
 }
 function escapeHtml(s){
   return String(s??'').replace(/[&<>"']/g, m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
@@ -1017,7 +1021,7 @@ function bahtText(amount){
   text += satang > 0 ? (thaiNumberText(String(satang)) + 'สตางค์') : 'ถ้วน';
   return (negative ? 'ลบ' : '') + text;
 }
-function fmt2(n){ return (Number(n)||0).toLocaleString('th-TH',{minimumFractionDigits:2,maximumFractionDigits:2}); }
+function fmt2(n){ return (Number(n)||0).toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2}); }
 
 /* ============ withdrawal / budget-deduction slip PDF ============ */
 function buildSlipBodyHtml(cc, entries, payerName, payerCode, payerPosition, docDateStr){
