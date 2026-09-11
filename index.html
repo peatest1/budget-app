@@ -1255,15 +1255,17 @@ function buildProjectSlipBodyHtml(project, catLabel, catCode, networkNo, row, ro
     <table class="detail">
       <tr>
         <td style="width:34%;">ชื่อ-รหัสบัญชี</td>
-        <td class="ctr hl" colspan="2">${escapeHtml(catLabel)}</td>
-        <td class="ctr" rowspan="4">รวมค่าใช้จ่าย</td>
+        <td class="ctr hl">${escapeHtml(catLabel)}</td>
+        <td></td>
+        <td class="ctr" rowspan="2">รวมค่าใช้จ่าย</td>
       </tr>
-      <tr><td>WBS / PM order</td><td class="hl" colspan="2">${escapeHtml(project.wbs)}</td></tr>
-      <tr><td>กิจกรรม</td><td class="hl" colspan="2">${escapeHtml(catCode)}</td></tr>
-      <tr><td>โครงข่าย</td><td class="hl" colspan="2">${networkNo ? escapeHtml(networkNo) : '—'}</td></tr>
+      <tr><td>WBS / PM order</td><td class="hl">${escapeHtml(project.wbs)}</td><td></td></tr>
+      <tr><td>กิจกรรม</td><td class="hl">${escapeHtml(catCode)}</td><td></td><td></td></tr>
+      <tr><td>โครงข่าย</td><td class="hl">${networkNo ? escapeHtml(networkNo) : '—'}</td><td></td><td></td></tr>
       <tr>
         <td class="bold">รวม</td>
-        <td class="num bold" colspan="2">${fmt2(amount)}</td>
+        <td class="num bold">${fmt2(amount)}</td>
+        <td></td>
         <td class="num bold">${fmt2(amount)}</td>
       </tr>
       <tr>
