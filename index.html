@@ -849,6 +849,18 @@ table.ledger .del-x:hover{color:var(--rust);}
   </div>
 </div>
 
+<!-- Trash (soft-deleted cost centers / WBS project files) modal -->
+<div class="modal-overlay hidden" id="trashModal">
+  <div class="modal" style="max-width:640px;">
+    <h2>ถังขยะ</h2>
+    <p class="modal-desc">รายการที่ถูกลบจะถูกเก็บไว้ที่นี่ก่อน — กู้คืนได้ตลอดจนกว่าจะกด "ลบถาวร" เท่านั้นที่จะหายจริง (เฉพาะแผนก/ปีงบประมาณที่กำลังดูอยู่)</p>
+    <div id="trashListWrap" style="max-height:400px;overflow-y:auto;"></div>
+    <div class="modal-actions">
+      <button class="btn btn-outline" onclick="closeModal('trashModal')">ปิด</button>
+    </div>
+  </div>
+</div>
+
 <!-- ============ Firebase init (module) ============ -->
 <script type="module">
   import { initializeApp } from "https://www.gstatic.com/firebasejs/12.1.0/firebase-app.js";
@@ -857,7 +869,7 @@ table.ledger .del-x:hover{color:var(--rust);}
     signInWithEmailAndPassword, signOut
   } from "https://www.gstatic.com/firebasejs/12.1.0/firebase-auth.js";
   import {
-    getFirestore, doc, getDoc, setDoc, deleteDoc,
+    getFirestore, doc, getDoc, setDoc, deleteDoc, runTransaction,
     collection, query, where, onSnapshot
   } from "https://www.gstatic.com/firebasejs/12.1.0/firebase-firestore.js";
 
@@ -896,6 +908,43 @@ table.ledger .del-x:hover{color:var(--rust);}
       });
     },
     saveCostCenter: (cc) => setDoc(doc(db, 'costCenters', cc.id), cc),
+    // Adds/removes one ledger entry through a transaction: it re-reads the document from the
+    // server at the moment of writing and merges the change in, instead of blindly overwriting
+    // the whole document with whatever the client had locally. This is what stops two people
+    // recording payments in the same cost center at nearly the same time from silently erasing
+    // each other's entry (the old setDoc(cc) path could do that, since it always wrote the
+    // entire document as one blob).
+    addCostCenterEntryTx: (ccId, itemCode, entry) => runTransaction(db, async (tx) => {
+      const ref = doc(db, 'costCenters', ccId);
+      const snap = await tx.get(ref);
+      if(!snap.exists()) throw new Error('ไม่พบศูนย์ต้นทุนนี้ในระบบ (อาจถูกลบไปแล้วโดยผู้อื่น)');
+      const data = snap.data();
+      const items = [...(data.items || [])];
+      const idx = items.findIndex(i => i.code === itemCode);
+      if(idx === -1) throw new Error('ไม่พบรายการบัญชีนี้ในศูนย์ต้นทุน (อาจถูกลบไปแล้วโดยผู้อื่น)');
+      const entries = [...(items[idx].entries || []), entry];
+      items[idx] = {...items[idx], entries};
+      tx.set(ref, {...data, items});
+    }),
+    deleteCostCenterEntryTx: (ccId, itemCode, entryId) => runTransaction(db, async (tx) => {
+      const ref = doc(db, 'costCenters', ccId);
+      const snap = await tx.get(ref);
+      if(!snap.exists()) throw new Error('ไม่พบศูนย์ต้นทุนนี้ในระบบ (อาจถูกลบไปแล้วโดยผู้อื่น)');
+      const data = snap.data();
+      const items = [...(data.items || [])];
+      const idx = items.findIndex(i => i.code === itemCode);
+      if(idx === -1) throw new Error('ไม่พบรายการบัญชีนี้ในศูนย์ต้นทุน (อาจถูกลบไปแล้วโดยผู้อื่น)');
+      const entries = (items[idx].entries || []).filter(e => e.id !== entryId);
+      items[idx] = {...items[idx], entries};
+      tx.set(ref, {...data, items});
+    }),
+    // Soft delete: marks the cost center as deleted instead of physically removing the document,
+    // so an accidental click on "ลบศูนย์ต้นทุน" can still be undone from the trash view. The
+    // document (and every entry inside it) stays in Firestore until someone empties the trash.
+    softDeleteCostCenter: (id, who) => setDoc(doc(db, 'costCenters', id),
+      {deletedAt: Date.now(), deletedByUid: who.uid || null, deletedByName: who.name || null}, {merge: true}),
+    restoreCostCenter: (id) => setDoc(doc(db, 'costCenters', id),
+      {deletedAt: null, deletedByUid: null, deletedByName: null}, {merge: true}),
     deleteCostCenterDoc: (id) => deleteDoc(doc(db, 'costCenters', id)),
     subscribeOrgSettings: (cb) => {
       return onSnapshot(doc(db, 'settings', 'org'), (snap) => cb(snap.exists() ? snap.data() : {}), (err) => {
@@ -909,6 +958,38 @@ table.ledger .del-x:hover{color:var(--rust);}
       });
     },
     saveProject: (p) => setDoc(doc(db, 'constructionProjects', p.id), p),
+    // Same transactional pattern as addCostCenterEntryTx/deleteCostCenterEntryTx, for WBS
+    // category entries nested at departments[workTypeKey].budgets[catKey].entries.
+    addProjectEntryTx: (projId, workTypeKey, catKey, entry) => runTransaction(db, async (tx) => {
+      const ref = doc(db, 'constructionProjects', projId);
+      const snap = await tx.get(ref);
+      if(!snap.exists()) throw new Error('ไม่พบแฟ้มงานนี้ในระบบ (อาจถูกลบไปแล้วโดยผู้อื่น)');
+      const data = snap.data();
+      const departments = {...(data.departments || {})};
+      const wt = departments[workTypeKey];
+      const cat = wt && wt.budgets && wt.budgets[catKey];
+      if(!cat) throw new Error('ไม่พบประเภทงาน/หมวดงบประมาณนี้ (อาจถูกลบไปแล้วโดยผู้อื่น)');
+      const entries = [...(cat.entries || []), entry];
+      departments[workTypeKey] = {...wt, budgets: {...wt.budgets, [catKey]: {...cat, entries}}};
+      tx.set(ref, {...data, departments});
+    }),
+    deleteProjectEntryTx: (projId, workTypeKey, catKey, entryId) => runTransaction(db, async (tx) => {
+      const ref = doc(db, 'constructionProjects', projId);
+      const snap = await tx.get(ref);
+      if(!snap.exists()) throw new Error('ไม่พบแฟ้มงานนี้ในระบบ (อาจถูกลบไปแล้วโดยผู้อื่น)');
+      const data = snap.data();
+      const departments = {...(data.departments || {})};
+      const wt = departments[workTypeKey];
+      const cat = wt && wt.budgets && wt.budgets[catKey];
+      if(!cat) throw new Error('ไม่พบประเภทงาน/หมวดงบประมาณนี้ (อาจถูกลบไปแล้วโดยผู้อื่น)');
+      const entries = (cat.entries || []).filter(e => e.id !== entryId);
+      departments[workTypeKey] = {...wt, budgets: {...wt.budgets, [catKey]: {...cat, entries}}};
+      tx.set(ref, {...data, departments});
+    }),
+    softDeleteProject: (id, who) => setDoc(doc(db, 'constructionProjects', id),
+      {deletedAt: Date.now(), deletedByUid: who.uid || null, deletedByName: who.name || null}, {merge: true}),
+    restoreProject: (id) => setDoc(doc(db, 'constructionProjects', id),
+      {deletedAt: null, deletedByUid: null, deletedByName: null}, {merge: true}),
     deleteProjectDoc: (id) => deleteDoc(doc(db, 'constructionProjects', id)),
   };
 
@@ -1809,7 +1890,11 @@ function saveCc(cc){
 /* ============ data helpers ============ */
 function getCc(id){ return state.costCenters.find(c=>c.id===id); }
 function ccsForYear(year){
-  return state.costCenters.filter(c=>c.year===year && c.deptKey===state.activeDept);
+  return state.costCenters.filter(c=>c.year===year && c.deptKey===state.activeDept && !c.deletedAt);
+}
+// Soft-deleted cost centers for the currently active department/year — shown in the trash view.
+function trashedCcsForYear(year){
+  return state.costCenters.filter(c=>c.year===year && c.deptKey===state.activeDept && c.deletedAt);
 }
 // If the current department/year has at least one cost center and none is selected yet,
 // jump straight into the first one instead of showing the empty welcome screen.
@@ -2019,14 +2104,34 @@ function submitEditCc(){
 async function deleteCc(){
   const cc = getCc(state.activeCcId);
   if(!cc || !canManageDept(cc.deptKey)){ alert('คุณไม่มีสิทธิ์ลบศูนย์ต้นทุนนี้'); return; }
-  if(!confirm('ยืนยันลบศูนย์ต้นทุน "'+cc.code+' — '+cc.name+'" ? ข้อมูลทั้งหมดจะหายไป')) return;
+  if(!confirm('ยืนยันลบศูนย์ต้นทุน "'+cc.code+' — '+cc.name+'" ?\n\nรายการทั้งหมดจะถูกย้ายไปที่ "ถังขยะ" — กู้คืนได้ภายหลังจากเมนูถังขยะด้านซ้าย')) return;
   state.activeCcId = null; state.activeItemKey = null;
   render();
   try{
-    await window.fb.deleteCostCenterDoc(cc.id);
+    // Soft delete: the document is only marked deleted, not removed, so this can be undone
+    // from the trash view if it turns out to be a mistake.
+    await window.fb.softDeleteCostCenter(cc.id, {uid: state.user?.uid, name: state.user?.displayName || state.user?.email});
     flashSaved(false);
   }catch(e){
     alert('ลบไม่สำเร็จ: ' + e.message);
+  }
+}
+async function restoreCc(id){
+  try{
+    await window.fb.restoreCostCenter(id);
+    flashSaved(false);
+  }catch(e){
+    alert('กู้คืนไม่สำเร็จ: ' + e.message);
+  }
+}
+async function permanentlyDeleteCc(id, label){
+  if(!confirm('ลบถาวร "'+label+'" ?\n\nกู้คืนไม่ได้อีกต่อไป — ข้อมูลทั้งหมดจะหายไปจริง')) return;
+  try{
+    await window.fb.deleteCostCenterDoc(id);
+    flashSaved(false);
+    renderTrashModal();
+  }catch(e){
+    alert('ลบถาวรไม่สำเร็จ: ' + e.message);
   }
 }
 
@@ -2092,16 +2197,29 @@ function addEntry(itemCode){
   const amount = Number(document.getElementById('entryAmount').value);
   const tax = Number(document.getElementById('entryTax').value) || 0;
   if(!desc || !amount || amount<=0){ alert('กรุณากรอกรายการและจำนวนเงินให้ถูกต้อง'); return false; }
-  item.entries = item.entries || [];
-  item.entries.push({
+  const entry = {
     id:uid(), date, desc, amount, tax, createdAt:Date.now(),
     addedBy: state.user ? state.user.uid : null,
     addedByName: state.user ? (state.user.displayName || state.user.email) : null,
     addedByEmail: state.user ? state.user.email : null,
     addedByPosition: state.user ? (state.user.position || '') : '',
     addedByCode: state.user ? (state.user.employeeCode || '') : '',
+  };
+  item.entries = item.entries || [];
+  item.entries.push(entry);
+  render();
+  // Written through a transaction (see addCostCenterEntryTx) rather than the old whole-document
+  // saveCc(cc), so this can never silently clobber an entry someone else just added. If it fails
+  // (e.g. the cost center or item was removed by someone else in the meantime), the optimistic
+  // local add is rolled back and the user is told, instead of pretending it saved.
+  window.fb.addCostCenterEntryTx(cc.id, itemCode, entry).then(()=>{
+    flashSaved(false);
+  }).catch(e=>{
+    console.error(e);
+    item.entries = item.entries.filter(en=>en.id!==entry.id);
+    render();
+    alert('บันทึกรายการไม่สำเร็จ: ' + e.message);
   });
-  saveCc(cc); render();
   return false;
 }
 function deleteEntry(itemCode, entryId){
@@ -2124,13 +2242,25 @@ function deleteEntry(itemCode, entryId){
   }
   if(!confirm(msg)) return;
   item.entries = item.entries.filter(e=>e.id!==entryId);
-  saveCc(cc); render();
+  render();
+  window.fb.deleteCostCenterEntryTx(cc.id, itemCode, entryId).then(()=>{
+    flashSaved(false);
+  }).catch(e=>{
+    console.error(e);
+    item.entries.push(entry);
+    render();
+    alert('ลบรายการไม่สำเร็จ: ' + e.message);
+  });
 }
 
 /* ============ WBS project mode: data helpers ============ */
 function isProjectModeAllowed(deptKey){ return WBS_ALLOWED_DEPTS.includes(deptKey); }
 function projectsForDept(){
-  return state.projects.filter(p=>p.deptKey===state.activeDept);
+  return state.projects.filter(p=>p.deptKey===state.activeDept && !p.deletedAt);
+}
+// Soft-deleted WBS project files for the currently active department — shown in the trash view.
+function trashedProjectsForDept(){
+  return state.projects.filter(p=>p.deptKey===state.activeDept && p.deletedAt);
 }
 function getProject(id){ return state.projects.find(p=>p.id===id); }
 function projCatTotals(cat){
@@ -2239,14 +2369,33 @@ function submitEditProject(){
 async function deleteProject(){
   const p = getProject(state.activeProjectId);
   if(!p || !canManageDept(p.deptKey)){ alert('คุณไม่มีสิทธิ์ลบแฟ้มงานนี้'); return; }
-  if(!confirm('ยืนยันลบแฟ้มงาน "'+p.name+'" ? ข้อมูลทั้งหมดในแฟ้มนี้จะหายไป')) return;
+  if(!confirm('ยืนยันลบแฟ้มงาน "'+p.name+'" ?\n\nรายการทั้งหมดจะถูกย้ายไปที่ "ถังขยะ" — กู้คืนได้ภายหลังจากเมนูถังขยะด้านซ้าย')) return;
   state.activeProjectId = null; state.activeWorkTypeKey=null; state.activeProjectCatKey=null;
   render();
   try{
-    await window.fb.deleteProjectDoc(p.id);
+    // Soft delete — see the comment on deleteCc() for why.
+    await window.fb.softDeleteProject(p.id, {uid: state.user?.uid, name: state.user?.displayName || state.user?.email});
     flashSaved(false);
   }catch(e){
     alert('ลบแฟ้มงานไม่สำเร็จ: ' + e.message);
+  }
+}
+async function restoreProject(id){
+  try{
+    await window.fb.restoreProject(id);
+    flashSaved(false);
+  }catch(e){
+    alert('กู้คืนไม่สำเร็จ: ' + e.message);
+  }
+}
+async function permanentlyDeleteProject(id, label){
+  if(!confirm('ลบถาวร "'+label+'" ?\n\nกู้คืนไม่ได้อีกต่อไป — ข้อมูลทั้งหมดจะหายไปจริง')) return;
+  try{
+    await window.fb.deleteProjectDoc(id);
+    flashSaved(false);
+    renderTrashModal();
+  }catch(e){
+    alert('ลบถาวรไม่สำเร็จ: ' + e.message);
   }
 }
 
@@ -2340,15 +2489,25 @@ function addProjectEntry(workTypeKey, catKey){
   const amount = Number(document.getElementById('projEntryAmount').value);
   const tax = Number(document.getElementById('projEntryTax').value) || 0;
   if(!desc || !amount || amount<=0){ alert('กรุณากรอกรายการและจำนวนเงินให้ถูกต้อง'); return false; }
-  cat.entries.push({
+  const entry = {
     id:uid(), date, desc, amount, tax, createdAt:Date.now(),
     addedBy: state.user ? state.user.uid : null,
     addedByName: state.user ? (state.user.displayName || state.user.email) : null,
     addedByEmail: state.user ? state.user.email : null,
     addedByPosition: state.user ? (state.user.position || '') : '',
     addedByCode: state.user ? (state.user.employeeCode || '') : '',
+  };
+  cat.entries.push(entry);
+  render();
+  // Same transactional write as the budget-mode addCostCenterEntryTx — see the comment there.
+  window.fb.addProjectEntryTx(p.id, workTypeKey, catKey, entry).then(()=>{
+    flashSaved(false);
+  }).catch(e=>{
+    console.error(e);
+    cat.entries = cat.entries.filter(en=>en.id!==entry.id);
+    render();
+    alert('บันทึกรายการไม่สำเร็จ: ' + e.message);
   });
-  saveProject(p); render();
   return false;
 }
 function deleteProjectEntry(workTypeKey, catKey, entryId){
@@ -2358,7 +2517,15 @@ function deleteProjectEntry(workTypeKey, catKey, entryId){
   if(!entry || !canDeleteProjectEntry(p, entry)){ alert('ลบได้เฉพาะรายการที่ผู้ดูแลแผนก/แอดมิน หรือตัวคุณเองเป็นคนเพิ่มเข้ามาเท่านั้น'); return; }
   if(!confirm('ยืนยันลบรายการนี้?')) return;
   cat.entries = cat.entries.filter(e=>e.id!==entryId);
-  saveProject(p); render();
+  render();
+  window.fb.deleteProjectEntryTx(p.id, workTypeKey, catKey, entryId).then(()=>{
+    flashSaved(false);
+  }).catch(e=>{
+    console.error(e);
+    cat.entries.push(entry);
+    render();
+    alert('ลบรายการไม่สำเร็จ: ' + e.message);
+  });
 }
 
 /* ============ render ============ */
@@ -2394,6 +2561,9 @@ function render(){
     renderSidebar();
     renderMain();
   }
+
+  const trashModal = document.getElementById('trashModal');
+  if(trashModal && !trashModal.classList.contains('hidden')) renderTrashModal();
 }
 
 function renderModeSwitcher(){
@@ -2406,18 +2576,21 @@ function renderModeSwitcher(){
 
 function renderRoleBadge(){
   const el = document.getElementById('roleBadgeWrap');
+  let badgeHtml;
   if(isAdmin()){
-    el.innerHTML = `<div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
-        <span class="role-badge admin">★ ${ROLE_LABELS.admin}</span>
-        <button onclick="openOrgSettingsModal()" style="background:none;border:1px solid rgba(255,255,255,.22);border-radius:6px;padding:3px 9px;font-size:11px;font-weight:600;color:#B7C2C6;cursor:pointer;font-family:'Noto Sans Thai',sans-serif;">ตั้งค่าหน่วยงาน</button>
-       </div>`;
+    badgeHtml = `<span class="role-badge admin">★ ${ROLE_LABELS.admin}</span>
+        <button onclick="openOrgSettingsModal()" style="background:none;border:1px solid rgba(255,255,255,.22);border-radius:6px;padding:3px 9px;font-size:11px;font-weight:600;color:#B7C2C6;cursor:pointer;font-family:'Noto Sans Thai',sans-serif;">ตั้งค่าหน่วยงาน</button>`;
   } else if(isDeptAdmin()){
-    el.innerHTML = `<span class="role-badge deptadmin">◆ ${ROLE_LABELS.dept_admin}</span>`;
+    badgeHtml = `<span class="role-badge deptadmin">◆ ${ROLE_LABELS.dept_admin}</span>`;
   } else if(isCompanyRep()){
-    el.innerHTML = `<span class="role-badge rep">✦ ${ROLE_LABELS.rep}</span>`;
+    badgeHtml = `<span class="role-badge rep">✦ ${ROLE_LABELS.rep}</span>`;
   } else {
-    el.innerHTML = `<span class="role-badge member">${ROLE_LABELS.member}</span>`;
+    badgeHtml = `<span class="role-badge member">${ROLE_LABELS.member}</span>`;
   }
+  const trashBtn = canManageDept(state.activeDept)
+    ? `<button onclick="openTrashModal()" style="background:none;border:1px solid rgba(255,255,255,.22);border-radius:6px;padding:3px 9px;font-size:11px;font-weight:600;color:#B7C2C6;cursor:pointer;font-family:'Noto Sans Thai',sans-serif;">🗑 ถังขยะ</button>`
+    : '';
+  el.innerHTML = `<div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">${badgeHtml}${trashBtn}</div>`;
 }
 function renderAccountRow(){
   const el = document.getElementById('accountRow');
@@ -2473,6 +2646,53 @@ async function submitOrgSettings(){
   }catch(e){
     alert('บันทึกไม่สำเร็จ: ' + e.message);
   }
+}
+
+/* ============ trash (soft-deleted cost centers / WBS project files) ============ */
+function openTrashModal(){
+  if(!canManageDept(state.activeDept)){ alert('เฉพาะผู้ดูแลแผนกหรือแอดมินเท่านั้นที่เปิดถังขยะได้'); return; }
+  renderTrashModal();
+  openModal('trashModal');
+}
+function renderTrashModal(){
+  const wrap = document.getElementById('trashListWrap');
+  if(!wrap) return;
+  const fmtDate = (ts) => ts ? new Date(ts).toLocaleString('th-TH', {dateStyle:'medium', timeStyle:'short'}) : '';
+
+  let rows = [];
+  if(state.appMode === 'project'){
+    rows = trashedProjectsForDept().map(p => ({
+      id: p.id,
+      label: `${escapeHtml(p.wbs)} — ${escapeHtml(p.name)}`,
+      meta: `ลบเมื่อ ${fmtDate(p.deletedAt)}${p.deletedByName ? ' โดย '+escapeHtml(p.deletedByName) : ''}`,
+      restore: `restoreProject('${p.id}')`,
+      purge: `permanentlyDeleteProject('${p.id}', '${escapeHtml((p.wbs||'')+' — '+(p.name||'')).replace(/'/g,"\\'")}')`,
+    }));
+  } else {
+    rows = trashedCcsForYear(state.activeYear).map(c => ({
+      id: c.id,
+      label: `${escapeHtml(c.code)} — ${escapeHtml(c.name)}`,
+      meta: `ลบเมื่อ ${fmtDate(c.deletedAt)}${c.deletedByName ? ' โดย '+escapeHtml(c.deletedByName) : ''}`,
+      restore: `restoreCc('${c.id}')`,
+      purge: `permanentlyDeleteCc('${c.id}', '${escapeHtml((c.code||'')+' — '+(c.name||'')).replace(/'/g,"\\'")}')`,
+    }));
+  }
+
+  if(!rows.length){
+    wrap.innerHTML = `<div style="padding:26px;text-align:center;color:var(--text-faint);font-size:13px;">ถังขยะว่างเปล่า</div>`;
+    return;
+  }
+  wrap.innerHTML = rows.map(r => `
+    <div style="display:flex;justify-content:space-between;align-items:center;gap:12px;padding:12px 4px;border-bottom:1px solid var(--border-soft);">
+      <div style="min-width:0;">
+        <div style="font-weight:600;font-size:13.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${r.label}</div>
+        <div style="font-size:11.5px;color:var(--text-faint);margin-top:2px;">${r.meta}</div>
+      </div>
+      <div style="display:flex;gap:8px;flex-shrink:0;">
+        <button class="btn btn-outline btn-sm" onclick="${r.restore}">กู้คืน</button>
+        <button class="btn btn-danger-ghost btn-sm" onclick="${r.purge}">ลบถาวร</button>
+      </div>
+    </div>`).join('');
 }
 
 function switchDept(key){
@@ -3084,7 +3304,8 @@ function initAuthListener(){
     state.activeDept = canSwitchAllDepts() ? (state.activeDept || DEPARTMENTS[0].key) : state.userDept;
     ccUnsub = window.fb.subscribeCostCenters((ccs)=>{
       state.costCenters = ccs;
-      if(state.activeCcId && !ccs.find(c=>c.id===state.activeCcId)){
+      const activeCc = ccs.find(c=>c.id===state.activeCcId);
+      if(state.activeCcId && (!activeCc || activeCc.deletedAt)){
         state.activeCcId=null; state.activeItemKey=null;
       }
       autoSelectFirstCc();
@@ -3096,7 +3317,8 @@ function initAuthListener(){
     });
     projectsUnsub = window.fb.subscribeProjects((projects)=>{
       state.projects = projects;
-      if(state.activeProjectId && !projects.find(p=>p.id===state.activeProjectId)){
+      const activeProj = projects.find(p=>p.id===state.activeProjectId);
+      if(state.activeProjectId && (!activeProj || activeProj.deletedAt)){
         state.activeProjectId=null; state.activeWorkTypeKey=null; state.activeProjectCatKey=null;
       }
       render();
