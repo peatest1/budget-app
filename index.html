@@ -842,7 +842,9 @@ table.ledger .del-x:hover{color:var(--rust);}
       <label>ชื่อสาขา/หน่วยงาน (กฟฟ.)</label>
       <input type="text" id="osOfficeName" placeholder="เช่น เบตง">
     </div>
+    <div id="osBackupInfo" style="margin-top:4px;font-size:12px;color:var(--text-faint);"></div>
     <div class="modal-actions">
+      <button class="btn btn-outline" onclick="downloadBackup()">💾 ดาวน์โหลดข้อมูลสำรอง</button>
       <button class="btn btn-outline" onclick="closeModal('orgSettingsModal')">ยกเลิก</button>
       <button class="btn btn-primary" onclick="submitOrgSettings()">บันทึก</button>
     </div>
@@ -853,7 +855,7 @@ table.ledger .del-x:hover{color:var(--rust);}
 <div class="modal-overlay hidden" id="trashModal">
   <div class="modal" style="max-width:640px;">
     <h2>ถังขยะ</h2>
-    <p class="modal-desc">รายการที่ถูกลบจะถูกเก็บไว้ที่นี่ก่อน — กู้คืนได้ตลอดจนกว่าจะกด "ลบถาวร" เท่านั้นที่จะหายจริง (เฉพาะแผนก/ปีงบประมาณที่กำลังดูอยู่)</p>
+    <p class="modal-desc">รายการที่ถูกลบจะถูกเก็บไว้ที่นี่ก่อน — กู้คืนได้ตลอดจนกว่าจะกด "ลบถาวร" (เฉพาะแผนก/ปีงบประมาณที่กำลังดูอยู่) ระบบจะลบถาวรให้อัตโนมัติเมื่อครบ 30 วันนับจากวันที่ลบ</p>
     <div id="trashListWrap" style="max-height:400px;overflow-y:auto;"></div>
     <div class="modal-actions">
       <button class="btn btn-outline" onclick="closeModal('trashModal')">ปิด</button>
@@ -2020,6 +2022,72 @@ function canDeleteEntry(entry){
   return !!(entry.addedBy && state.user && entry.addedBy === state.user.uid);
 }
 
+/* ============ trash retention: auto-purge soft-deleted records after 30 days ============ */
+// Soft delete (cc.deletedAt / item.deletedAt / entry.deletedAt / department.deletedAt) exists so an
+// accidental delete can be undone from a trash view — but nothing should stay there forever, or the
+// documents keep growing and old mistakes never actually get cleaned up. This sweep runs whenever
+// cost-center/project data refreshes and permanently removes anything that has sat in a trash view
+// for more than TRASH_RETENTION_DAYS. Every check is scoped to what the current user can actually
+// manage (own department for a dept admin/company rep, everything for a global admin) — the same
+// permission that gates the manual restore/purge buttons — so this never touches another
+// department's trash. Writes go straight to window.fb (bypassing the debounced saveCc/saveProject
+// helpers, which share one timer and would drop all but the last doc in a multi-document sweep).
+const TRASH_RETENTION_DAYS = 30;
+const TRASH_RETENTION_MS = TRASH_RETENTION_DAYS * 24 * 60 * 60 * 1000;
+let trashSweepInProgress = false;
+async function sweepExpiredTrash(){
+  if(!state.user || trashSweepInProgress) return;
+  trashSweepInProgress = true;
+  try{
+    const cutoff = Date.now() - TRASH_RETENTION_MS;
+
+    for(const cc of (state.costCenters||[])){
+      if(!canManageDept(cc.deptKey)) continue;
+      try{
+        if(cc.deletedAt && cc.deletedAt < cutoff){
+          await window.fb.deleteCostCenterDoc(cc.id);
+          continue; // whole doc is gone — no need to also sweep its items/entries
+        }
+        let changed = false;
+        const items = (cc.items||[]).map(item=>{
+          if(item.deletedAt && item.deletedAt < cutoff){ changed = true; return null; }
+          const entries = (item.entries||[]);
+          const keptEntries = entries.filter(e => !(e.deletedAt && e.deletedAt < cutoff));
+          if(keptEntries.length !== entries.length) changed = true;
+          return {...item, entries: keptEntries};
+        }).filter(Boolean);
+        if(changed) await window.fb.saveCostCenter({...cc, items});
+      }catch(e){ console.error('sweepExpiredTrash: cost center', cc.id, e); }
+    }
+
+    for(const p of (state.projects||[])){
+      if(!canManageDept(p.deptKey)) continue;
+      try{
+        if(p.deletedAt && p.deletedAt < cutoff){
+          await window.fb.deleteProjectDoc(p.id);
+          continue;
+        }
+        let changed = false;
+        const departments = {};
+        Object.entries(p.departments||{}).forEach(([wtKey, wt])=>{
+          if(wt.deletedAt && wt.deletedAt < cutoff){ changed = true; return; }
+          const budgets = {};
+          Object.entries(wt.budgets||{}).forEach(([catKey, cat])=>{
+            const entries = (cat.entries||[]);
+            const keptEntries = entries.filter(e => !(e.deletedAt && e.deletedAt < cutoff));
+            if(keptEntries.length !== entries.length) changed = true;
+            budgets[catKey] = {...cat, entries: keptEntries};
+          });
+          departments[wtKey] = {...wt, budgets};
+        });
+        if(changed) await window.fb.saveProject({...p, departments});
+      }catch(e){ console.error('sweepExpiredTrash: project', p.id, e); }
+    }
+  } finally {
+    trashSweepInProgress = false;
+  }
+}
+
 /* ============ combined slip selection (choose up to 3 entries to print together) ============ */
 const MAX_SLIP_SELECTION = 3;
 function isEntrySelected(itemCode, entryId){
@@ -2184,7 +2252,7 @@ function submitEditCc(){
 async function deleteCc(){
   const cc = getCc(state.activeCcId);
   if(!cc || !canManageDept(cc.deptKey)){ alert('คุณไม่มีสิทธิ์ลบศูนย์ต้นทุนนี้'); return; }
-  if(!confirm('ยืนยันลบศูนย์ต้นทุน "'+cc.code+' — '+cc.name+'" ?\n\nรายการทั้งหมดจะถูกย้ายไปที่ "ถังขยะ" — กู้คืนได้ภายหลังจากเมนูถังขยะด้านซ้าย')) return;
+  if(!confirm('ยืนยันลบศูนย์ต้นทุน "'+cc.code+' — '+cc.name+'" ?\n\nรายการทั้งหมดจะถูกย้ายไปที่ "ถังขยะ" — กู้คืนได้ภายหลังจากเมนูถังขยะด้านซ้าย (เก็บไว้ 30 วันแล้วจะลบถาวรอัตโนมัติ)')) return;
   state.activeCcId = null; state.activeItemKey = null;
   render();
   try{
@@ -2248,7 +2316,7 @@ function removeItem(itemCode){
   const cc = getCc(state.activeCcId);
   if(!cc || !canManageDept(cc.deptKey)){ alert('คุณไม่มีสิทธิ์ลบรายการงบประมาณนี้'); return; }
   const item = cc.items.find(i=>i.code===itemCode);
-  if(!confirm('ยืนยันลบรายการ "'+item.code+' '+item.label+'" ออกจากศูนย์ต้นทุนนี้?\n\nรายการนี้จะถูกย้ายไปที่ "ถังขยะรายการบัญชี" ด้านล่างรายการงบประมาณ — กู้คืนได้ภายหลัง')) return;
+  if(!confirm('ยืนยันลบรายการ "'+item.code+' '+item.label+'" ออกจากศูนย์ต้นทุนนี้?\n\nรายการนี้จะถูกย้ายไปที่ "ถังขยะรายการบัญชี" ด้านล่างรายการงบประมาณ — กู้คืนได้ภายหลัง (เก็บไว้ 30 วันแล้วจะลบถาวรอัตโนมัติ)')) return;
   // Soft delete: mark instead of removing from the array, so it can be restored from the
   // trash section under the รายการงบประมาณ list.
   item.deletedAt = Date.now();
@@ -2516,7 +2584,7 @@ function submitEditProject(){
 async function deleteProject(){
   const p = getProject(state.activeProjectId);
   if(!p || !canManageDept(p.deptKey)){ alert('คุณไม่มีสิทธิ์ลบแฟ้มงานนี้'); return; }
-  if(!confirm('ยืนยันลบแฟ้มงาน "'+p.name+'" ?\n\nรายการทั้งหมดจะถูกย้ายไปที่ "ถังขยะ" — กู้คืนได้ภายหลังจากเมนูถังขยะด้านซ้าย')) return;
+  if(!confirm('ยืนยันลบแฟ้มงาน "'+p.name+'" ?\n\nรายการทั้งหมดจะถูกย้ายไปที่ "ถังขยะ" — กู้คืนได้ภายหลังจากเมนูถังขยะด้านซ้าย (เก็บไว้ 30 วันแล้วจะลบถาวรอัตโนมัติ)')) return;
   state.activeProjectId = null; state.activeWorkTypeKey=null; state.activeProjectCatKey=null;
   render();
   try{
@@ -2577,7 +2645,7 @@ function removeWorkType(workTypeKey){
   const p = getProject(state.activeProjectId);
   if(!p || !canManageDept(p.deptKey)){ alert('คุณไม่มีสิทธิ์ลบประเภทงานนี้'); return; }
   const wtName = WORK_TYPES.find(d=>d.key===workTypeKey).name;
-  if(!confirm('ยืนยันลบ "'+wtName+'" ออกจากแฟ้มงานนี้?\n\nประเภทงานนี้จะถูกย้ายไปที่ "ถังขยะประเภทงาน" — กู้คืนได้ภายหลัง')) return;
+  if(!confirm('ยืนยันลบ "'+wtName+'" ออกจากแฟ้มงานนี้?\n\nประเภทงานนี้จะถูกย้ายไปที่ "ถังขยะประเภทงาน" — กู้คืนได้ภายหลัง (เก็บไว้ 30 วันแล้วจะลบถาวรอัตโนมัติ)')) return;
   const wt = p.departments[workTypeKey];
   wt.deletedAt = Date.now();
   wt.deletedByUid = state.user ? state.user.uid : null;
@@ -2799,7 +2867,15 @@ function renderRoleBadge(){
   const trashBtn = canManageDept(state.activeDept)
     ? `<button onclick="openTrashModal()" style="background:none;border:1px solid rgba(255,255,255,.22);border-radius:6px;padding:3px 9px;font-size:11px;font-weight:600;color:#B7C2C6;cursor:pointer;font-family:'Noto Sans Thai',sans-serif;">🗑 ถังขยะ</button>`
     : '';
-  el.innerHTML = `<div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">${badgeHtml}${trashBtn}</div>`;
+  let backupBtn = '';
+  if(isAdmin()){
+    const overdue = isBackupOverdue();
+    const backupBorder = overdue ? 'rgba(230,126,90,.7)' : 'rgba(255,255,255,.22)';
+    const backupColor = overdue ? '#F2B8A2' : '#B7C2C6';
+    const title = overdue ? 'ยังไม่ได้สำรองข้อมูลเกิน 30 วันแล้ว — แนะนำให้ดาวน์โหลดสำรองไว้' : 'ดาวน์โหลดข้อมูลทั้งหมดเป็นไฟล์สำรอง (.json)';
+    backupBtn = `<button onclick="downloadBackup()" title="${title}" style="background:none;border:1px solid ${backupBorder};border-radius:6px;padding:3px 9px;font-size:11px;font-weight:600;color:${backupColor};cursor:pointer;font-family:'Noto Sans Thai',sans-serif;">💾 สำรองข้อมูล${overdue ? ' ⚠' : ''}</button>`;
+  }
+  el.innerHTML = `<div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">${badgeHtml}${trashBtn}${backupBtn}</div>`;
 }
 function renderAccountRow(){
   const el = document.getElementById('accountRow');
@@ -2841,7 +2917,16 @@ async function submitProfileName(){
 function openOrgSettingsModal(){
   if(!isAdmin()){ alert('เฉพาะแอดมินเท่านั้นที่ตั้งค่านี้ได้'); return; }
   document.getElementById('osOfficeName').value = state.orgSettings.officeName || '';
+  renderBackupInfo();
   openModal('orgSettingsModal');
+}
+function renderBackupInfo(){
+  const el = document.getElementById('osBackupInfo');
+  if(!el) return;
+  const last = state.orgSettings && state.orgSettings.lastBackupAt;
+  el.textContent = last
+    ? 'สำรองข้อมูลล่าสุด: ' + new Date(last).toLocaleString('th-TH', {dateStyle:'medium', timeStyle:'short'})
+    : 'ยังไม่เคยสำรองข้อมูล — แนะนำให้กด "ดาวน์โหลดข้อมูลสำรอง" ด้านล่าง';
 }
 async function submitOrgSettings(){
   if(!isAdmin()){ alert('เฉพาะแอดมินเท่านั้นที่ตั้งค่านี้ได้'); return; }
@@ -2854,6 +2939,51 @@ async function submitOrgSettings(){
     render();
   }catch(e){
     alert('บันทึกไม่สำเร็จ: ' + e.message);
+  }
+}
+
+/* ============ backup export (admin) ============ */
+// A full export of everything in Firestore (all cost centers + WBS project files + org settings),
+// downloaded straight to the admin's own computer as a dated JSON file. This is separate from the
+// in-app trash/soft-delete safety net — it's the last line of defense if something goes wrong with
+// Firebase itself (a bug, an accidental hard-delete, an outage), not something Firestore's own
+// backups can be assumed to cover. state.orgSettings.lastBackupAt is shared across every admin (it
+// lives in settings/org, not localStorage), so the "overdue" reminder reflects whether ANYONE on
+// the team has backed up recently, not just the browser currently open.
+const BACKUP_REMINDER_DAYS = 30;
+function isBackupOverdue(){
+  const last = state.orgSettings && state.orgSettings.lastBackupAt;
+  if(!last) return true;
+  return (Date.now() - last) > BACKUP_REMINDER_DAYS * 24 * 60 * 60 * 1000;
+}
+async function downloadBackup(){
+  if(!isAdmin()){ alert('เฉพาะแอดมินเท่านั้นที่สำรองข้อมูลทั้งหมดได้'); return; }
+  const payload = {
+    exportedAt: new Date().toISOString(),
+    exportedBy: state.user ? (state.user.displayName || state.user.email) : null,
+    orgSettings: state.orgSettings || {},
+    costCenters: state.costCenters || [],
+    constructionProjects: state.projects || [],
+  };
+  const json = JSON.stringify(payload, null, 2);
+  const blob = new Blob([json], {type: 'application/json'});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  const dateStr = todayStr();
+  a.href = url;
+  a.download = `budget-backup_${dateStr}.json`;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  URL.revokeObjectURL(url);
+
+  try{
+    await window.fb.setOrgSettings({ lastBackupAt: Date.now() });
+    state.orgSettings.lastBackupAt = Date.now();
+    render();
+    renderBackupInfo();
+  }catch(e){
+    console.error('บันทึกเวลาสำรองข้อมูลล่าสุดไม่สำเร็จ', e);
   }
 }
 
@@ -3598,6 +3728,7 @@ function initAuthListener(){
       }
       autoSelectFirstCc();
       render();
+      sweepExpiredTrash();
     });
     orgUnsub = window.fb.subscribeOrgSettings((settings)=>{
       state.orgSettings = settings || {};
@@ -3610,6 +3741,7 @@ function initAuthListener(){
         state.activeProjectId=null; state.activeWorkTypeKey=null; state.activeProjectCatKey=null;
       }
       render();
+      sweepExpiredTrash();
     });
     render();
   });
