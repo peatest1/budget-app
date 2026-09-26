@@ -507,13 +507,18 @@ table.ledger .del-x:hover{color:var(--rust);}
 .save-indicator.error{background:var(--rust);}
 
 .slip-bar{
+  /* display:none when hidden (not just an off-screen transform) — when the bar's innerHTML is
+     empty (nothing selected), its own height shrinks to just its padding, and a translateY(120%)
+     shift is then only 120% of that tiny height, which isn't enough to fully clear the viewport
+     edge — leaving a small dark rounded "nub" peeking up from the bottom of the screen. */
+  display:none;
   position:fixed;left:50%;bottom:20px;transform:translateX(-50%) translateY(120%);
   background:var(--ink);color:#fff;border:1px solid rgba(255,255,255,.15);
-  border-radius:12px;padding:12px 16px;display:flex;align-items:center;gap:12px;
+  border-radius:12px;padding:12px 16px;align-items:center;gap:12px;
   font-size:13px;font-weight:600;box-shadow:0 10px 30px rgba(0,0,0,.25);
   z-index:90;transition:transform .25s ease;white-space:nowrap;
 }
-.slip-bar.show{transform:translateX(-50%) translateY(0);}
+.slip-bar.show{display:flex;transform:translateX(-50%) translateY(0);}
 
 @media (max-width:860px){
   .app-shell{grid-template-columns:1fr;}
