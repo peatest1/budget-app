@@ -1225,12 +1225,18 @@ function buildSlipBodyHtml(cc, entries, payerName, payerCode, payerPosition, doc
 }
 
 /* ============ WBS project mode: withdrawal slip (separate from budget-mode slip above — do not merge) ============ */
-function buildProjectSlipBodyHtml(project, entries, payerName, payerCode, payerPosition, docDateStr){
-  // entries: array (length 1-3) of {catLabel, catCode, networkNo, row, rowRemaining}
+function buildProjectSlipBodyHtml(entries, payerName, payerCode, payerPosition, docDateStr){
+  // entries: array (length 1-3) of {project, catLabel, catCode, networkNo, row, rowRemaining}
+  // Each entry carries its OWN project, since entries selected across different WBS project
+  // files ("แฟ้มงาน") can now be combined onto a single printed slip.
   const dateParts = thaiDateParts(docDateStr);
   const officeName = state.orgSettings.officeName || '';
   const grandTotal = entries.reduce((sum,e)=> sum + (Number(e.row.amount)||0) + (Number(e.row.tax)||0), 0);
   const slot = (i) => entries[i] || null;
+  // Unique WBS/job numbers across all selected entries, in selection order, comma-separated —
+  // shows every job number in the header when the print spans more than one project file.
+  const uniqueWbsList = [...new Set(entries.map(e=>e.project.wbs))];
+  const wbsHeaderText = uniqueWbsList.join(' , ');
 
   const itemRows = entries.map((e,i)=>{
     const tax = Number(e.row.tax)||0;
@@ -1258,7 +1264,7 @@ function buildProjectSlipBodyHtml(project, entries, payerName, payerCode, payerP
           <div class="hdr-title">แบบขอเบิกจ่ายเงินและตัดงบประมาณ</div>
           <div class="hdr-line">กฟฟ. &nbsp;${escapeHtml(officeName)}</div>
           <div class="hdr-line">งบ &nbsp;หมายเลขงาน</div>
-          <div class="hdr-line">หมายเลขงาน &nbsp;${numEn(escapeHtml(project.wbs))}</div>
+          <div class="hdr-line">หมายเลขงาน &nbsp;${numEn(escapeHtml(wbsHeaderText))}</div>
         </td>
         <td class="hdr-right">
           เลขที่ กฟฟ. _____________<br>
@@ -1323,9 +1329,9 @@ function buildProjectSlipBodyHtml(project, entries, payerName, payerCode, payerP
       </tr>
       <tr>
         <td>WBS / PM order</td>
-        <td class="hl">${s0 ? numEn(escapeHtml(project.wbs)) : ''}</td>
-        <td class="hl">${s1 ? numEn(escapeHtml(project.wbs)) : ''}</td>
-        <td class="hl">${s2 ? numEn(escapeHtml(project.wbs)) : ''}</td>
+        <td class="hl wbs-code">${s0 ? numEn(escapeHtml(s0.project.wbs)) : ''}</td>
+        <td class="hl wbs-code">${s1 ? numEn(escapeHtml(s1.project.wbs)) : ''}</td>
+        <td class="hl wbs-code">${s2 ? numEn(escapeHtml(s2.project.wbs)) : ''}</td>
         <td></td>
       </tr>
       <tr>
@@ -1393,15 +1399,16 @@ function downloadProjectWithdrawalSlip(workTypeKey, catKey, entryId){
   const payerPosition = row.addedByPosition || '';
   const docTitle = `ใบตัดงบ_${p.wbs}_${cat.code}_${row.date}`;
 
-  const entries = [{catLabel: cat.label, catCode: cat.code, networkNo: workType.networkNo, row, rowRemaining}];
-  const bodyHtml = buildProjectSlipBodyHtml(p, entries, payerName, payerCode, payerPosition, row.date);
+  const entries = [{project: p, catLabel: cat.label, catCode: cat.code, networkNo: workType.networkNo, row, rowRemaining}];
+  const bodyHtml = buildProjectSlipBodyHtml(entries, payerName, payerCode, payerPosition, row.date);
   openSlipPrintWindow(bodyHtml, docTitle);
 }
 function printCombinedProjectSlip(){
-  const p = getProject(state.activeProjectId);
-  if(!p || !state.projectSlipSelection.length) return;
+  if(!state.projectSlipSelection.length) return;
   const entries = [];
   for(const sel of state.projectSlipSelection){
+    const p = getProject(sel.projectId);
+    if(!p) continue;
     const workType = p.departments[sel.workTypeKey];
     if(!workType) continue;
     const cat = workType.budgets[sel.catKey];
@@ -1410,7 +1417,7 @@ function printCombinedProjectSlip(){
     const row = t.rows.find(r=>r.id===sel.entryId);
     if(!row) continue;
     const rowRemaining = t.usable80 - row.cumulative;
-    entries.push({catLabel: cat.label, catCode: cat.code, networkNo: workType.networkNo, row, rowRemaining});
+    entries.push({project: p, catLabel: cat.label, catCode: cat.code, networkNo: workType.networkNo, row, rowRemaining});
   }
   if(!entries.length){
     alert('ไม่พบรายการที่เลือกไว้ อาจถูกลบไปแล้ว');
@@ -1422,9 +1429,10 @@ function printCombinedProjectSlip(){
   const payerCode = state.user ? (state.user.employeeCode || '') : '';
   const payerPosition = state.user ? (state.user.position || '') : '';
   const docDateStr = todayStr();
-  const docTitle = `ใบตัดงบรวม_${p.wbs}_${docDateStr}`;
+  const uniqueWbsForTitle = [...new Set(entries.map(e=>e.project.wbs))];
+  const docTitle = `ใบตัดงบรวม_${uniqueWbsForTitle.join('+')}_${docDateStr}`;
 
-  const bodyHtml = buildProjectSlipBodyHtml(p, entries, payerName, payerCode, payerPosition, docDateStr);
+  const bodyHtml = buildProjectSlipBodyHtml(entries, payerName, payerCode, payerPosition, docDateStr);
   openSlipPrintWindow(bodyHtml, docTitle);
 }
 
@@ -1435,11 +1443,18 @@ function wrapSlipDocument(bodyHtml, docTitle){
 <meta charset="UTF-8">
 <title>${escapeHtml(docTitle)}</title>
 <style>
-  @import url('https://fonts.googleapis.com/css2?family=Sarabun:wght@400;500;600;700&family=Noto+Sans+Thai:wght@400;500;600;700&display=swap');
   @page { size: 210mm 297mm; margin: 11mm; }
-  *{ box-sizing:border-box; }
+  /* Deliberately NOT loading a Google Font here (no @import). Pulling a web font over the
+     network meant the page sometimes finished printing/paginating before the font arrived —
+     whichever text painted first got the web font, whichever painted after a slow/blocked
+     network request (this often happens on restricted office networks) fell back to a
+     different installed font, producing a visibly mismatched document. Standardizing on
+     'TH SarabunPSK' — the standard Thai government document font, installed on virtually
+     every Thai government/state-enterprise Windows PC — and applying it to every element
+     below guarantees one consistent look with zero network dependency. */
+  *{ box-sizing:border-box; font-family:inherit; }
   body{
-    font-family:'TH SarabunPSK','Sarabun','Noto Sans Thai', sans-serif;
+    font-family:'TH SarabunPSK','TH Sarabun New','Sarabun','Leelawadee UI','Tahoma',sans-serif;
     color:#000; font-size:16px; margin:0; padding:0;
     background:#fff;
     font-feature-settings:"locl" 0, "numr" 0, "dnom" 0;
@@ -1474,6 +1489,10 @@ function wrapSlipDocument(bodyHtml, docTitle){
   .detail{ table-layout:fixed; }
   .detail + .detail{ margin-top:12px; }
   .detail td{ font-size:14px; word-wrap:break-word; overflow-wrap:break-word; }
+  /* Long WBS/job numbers (e.g. I-69-L-BAT69.M4.1501) are too wide for their column at the normal
+     detail font-size and wrap to a second line — shrink just these cells so each one stays on
+     a single line, matching every other cell's row height. */
+  .wbs-code{ font-size:10.5px !important; white-space:nowrap; letter-spacing:-0.1px; }
   .note-sig-row{
     display:flex; justify-content:space-between; align-items:flex-start;
     margin-top:18px; gap:20px; flex-wrap:wrap;
@@ -1715,7 +1734,9 @@ function itemTotals(item){
   const sortedEntries = [...(item.entries||[])].sort((a,b)=> (a.date||'').localeCompare(b.date||'') || a.createdAt-b.createdAt);
   let running = 0;
   const rows = sortedEntries.map(e=>{
-    running += Number(e.amount)||0;
+    // The amount that actually counts against budget is the paid amount plus its VAT (if any) —
+    // they are entered as two separate fields but always deducted/tallied together as one total.
+    running += (Number(e.amount)||0) + (Number(e.tax)||0);
     return {...e, cumulative: running};
   });
   const totalPaid = running;
@@ -1759,11 +1780,13 @@ function clearSlipSelection(){
 }
 
 /* ============ WBS project mode: combined slip selection (mirrors slipSelection above) ============ */
-function isProjectEntrySelected(workTypeKey, catKey, entryId){
-  return state.projectSlipSelection.some(s=>s.workTypeKey===workTypeKey && s.catKey===catKey && s.entryId===entryId);
+// projectId is included so the same entryId in two different WBS project files never collides,
+// and so a selection made in one project file survives switching to another one (cross-file combine).
+function isProjectEntrySelected(projectId, workTypeKey, catKey, entryId){
+  return state.projectSlipSelection.some(s=>s.projectId===projectId && s.workTypeKey===workTypeKey && s.catKey===catKey && s.entryId===entryId);
 }
-function toggleProjectSlipSelection(workTypeKey, catKey, entryId){
-  const idx = state.projectSlipSelection.findIndex(s=>s.workTypeKey===workTypeKey && s.catKey===catKey && s.entryId===entryId);
+function toggleProjectSlipSelection(projectId, workTypeKey, catKey, entryId){
+  const idx = state.projectSlipSelection.findIndex(s=>s.projectId===projectId && s.workTypeKey===workTypeKey && s.catKey===catKey && s.entryId===entryId);
   if(idx>-1){
     state.projectSlipSelection.splice(idx,1);
   } else {
@@ -1771,7 +1794,7 @@ function toggleProjectSlipSelection(workTypeKey, catKey, entryId){
       alert('เลือกได้สูงสุด '+MAX_SLIP_SELECTION+' รายการต่อใบตัดงบ');
       return;
     }
-    state.projectSlipSelection.push({workTypeKey, catKey, entryId});
+    state.projectSlipSelection.push({projectId, workTypeKey, catKey, entryId});
   }
   render();
 }
@@ -2017,7 +2040,8 @@ function projCatTotals(cat){
   const sortedEntries = [...(cat.entries||[])].sort((a,b)=> (a.date||'').localeCompare(b.date||'') || a.createdAt-b.createdAt);
   let running = 0;
   const rows = sortedEntries.map(e=>{
-    running += Number(e.amount)||0;
+    // Paid amount + VAT count together against the usable budget (see itemTotals for budget mode).
+    running += (Number(e.amount)||0) + (Number(e.tax)||0);
     return {...e, cumulative: running};
   });
   const totalPaid = running;
@@ -2163,7 +2187,9 @@ function removeWorkType(workTypeKey){
 
 /* ============ WBS project mode: selection ============ */
 function selectProject(id){
-  state.activeProjectId = id; state.activeWorkTypeKey=null; state.activeProjectCatKey=null; state.editingNetworkKey=null; state.projectSlipSelection=[]; render();
+  // Note: projectSlipSelection is intentionally NOT cleared here — a combined print selection
+  // is meant to persist across switching between WBS project files (cross-file combine).
+  state.activeProjectId = id; state.activeWorkTypeKey=null; state.activeProjectCatKey=null; state.editingNetworkKey=null; render();
 }
 function selectWorkType(key){ state.activeWorkTypeKey = key; state.activeProjectCatKey=null; state.editingNetworkKey=null; render(); }
 function selectProjectCat(key){ state.activeProjectCatKey = key; render(); }
@@ -2530,7 +2556,6 @@ function renderItemDetail(cc, item){
         <th style="width:34px;">รวม<br>พิมพ์</th>
         <th>วันที่</th><th>รายการ</th>
         <th style="text-align:right">จ่ายรอบนี้</th>
-        <th style="text-align:right">ภาษี</th>
         <th style="text-align:right">รวมจ่าย</th>
         <th style="text-align:right">คงเหลือ</th>
         <th></th>
@@ -2540,12 +2565,12 @@ function renderItemDetail(cc, item){
           const rowRemaining = t.budget - r.cumulative;
           const canDelete = canDeleteEntry(r);
           const checked = isEntrySelected(item.code, r.id);
+          const paidThisTime = (Number(r.amount)||0) + (Number(r.tax)||0);
           return `<tr>
             <td style="text-align:center;"><input type="checkbox" title="เลือกรวมพิมพ์ใบตัดงบ" ${checked?'checked':''} onchange="toggleSlipSelection('${escapeHtml(item.code)}','${r.id}')"></td>
             <td class="mono">${escapeHtml(r.date)}</td>
             <td>${escapeHtml(r.desc)}${(r.addedByName || r.addedByEmail) ? `<div style="font-size:10.5px;color:var(--text-faint);margin-top:2px;">เพิ่มโดย ${escapeHtml(r.addedByName || r.addedByEmail)}</div>` : ''}</td>
-            <td class="num">${fmt(r.amount)}</td>
-            <td class="num">${r.tax ? fmt(r.tax) : '—'}</td>
+            <td class="num">${fmt(paidThisTime)}</td>
             <td class="num">${fmt(r.cumulative)}</td>
             <td class="num ${rowRemaining<0?'neg':''}">${fmt(rowRemaining)}</td>
             <td style="white-space:nowrap;">
@@ -2791,7 +2816,6 @@ function renderProjectCatDetail(p, workTypeKey, wtName, networkNo, catKey, cat, 
         <th style="width:34px;">รวม<br>พิมพ์</th>
         <th>วันที่</th><th>รายการ</th>
         <th style="text-align:right">จ่ายรอบนี้</th>
-        <th style="text-align:right">ภาษี</th>
         <th style="text-align:right">รวมจ่าย</th>
         <th style="text-align:right">คงเหลือ</th>
         <th></th>
@@ -2800,13 +2824,13 @@ function renderProjectCatDetail(p, workTypeKey, wtName, networkNo, catKey, cat, 
         ${t.rows.map(r=>{
           const rowRemaining = t.usable80 - r.cumulative;
           const canDelete = canDeleteProjectEntry(p, r);
-          const checked = isProjectEntrySelected(workTypeKey, catKey, r.id);
+          const checked = isProjectEntrySelected(p.id, workTypeKey, catKey, r.id);
+          const paidThisTime = (Number(r.amount)||0) + (Number(r.tax)||0);
           return `<tr>
-            <td style="text-align:center;"><input type="checkbox" title="เลือกรวมพิมพ์ใบตัดงบ" ${checked?'checked':''} onchange="toggleProjectSlipSelection('${workTypeKey}','${catKey}','${r.id}')"></td>
+            <td style="text-align:center;"><input type="checkbox" title="เลือกรวมพิมพ์ใบตัดงบ (เลือกข้ามแฟ้มงานได้)" ${checked?'checked':''} onchange="toggleProjectSlipSelection('${p.id}','${workTypeKey}','${catKey}','${r.id}')"></td>
             <td class="mono">${escapeHtml(r.date)}</td>
             <td>${escapeHtml(r.desc)}${(r.addedByName || r.addedByEmail) ? `<div style="font-size:10.5px;color:var(--text-faint);margin-top:2px;">เพิ่มโดย ${escapeHtml(r.addedByName || r.addedByEmail)}</div>` : ''}</td>
-            <td class="num">${fmt(r.amount)}</td>
-            <td class="num">${r.tax ? fmt(r.tax) : '—'}</td>
+            <td class="num">${fmt(paidThisTime)}</td>
             <td class="num">${fmt(r.cumulative)}</td>
             <td class="num ${rowRemaining<0?'neg':''}">${fmt(rowRemaining)}</td>
             <td style="white-space:nowrap;">
