@@ -926,7 +926,37 @@ table.ledger .del-x:hover{color:var(--rust);}
       items[idx] = {...items[idx], entries};
       tx.set(ref, {...data, items});
     }),
-    deleteCostCenterEntryTx: (ccId, itemCode, entryId) => runTransaction(db, async (tx) => {
+    // Soft delete: marks the entry with deletedAt instead of removing it from the array, so it can
+    // still be restored from the "รายการจ่ายที่ถูกลบ" trash section under the ledger.
+    deleteCostCenterEntryTx: (ccId, itemCode, entryId, who) => runTransaction(db, async (tx) => {
+      const ref = doc(db, 'costCenters', ccId);
+      const snap = await tx.get(ref);
+      if(!snap.exists()) throw new Error('ไม่พบศูนย์ต้นทุนนี้ในระบบ (อาจถูกลบไปแล้วโดยผู้อื่น)');
+      const data = snap.data();
+      const items = [...(data.items || [])];
+      const idx = items.findIndex(i => i.code === itemCode);
+      if(idx === -1) throw new Error('ไม่พบรายการบัญชีนี้ในศูนย์ต้นทุน (อาจถูกลบไปแล้วโดยผู้อื่น)');
+      const entries = (items[idx].entries || []).map(e => e.id === entryId
+        ? {...e, deletedAt: Date.now(), deletedByUid: (who && who.uid) || null, deletedByName: (who && who.name) || null}
+        : e);
+      items[idx] = {...items[idx], entries};
+      tx.set(ref, {...data, items});
+    }),
+    restoreCostCenterEntryTx: (ccId, itemCode, entryId) => runTransaction(db, async (tx) => {
+      const ref = doc(db, 'costCenters', ccId);
+      const snap = await tx.get(ref);
+      if(!snap.exists()) throw new Error('ไม่พบศูนย์ต้นทุนนี้ในระบบ (อาจถูกลบไปแล้วโดยผู้อื่น)');
+      const data = snap.data();
+      const items = [...(data.items || [])];
+      const idx = items.findIndex(i => i.code === itemCode);
+      if(idx === -1) throw new Error('ไม่พบรายการบัญชีนี้ในศูนย์ต้นทุน (อาจถูกลบไปแล้วโดยผู้อื่น)');
+      const entries = (items[idx].entries || []).map(e => e.id === entryId
+        ? {...e, deletedAt: null, deletedByUid: null, deletedByName: null}
+        : e);
+      items[idx] = {...items[idx], entries};
+      tx.set(ref, {...data, items});
+    }),
+    purgeCostCenterEntryTx: (ccId, itemCode, entryId) => runTransaction(db, async (tx) => {
       const ref = doc(db, 'costCenters', ccId);
       const snap = await tx.get(ref);
       if(!snap.exists()) throw new Error('ไม่พบศูนย์ต้นทุนนี้ในระบบ (อาจถูกลบไปแล้วโดยผู้อื่น)');
@@ -973,7 +1003,38 @@ table.ledger .del-x:hover{color:var(--rust);}
       departments[workTypeKey] = {...wt, budgets: {...wt.budgets, [catKey]: {...cat, entries}}};
       tx.set(ref, {...data, departments});
     }),
-    deleteProjectEntryTx: (projId, workTypeKey, catKey, entryId) => runTransaction(db, async (tx) => {
+    // Soft delete: marks the entry with deletedAt instead of removing it (mirrors deleteCostCenterEntryTx).
+    deleteProjectEntryTx: (projId, workTypeKey, catKey, entryId, who) => runTransaction(db, async (tx) => {
+      const ref = doc(db, 'constructionProjects', projId);
+      const snap = await tx.get(ref);
+      if(!snap.exists()) throw new Error('ไม่พบแฟ้มงานนี้ในระบบ (อาจถูกลบไปแล้วโดยผู้อื่น)');
+      const data = snap.data();
+      const departments = {...(data.departments || {})};
+      const wt = departments[workTypeKey];
+      const cat = wt && wt.budgets && wt.budgets[catKey];
+      if(!cat) throw new Error('ไม่พบประเภทงาน/หมวดงบประมาณนี้ (อาจถูกลบไปแล้วโดยผู้อื่น)');
+      const entries = (cat.entries || []).map(e => e.id === entryId
+        ? {...e, deletedAt: Date.now(), deletedByUid: (who && who.uid) || null, deletedByName: (who && who.name) || null}
+        : e);
+      departments[workTypeKey] = {...wt, budgets: {...wt.budgets, [catKey]: {...cat, entries}}};
+      tx.set(ref, {...data, departments});
+    }),
+    restoreProjectEntryTx: (projId, workTypeKey, catKey, entryId) => runTransaction(db, async (tx) => {
+      const ref = doc(db, 'constructionProjects', projId);
+      const snap = await tx.get(ref);
+      if(!snap.exists()) throw new Error('ไม่พบแฟ้มงานนี้ในระบบ (อาจถูกลบไปแล้วโดยผู้อื่น)');
+      const data = snap.data();
+      const departments = {...(data.departments || {})};
+      const wt = departments[workTypeKey];
+      const cat = wt && wt.budgets && wt.budgets[catKey];
+      if(!cat) throw new Error('ไม่พบประเภทงาน/หมวดงบประมาณนี้ (อาจถูกลบไปแล้วโดยผู้อื่น)');
+      const entries = (cat.entries || []).map(e => e.id === entryId
+        ? {...e, deletedAt: null, deletedByUid: null, deletedByName: null}
+        : e);
+      departments[workTypeKey] = {...wt, budgets: {...wt.budgets, [catKey]: {...cat, entries}}};
+      tx.set(ref, {...data, departments});
+    }),
+    purgeProjectEntryTx: (projId, workTypeKey, catKey, entryId) => runTransaction(db, async (tx) => {
       const ref = doc(db, 'constructionProjects', projId);
       const snap = await tx.get(ref);
       if(!snap.exists()) throw new Error('ไม่พบแฟ้มงานนี้ในระบบ (อาจถูกลบไปแล้วโดยผู้อื่น)');
@@ -1915,7 +1976,9 @@ function recomputeYears(){
 }
 function itemTotals(item){
   const budget = Number(item.budget)||0;
-  const sortedEntries = [...(item.entries||[])].sort((a,b)=> (a.date||'').localeCompare(b.date||'') || a.createdAt-b.createdAt);
+  // Soft-deleted entries stay in the array (so they can be restored from the trash section) but
+  // never count toward the running totals or show up in the ledger.
+  const sortedEntries = [...(item.entries||[])].filter(e=>!e.deletedAt).sort((a,b)=> (a.date||'').localeCompare(b.date||'') || a.createdAt-b.createdAt);
   let running = 0;
   const rows = sortedEntries.map(e=>{
     // The amount that actually counts against budget is the paid amount plus its VAT (if any) —
@@ -1927,9 +1990,13 @@ function itemTotals(item){
   const remaining = budget - totalPaid;
   return {budget, totalPaid, remaining, rows};
 }
+// Soft-deleted entries for one budget item — shown in a small trash section under its ledger.
+function trashedEntriesOfItem(item){
+  return [...(item.entries||[])].filter(e=>e.deletedAt).sort((a,b)=> b.deletedAt-a.deletedAt);
+}
 function ccTotals(cc){
   let budget=0, totalPaid=0;
-  (cc.items||[]).forEach(item=>{
+  (cc.items||[]).filter(item=>!item.deletedAt).forEach(item=>{
     const t = itemTotals(item);
     budget += t.budget; totalPaid += t.totalPaid;
   });
@@ -2168,9 +2235,30 @@ function removeItem(itemCode){
   const cc = getCc(state.activeCcId);
   if(!cc || !canManageDept(cc.deptKey)){ alert('คุณไม่มีสิทธิ์ลบรายการงบประมาณนี้'); return; }
   const item = cc.items.find(i=>i.code===itemCode);
-  if(!confirm('ยืนยันลบรายการ "'+item.code+' '+item.label+'" ออกจากศูนย์ต้นทุนนี้? รายการจ่ายทั้งหมดในนี้จะหายไป')) return;
-  cc.items = cc.items.filter(i=>i.code!==itemCode);
+  if(!confirm('ยืนยันลบรายการ "'+item.code+' '+item.label+'" ออกจากศูนย์ต้นทุนนี้?\n\nรายการนี้จะถูกย้ายไปที่ "ถังขยะรายการบัญชี" ด้านล่างรายการงบประมาณ — กู้คืนได้ภายหลัง')) return;
+  // Soft delete: mark instead of removing from the array, so it can be restored from the
+  // trash section under the รายการงบประมาณ list.
+  item.deletedAt = Date.now();
+  item.deletedByUid = state.user ? state.user.uid : null;
+  item.deletedByName = state.user ? (state.user.displayName || state.user.email) : null;
   if(state.activeItemKey===itemCode){ state.activeItemKey=null; }
+  saveCc(cc); render();
+}
+function restoreItem(itemCode){
+  const cc = getCc(state.activeCcId);
+  if(!cc || !canManageDept(cc.deptKey)){ alert('คุณไม่มีสิทธิ์กู้คืนรายการนี้'); return; }
+  const item = cc.items.find(i=>i.code===itemCode);
+  if(!item) return;
+  item.deletedAt = null; item.deletedByUid = null; item.deletedByName = null;
+  saveCc(cc); render();
+}
+function permanentlyDeleteItem(itemCode){
+  const cc = getCc(state.activeCcId);
+  if(!cc || !canManageDept(cc.deptKey)){ alert('คุณไม่มีสิทธิ์ลบรายการนี้'); return; }
+  const item = cc.items.find(i=>i.code===itemCode);
+  if(!item) return;
+  if(!confirm('ลบถาวร "'+item.code+' '+item.label+'" ?\n\nกู้คืนไม่ได้อีกต่อไป — รายการจ่ายทั้งหมดในนี้จะหายไปจริง')) return;
+  cc.items = cc.items.filter(i=>i.code!==itemCode);
   saveCc(cc); render();
 }
 function updateItemBudget(itemCode, value){
@@ -2241,15 +2329,56 @@ function deleteEntry(itemCode, entryId){
         + `ยืนยันจะลบหรือไม่?`;
   }
   if(!confirm(msg)) return;
-  item.entries = item.entries.filter(e=>e.id!==entryId);
+  const who = {uid: state.user?.uid, name: state.user?.displayName || state.user?.email};
+  const prevDeletedAt = entry.deletedAt, prevDeletedByUid = entry.deletedByUid, prevDeletedByName = entry.deletedByName;
+  entry.deletedAt = Date.now();
+  entry.deletedByUid = who.uid || null;
+  entry.deletedByName = who.name || null;
   render();
-  window.fb.deleteCostCenterEntryTx(cc.id, itemCode, entryId).then(()=>{
+  window.fb.deleteCostCenterEntryTx(cc.id, itemCode, entryId, who).then(()=>{
     flashSaved(false);
   }).catch(e=>{
     console.error(e);
-    item.entries.push(entry);
+    entry.deletedAt = prevDeletedAt; entry.deletedByUid = prevDeletedByUid; entry.deletedByName = prevDeletedByName;
     render();
     alert('ลบรายการไม่สำเร็จ: ' + e.message);
+  });
+}
+function restoreEntry(itemCode, entryId){
+  const cc = getCc(state.activeCcId);
+  if(!cc || !canManageDept(cc.deptKey)){ alert('คุณไม่มีสิทธิ์กู้คืนรายการนี้'); return; }
+  const item = cc.items.find(i=>i.code===itemCode);
+  const entry = item && item.entries.find(e=>e.id===entryId);
+  if(!entry) return;
+  const prevDeletedAt = entry.deletedAt, prevDeletedByUid = entry.deletedByUid, prevDeletedByName = entry.deletedByName;
+  entry.deletedAt = null; entry.deletedByUid = null; entry.deletedByName = null;
+  render();
+  window.fb.restoreCostCenterEntryTx(cc.id, itemCode, entryId).then(()=>{
+    flashSaved(false);
+  }).catch(e=>{
+    console.error(e);
+    entry.deletedAt = prevDeletedAt; entry.deletedByUid = prevDeletedByUid; entry.deletedByName = prevDeletedByName;
+    render();
+    alert('กู้คืนรายการไม่สำเร็จ: ' + e.message);
+  });
+}
+function permanentlyDeleteEntry(itemCode, entryId){
+  const cc = getCc(state.activeCcId);
+  if(!cc || !canManageDept(cc.deptKey)){ alert('คุณไม่มีสิทธิ์ลบรายการนี้'); return; }
+  const item = cc.items.find(i=>i.code===itemCode);
+  if(!item) return;
+  if(!confirm('ลบถาวรรายการจ่ายนี้?\n\nกู้คืนไม่ได้อีกต่อไป')) return;
+  const idx = item.entries.findIndex(e=>e.id===entryId);
+  if(idx===-1) return;
+  const [removed] = item.entries.splice(idx, 1);
+  render();
+  window.fb.purgeCostCenterEntryTx(cc.id, itemCode, entryId).then(()=>{
+    flashSaved(false);
+  }).catch(e=>{
+    console.error(e);
+    item.entries.splice(idx, 0, removed);
+    render();
+    alert('ลบถาวรไม่สำเร็จ: ' + e.message);
   });
 }
 
@@ -2266,7 +2395,8 @@ function getProject(id){ return state.projects.find(p=>p.id===id); }
 function projCatTotals(cat){
   const amount100 = Number(cat.amount100)||0;
   const usable80 = amount100 * USABLE_RATIO;
-  const sortedEntries = [...(cat.entries||[])].sort((a,b)=> (a.date||'').localeCompare(b.date||'') || a.createdAt-b.createdAt);
+  // Soft-deleted entries stay in the array (so they can be restored) but never count toward totals.
+  const sortedEntries = [...(cat.entries||[])].filter(e=>!e.deletedAt).sort((a,b)=> (a.date||'').localeCompare(b.date||'') || a.createdAt-b.createdAt);
   let running = 0;
   const rows = sortedEntries.map(e=>{
     // Paid amount + VAT count together against the usable budget (see itemTotals for budget mode).
@@ -2277,9 +2407,13 @@ function projCatTotals(cat){
   const remaining = usable80 - totalPaid;
   return {amount100, usable80, totalPaid, remaining, rows};
 }
+// Soft-deleted entries for one WBS category — shown in a small trash section under its ledger.
+function trashedEntriesOfCat(cat){
+  return [...(cat.entries||[])].filter(e=>e.deletedAt).sort((a,b)=> b.deletedAt-a.deletedAt);
+}
 function projTotals(project){
   let amount100=0, usable80=0, totalPaid=0;
-  Object.values(project.departments||{}).forEach(dept=>{
+  Object.values(project.departments||{}).filter(dept=>!dept.deletedAt).forEach(dept=>{
     Object.values(dept.budgets).forEach(cat=>{
       const t = projCatTotals(cat);
       amount100 += t.amount100; usable80 += t.usable80; totalPaid += t.totalPaid;
@@ -2406,10 +2540,13 @@ function openAddWorkTypeModal(){
   if(!canManageDept(p.deptKey)){ alert('เพิ่มประเภทงานได้เฉพาะผู้ดูแลแผนกหรือแอดมิน'); return; }
   const list = document.getElementById('workTypeCheckList');
   list.innerHTML = WORK_TYPES.map(d=>{
-    const added = !!p.departments[d.key];
+    const wt = p.departments[d.key];
+    const added = !!wt;
+    const trashed = !!(wt && wt.deletedAt);
+    const tag = trashed ? ' <span style="color:var(--text-faint)">(อยู่ในถังขยะ — กู้คืนได้ที่หน้าประเภทงาน)</span>' : (added ? ' <span style="color:var(--text-faint)">(เพิ่มแล้ว)</span>' : '');
     return `<label class="check-row ${added?'disabled':''}">
       <input type="checkbox" value="${d.key}" ${added?'disabled':''}>
-      <span>${d.name}${added?' <span style="color:var(--text-faint)">(เพิ่มแล้ว)</span>':''}</span>
+      <span>${d.name}${tag}</span>
     </label>`;
   }).join('');
   openModal('addWorkTypeModal');
@@ -2427,9 +2564,28 @@ function removeWorkType(workTypeKey){
   const p = getProject(state.activeProjectId);
   if(!p || !canManageDept(p.deptKey)){ alert('คุณไม่มีสิทธิ์ลบประเภทงานนี้'); return; }
   const wtName = WORK_TYPES.find(d=>d.key===workTypeKey).name;
-  if(!confirm('ยืนยันลบ "'+wtName+'" ออกจากแฟ้มงานนี้?')) return;
-  delete p.departments[workTypeKey];
+  if(!confirm('ยืนยันลบ "'+wtName+'" ออกจากแฟ้มงานนี้?\n\nประเภทงานนี้จะถูกย้ายไปที่ "ถังขยะประเภทงาน" — กู้คืนได้ภายหลัง')) return;
+  const wt = p.departments[workTypeKey];
+  wt.deletedAt = Date.now();
+  wt.deletedByUid = state.user ? state.user.uid : null;
+  wt.deletedByName = state.user ? (state.user.displayName || state.user.email) : null;
   if(state.activeWorkTypeKey===workTypeKey){ state.activeWorkTypeKey=null; state.activeProjectCatKey=null; }
+  saveProject(p); render();
+}
+function restoreWorkType(workTypeKey){
+  const p = getProject(state.activeProjectId);
+  if(!p || !canManageDept(p.deptKey)){ alert('คุณไม่มีสิทธิ์กู้คืนประเภทงานนี้'); return; }
+  const wt = p.departments[workTypeKey];
+  if(!wt) return;
+  wt.deletedAt = null; wt.deletedByUid = null; wt.deletedByName = null;
+  saveProject(p); render();
+}
+function permanentlyDeleteWorkType(workTypeKey){
+  const p = getProject(state.activeProjectId);
+  if(!p || !canManageDept(p.deptKey)){ alert('คุณไม่มีสิทธิ์ลบประเภทงานนี้'); return; }
+  const wtName = WORK_TYPES.find(d=>d.key===workTypeKey)?.name || workTypeKey;
+  if(!confirm('ลบถาวร "'+wtName+'" ?\n\nกู้คืนไม่ได้อีกต่อไป — งบประมาณและรายการจ่ายทั้งหมดในนี้จะหายไปจริง')) return;
+  delete p.departments[workTypeKey];
   saveProject(p); render();
 }
 
@@ -2516,15 +2672,55 @@ function deleteProjectEntry(workTypeKey, catKey, entryId){
   const entry = cat.entries.find(e=>e.id===entryId);
   if(!entry || !canDeleteProjectEntry(p, entry)){ alert('ลบได้เฉพาะรายการที่ผู้ดูแลแผนก/แอดมิน หรือตัวคุณเองเป็นคนเพิ่มเข้ามาเท่านั้น'); return; }
   if(!confirm('ยืนยันลบรายการนี้?')) return;
-  cat.entries = cat.entries.filter(e=>e.id!==entryId);
+  const who = {uid: state.user?.uid, name: state.user?.displayName || state.user?.email};
+  const prevDeletedAt = entry.deletedAt, prevDeletedByUid = entry.deletedByUid, prevDeletedByName = entry.deletedByName;
+  entry.deletedAt = Date.now();
+  entry.deletedByUid = who.uid || null;
+  entry.deletedByName = who.name || null;
   render();
-  window.fb.deleteProjectEntryTx(p.id, workTypeKey, catKey, entryId).then(()=>{
+  window.fb.deleteProjectEntryTx(p.id, workTypeKey, catKey, entryId, who).then(()=>{
     flashSaved(false);
   }).catch(e=>{
     console.error(e);
-    cat.entries.push(entry);
+    entry.deletedAt = prevDeletedAt; entry.deletedByUid = prevDeletedByUid; entry.deletedByName = prevDeletedByName;
     render();
     alert('ลบรายการไม่สำเร็จ: ' + e.message);
+  });
+}
+function restoreProjectEntry(workTypeKey, catKey, entryId){
+  const p = getProject(state.activeProjectId);
+  if(!p || !canManageDept(p.deptKey)){ alert('คุณไม่มีสิทธิ์กู้คืนรายการนี้'); return; }
+  const cat = p.departments[workTypeKey].budgets[catKey];
+  const entry = cat.entries.find(e=>e.id===entryId);
+  if(!entry) return;
+  const prevDeletedAt = entry.deletedAt, prevDeletedByUid = entry.deletedByUid, prevDeletedByName = entry.deletedByName;
+  entry.deletedAt = null; entry.deletedByUid = null; entry.deletedByName = null;
+  render();
+  window.fb.restoreProjectEntryTx(p.id, workTypeKey, catKey, entryId).then(()=>{
+    flashSaved(false);
+  }).catch(e=>{
+    console.error(e);
+    entry.deletedAt = prevDeletedAt; entry.deletedByUid = prevDeletedByUid; entry.deletedByName = prevDeletedByName;
+    render();
+    alert('กู้คืนรายการไม่สำเร็จ: ' + e.message);
+  });
+}
+function permanentlyDeleteProjectEntry(workTypeKey, catKey, entryId){
+  const p = getProject(state.activeProjectId);
+  if(!p || !canManageDept(p.deptKey)){ alert('คุณไม่มีสิทธิ์ลบรายการนี้'); return; }
+  const cat = p.departments[workTypeKey].budgets[catKey];
+  if(!confirm('ลบถาวรรายการจ่ายนี้?\n\nกู้คืนไม่ได้อีกต่อไป')) return;
+  const idx = cat.entries.findIndex(e=>e.id===entryId);
+  if(idx===-1) return;
+  const [removed] = cat.entries.splice(idx, 1);
+  render();
+  window.fb.purgeProjectEntryTx(p.id, workTypeKey, catKey, entryId).then(()=>{
+    flashSaved(false);
+  }).catch(e=>{
+    console.error(e);
+    cat.entries.splice(idx, 0, removed);
+    render();
+    alert('ลบถาวรไม่สำเร็จ: ' + e.message);
   });
 }
 
@@ -2782,7 +2978,7 @@ function renderMain(){
     </div>
   `;
 
-  const items = cc.items || [];
+  const items = (cc.items || []).filter(it=>!it.deletedAt);
 
   if(state.activeItemKey){
     const item = items.find(i=>i.code===state.activeItemKey);
@@ -2794,7 +2990,8 @@ function renderMain(){
   }
 
   if(!state.activeItemKey){
-    if(!items.length){
+    const hasTrashedItems = canManage && (cc.items||[]).some(it=>it.deletedAt);
+    if(!items.length && !hasTrashedItems){
       html += `<div class="empty-state"><p>ยังไม่มีรายการงบประมาณในศูนย์ต้นทุนนี้</p>
         ${canManage ? `<button class="btn btn-primary btn-sm" onclick="openAddItemModal()">+ เพิ่มรายการงบประมาณ</button>` : `<span style="font-size:12.5px;color:var(--text-faint);">รอผู้ดูแลแผนกหรือแอดมินเพิ่มรายการ</span>`}</div>`;
     } else {
@@ -2871,7 +3068,7 @@ function renderItemCard(item){
 // Kept separate from renderMain() so the search box can refresh just this
 // container on every keystroke without losing focus on the input itself.
 function buildItemListInnerHtml(cc){
-  const items = cc.items || [];
+  const items = (cc.items || []).filter(it=>!it.deletedAt);
   const canManage = canManageDept(cc.deptKey);
   const q = (state.itemSearchQuery||'').trim().toLowerCase();
   const filtered = q
@@ -2885,21 +3082,45 @@ function buildItemListInnerHtml(cc){
 
   if(!filtered.length){
     html += `<div class="empty-state"><p>ไม่พบรายการบัญชีที่ตรงกับคำค้นหา "${escapeHtml(state.itemSearchQuery||'')}"</p></div>`;
-    return html;
+  } else {
+    html += `<div style="display:flex;gap:14px;padding:0 16px;margin-bottom:6px;font-size:11px;color:var(--text-faint);font-weight:700;text-transform:uppercase;letter-spacing:.04em;">
+      <span style="width:76px;flex-shrink:0;">รหัสบัญชี</span>
+      <span style="flex:1;">ชื่อรายการ</span>
+      <span style="min-width:110px;text-align:right;">งบทั้งปี</span>
+      <span style="width:14px;flex-shrink:0;"></span>
+    </div>`;
+    html += `<div class="item-list">`;
+    filtered.forEach(item=>{
+      html += renderItemCard(item);
+    });
+    html += `</div>`;
   }
 
-  html += `<div style="display:flex;gap:14px;padding:0 16px;margin-bottom:6px;font-size:11px;color:var(--text-faint);font-weight:700;text-transform:uppercase;letter-spacing:.04em;">
-    <span style="width:76px;flex-shrink:0;">รหัสบัญชี</span>
-    <span style="flex:1;">ชื่อรายการ</span>
-    <span style="min-width:110px;text-align:right;">งบทั้งปี</span>
-    <span style="width:14px;flex-shrink:0;"></span>
-  </div>`;
-  html += `<div class="item-list">`;
-  filtered.forEach(item=>{
-    html += renderItemCard(item);
-  });
-  html += `</div>`;
+  html += buildItemTrashSectionHtml(cc, canManage);
   return html;
+}
+
+// Small "ถังขยะรายการบัญชี" section — soft-deleted budget items for this cost center, restorable.
+function buildItemTrashSectionHtml(cc, canManage){
+  if(!canManage) return '';
+  const trashed = (cc.items || []).filter(it=>it.deletedAt).sort((a,b)=> b.deletedAt-a.deletedAt);
+  if(!trashed.length) return '';
+  return `<div style="margin-top:22px;">
+    <div class="eyebrow" style="color:var(--text-faint);margin-bottom:8px;">🗑 ถังขยะรายการบัญชี (${trashed.length})</div>
+    <div style="display:flex;flex-direction:column;gap:1px;background:var(--border-soft);border:1px solid var(--border-soft);border-radius:var(--radius);overflow:hidden;">
+      ${trashed.map(item => `
+        <div style="background:var(--card);display:flex;justify-content:space-between;align-items:center;gap:12px;padding:10px 16px;">
+          <div style="min-width:0;">
+            <div style="font-size:13px;"><span class="acct-code mono">${escapeHtml(item.code||'—')}</span> <span style="font-weight:600;">${escapeHtml(item.label)}</span></div>
+            <div style="font-size:11px;color:var(--text-faint);margin-top:2px;">ลบเมื่อ ${new Date(item.deletedAt).toLocaleString('th-TH',{dateStyle:'medium',timeStyle:'short'})}${item.deletedByName ? ' โดย '+escapeHtml(item.deletedByName) : ''}</div>
+          </div>
+          <div style="display:flex;gap:8px;flex-shrink:0;">
+            <button class="btn btn-outline btn-sm" onclick="restoreItem('${escapeHtml(item.code)}')">กู้คืน</button>
+            <button class="btn btn-danger-ghost btn-sm" onclick="permanentlyDeleteItem('${escapeHtml(item.code)}')">ลบถาวร</button>
+          </div>
+        </div>`).join('')}
+    </div>
+  </div>`;
 }
 
 function renderItemListContainer(){
@@ -3009,7 +3230,33 @@ function renderItemDetail(cc, item){
     </div>
 
     ${rowsHtml}
+    ${buildEntryTrashSectionHtml(trashedEntriesOfItem(item), 'restoreEntry', 'permanentlyDeleteEntry', [item.code])}
   `;
+}
+
+// Soft-deleted ledger entries section — shared shape for budget mode (restoreEntry/permanentlyDeleteEntry,
+// keyed by item code) and WBS mode (restoreProjectEntry/permanentlyDeleteProjectEntry, keyed by
+// workTypeKey+catKey) via the restoreFn/purgeFn/leadingArgs parameters.
+function buildEntryTrashSectionHtml(trashed, restoreFn, purgeFn, leadingArgs){
+  if(!trashed.length) return '';
+  const leadingCall = (leadingArgs||[]).map(a=>`'${escapeHtml(a)}'`).join(',');
+  const argsPrefix = leadingCall ? leadingCall+',' : '';
+  return `<div style="margin-top:22px;">
+    <div class="eyebrow" style="color:var(--text-faint);margin-bottom:8px;">🗑 รายการจ่ายที่ถูกลบ (${trashed.length})</div>
+    <div style="display:flex;flex-direction:column;gap:1px;background:var(--border-soft);border:1px solid var(--border-soft);border-radius:var(--radius);overflow:hidden;">
+      ${trashed.map(e => `
+        <div style="background:var(--card);display:flex;justify-content:space-between;align-items:center;gap:12px;padding:10px 16px;">
+          <div style="min-width:0;">
+            <div style="font-size:13px;"><span class="mono">${escapeHtml(e.date||'')}</span> — ${escapeHtml(e.desc||'')} <span style="font-weight:600;">${fmt((Number(e.amount)||0)+(Number(e.tax)||0))}</span></div>
+            <div style="font-size:11px;color:var(--text-faint);margin-top:2px;">ลบเมื่อ ${new Date(e.deletedAt).toLocaleString('th-TH',{dateStyle:'medium',timeStyle:'short'})}${e.deletedByName ? ' โดย '+escapeHtml(e.deletedByName) : ''}</div>
+          </div>
+          <div style="display:flex;gap:8px;flex-shrink:0;">
+            <button class="btn btn-outline btn-sm" onclick="${restoreFn}(${argsPrefix}'${e.id}')">กู้คืน</button>
+            <button class="btn btn-danger-ghost btn-sm" onclick="${purgeFn}(${argsPrefix}'${e.id}')">ลบถาวร</button>
+          </div>
+        </div>`).join('')}
+    </div>
+  </div>`;
 }
 
 /* ============ WBS project mode: sidebar ============ */
@@ -3092,7 +3339,12 @@ function renderProjectMain(){
     <div class="dept-tabs">
   `;
 
-  const addedKeys = Object.keys(p.departments);
+  const allKeys = Object.keys(p.departments);
+  const addedKeys = allKeys.filter(k=>!p.departments[k].deletedAt);
+  const trashedWorkTypeKeys = allKeys.filter(k=>p.departments[k].deletedAt);
+  if(state.activeWorkTypeKey && !addedKeys.includes(state.activeWorkTypeKey)){
+    state.activeWorkTypeKey = null; state.activeProjectCatKey = null;
+  }
   if(!state.activeWorkTypeKey && addedKeys.length){
     const firstInOrder = WORK_TYPES.find(d=>addedKeys.includes(d.key));
     state.activeWorkTypeKey = firstInOrder ? firstInOrder.key : addedKeys[0];
@@ -3144,6 +3396,28 @@ function renderProjectMain(){
       });
       html += `</div>`;
     }
+  }
+
+  if(canManage && trashedWorkTypeKeys.length){
+    html += `<div style="margin-top:22px;">
+      <div class="eyebrow" style="color:var(--text-faint);margin-bottom:8px;">🗑 ถังขยะประเภทงาน (${trashedWorkTypeKeys.length})</div>
+      <div style="display:flex;flex-direction:column;gap:1px;background:var(--border-soft);border:1px solid var(--border-soft);border-radius:var(--radius);overflow:hidden;">
+        ${trashedWorkTypeKeys.map(k=>{
+          const wt = p.departments[k];
+          const wtName = WORK_TYPES.find(d=>d.key===k)?.name || k;
+          return `<div style="background:var(--card);display:flex;justify-content:space-between;align-items:center;gap:12px;padding:10px 16px;">
+            <div style="min-width:0;">
+              <div style="font-size:13px;font-weight:600;">${escapeHtml(wtName)}</div>
+              <div style="font-size:11px;color:var(--text-faint);margin-top:2px;">ลบเมื่อ ${new Date(wt.deletedAt).toLocaleString('th-TH',{dateStyle:'medium',timeStyle:'short'})}${wt.deletedByName ? ' โดย '+escapeHtml(wt.deletedByName) : ''}</div>
+            </div>
+            <div style="display:flex;gap:8px;flex-shrink:0;">
+              <button class="btn btn-outline btn-sm" onclick="restoreWorkType('${k}')">กู้คืน</button>
+              <button class="btn btn-danger-ghost btn-sm" onclick="permanentlyDeleteWorkType('${k}')">ลบถาวร</button>
+            </div>
+          </div>`;
+        }).join('')}
+      </div>
+    </div>`;
   }
 
   main.innerHTML = html;
@@ -3275,6 +3549,7 @@ function renderProjectCatDetail(p, workTypeKey, wtName, networkNo, catKey, cat, 
     </div>
 
     ${rowsHtml}
+    ${buildEntryTrashSectionHtml(trashedEntriesOfCat(cat), 'restoreProjectEntry', 'permanentlyDeleteProjectEntry', [workTypeKey, catKey])}
   `;
 }
 
