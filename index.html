@@ -1099,11 +1099,11 @@ function buildSlipBodyHtml(cc, entries, payerName, payerCode, payerPosition, doc
           <div class="hdr-line">หมายเลขศูนย์ต้นทุน &nbsp;${escapeHtml(cc.code)}</div>
         </td>
         <td class="hdr-right">
-          เลขที่ กฟฟ. _____________<br>
-          เลขที่ _____________<br>
-          วันที่ ${numEn(dateParts.day)} &nbsp;เดือน ${escapeHtml(dateParts.month)} &nbsp;พ.ศ. ${numEn(dateParts.year)}<br>
-          ผู้เบิก ${escapeHtml(payerName)} &nbsp;&nbsp;&nbsp; ${numEn(escapeHtml(payerCode))}<br>
-          ตำแหน่ง/ที่อยู่ &nbsp;${escapeHtml(payerPosition)}
+          <div class="hdr-line">เลขที่ กฟฟ. _____________</div>
+          <div class="hdr-line">เลขที่ _____________</div>
+          <div class="hdr-line">วันที่ ${numEn(dateParts.day)} &nbsp;เดือน ${escapeHtml(dateParts.month)} &nbsp;พ.ศ. ${numEn(dateParts.year)}</div>
+          <div class="hdr-line">ผู้เบิก ${escapeHtml(payerName)} &nbsp;&nbsp;&nbsp; ${numEn(escapeHtml(payerCode))}</div>
+          <div class="hdr-line">ตำแหน่ง/ที่อยู่ &nbsp;${escapeHtml(payerPosition)}</div>
         </td>
       </tr>
     </table>
@@ -1267,11 +1267,11 @@ function buildProjectSlipBodyHtml(entries, payerName, payerCode, payerPosition, 
           <div class="hdr-line">หมายเลขงาน &nbsp;${numEn(escapeHtml(wbsHeaderText))}</div>
         </td>
         <td class="hdr-right">
-          เลขที่ กฟฟ. _____________<br>
-          เลขที่ _____________<br>
-          วันที่ ${numEn(dateParts.day)} &nbsp;เดือน ${escapeHtml(dateParts.month)} &nbsp;พ.ศ. ${numEn(dateParts.year)}<br>
-          ผู้เบิก ${escapeHtml(payerName)} &nbsp;&nbsp;&nbsp; ${numEn(escapeHtml(payerCode))}<br>
-          ตำแหน่ง/ที่อยู่ &nbsp;${escapeHtml(payerPosition)}
+          <div class="hdr-line">เลขที่ กฟฟ. _____________</div>
+          <div class="hdr-line">เลขที่ _____________</div>
+          <div class="hdr-line">วันที่ ${numEn(dateParts.day)} &nbsp;เดือน ${escapeHtml(dateParts.month)} &nbsp;พ.ศ. ${numEn(dateParts.year)}</div>
+          <div class="hdr-line">ผู้เบิก ${escapeHtml(payerName)} &nbsp;&nbsp;&nbsp; ${numEn(escapeHtml(payerCode))}</div>
+          <div class="hdr-line">ตำแหน่ง/ที่อยู่ &nbsp;${escapeHtml(payerPosition)}</div>
         </td>
       </tr>
     </table>
@@ -1471,11 +1471,18 @@ function wrapSlipDocument(bodyHtml, docTitle){
     font-variant-numeric: normal;
   }
   .num, .mono, td, th{ font-feature-settings:"locl" 0 !important; font-variant-numeric: normal !important; }
-  /* Belt-and-suspenders fix for the Windows "native digits" print bug: isolate every printed
-     number in its own lang="en" run, set with a plain monospace font that carries no Thai
-     digit-substitution table at all, so there is nothing for the OS/driver to substitute. */
+  /* Fix for the Windows "native digits" print bug: isolate every printed number in its own
+     lang="en" run with digit-substitution OpenType features explicitly turned off. This used
+     to also force a monospace font (Consolas) on every number as an extra defense — but that
+     made numbers visibly a different typeface from the surrounding Thai text, which looked
+     inconsistent. Numbers now keep the SAME font as everything else (Sarabun); only the
+     lang="en" tagging + feature-settings reset remain, which is what actually prevents an
+     OpenType 'locl' Thai-digit substitution table from kicking in. If a specific machine still
+     shows Thai numerals after this, that machine's Windows Regional Format is set to "native
+     digits" system-wide, which overrides at the OS level and can only be fixed in Windows
+     Settings, not from the page. */
   .arabic-num{
-    font-family:'Consolas','Courier New',monospace !important;
+    font-family:'Sarabun','Noto Sans Thai','TH SarabunPSK',sans-serif;
     font-feature-settings:"locl" 0, "numr" 0, "dnom" 0 !important;
     font-variant-numeric: normal !important;
     unicode-bidi: isolate;
@@ -1488,8 +1495,14 @@ function wrapSlipDocument(bodyHtml, docTitle){
     width:80px;height:80px;object-fit:contain;
     display:block;margin:0 auto 6px;
   }
-  .hdr-title{ font-weight:700; font-size:17px; margin-bottom:4px; text-align:left; }
-  .hdr-line{ text-align:left; }
+  /* Both header cells now share the exact same markup shape (a stack of block-level
+     .hdr-line divs) instead of the seal-cell using divs while hdr-right used one flat text
+     node broken up with <br> — that structural difference was the actual cause of the two
+     header cells visibly rendering in different-looking fonts on some machines/printers.
+     The explicit font-family redeclaration here (identical to body's) is belt-and-suspenders
+     so neither cell can end up depending on inheritance alone. */
+  .hdr-title, .hdr-line{ font-family:'Sarabun','Noto Sans Thai','TH SarabunPSK',sans-serif; text-align:left; }
+  .hdr-title{ font-weight:700; font-size:17px; margin-bottom:4px; }
   .hdr td.hdr-right{ width:50%; vertical-align:bottom; }
   .ctr{ text-align:center; }
   .num{ text-align:right; }
@@ -1498,7 +1511,13 @@ function wrapSlipDocument(bodyHtml, docTitle){
   .section-label{ text-align:center; font-size:14px; margin-bottom:6px; }
   .detail{ table-layout:fixed; }
   .detail + .detail{ margin-top:12px; }
-  .detail td{ font-size:14px; word-wrap:break-word; overflow-wrap:break-word; }
+  /* Was font-size:14px — a smaller size than the rest of the document (16px). On some
+     printers/print drivers a Thai web font that has no embedded bitmap hints for a given
+     size gets silently substituted for a different font at that specific size, which is
+     exactly the kind of "this part looks like a different font" mismatch reported. Matching
+     the same 16px used everywhere else removes the only remaining place with a different
+     size, so there is nothing left for a print driver to treat differently. */
+  .detail td{ word-wrap:break-word; overflow-wrap:break-word; }
   /* Long WBS/job numbers (e.g. I-69-L-BAT69.M4.1501) are too wide for their column at the normal
      detail font-size and wrap to a second line — shrink just these cells so each one stays on
      a single line, matching every other cell's row height. */
