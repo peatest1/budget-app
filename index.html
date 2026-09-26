@@ -1443,18 +1443,28 @@ function wrapSlipDocument(bodyHtml, docTitle){
 <meta charset="UTF-8">
 <title>${escapeHtml(docTitle)}</title>
 <style>
+  @import url('https://fonts.googleapis.com/css2?family=Sarabun:wght@400;700&family=Noto+Sans+Thai:wght@400;700&display=swap');
   @page { size: 210mm 297mm; margin: 11mm; }
-  /* Deliberately NOT loading a Google Font here (no @import). Pulling a web font over the
-     network meant the page sometimes finished printing/paginating before the font arrived —
-     whichever text painted first got the web font, whichever painted after a slow/blocked
-     network request (this often happens on restricted office networks) fell back to a
-     different installed font, producing a visibly mismatched document. Standardizing on
-     'TH SarabunPSK' — the standard Thai government document font, installed on virtually
-     every Thai government/state-enterprise Windows PC — and applying it to every element
-     below guarantees one consistent look with zero network dependency. */
+  /* The real bug behind the mismatched look: this document mixes regular AND bold text
+     (headers/labels/totals are font-weight:700, everything else is 400). If 'TH SarabunPSK'
+     isn't actually installed on a given machine, the browser has to fall back to a generic
+     system font — and when a generic family has no real bold face, the OS "fake-bolds" it by
+     algorithmically thickening the regular glyphs, which looks visibly different in letterform
+     from the true regular weight of that same family. That is exactly what produced the
+     mismatch: bold headers/totals looked like a different font from the plain body text, even
+     though the font-family list was identical everywhere.
+     Fix: explicitly load BOTH the 400 and 700 weights of Sarabun as a real web font (so there is
+     always a genuine bold face available, never a synthesized one), and — in the print script
+     below — wait for both weights to finish loading before calling window.print(), so nothing
+     ever paints with a fallback font while the real one is still arriving. */
   *{ box-sizing:border-box; font-family:inherit; }
   body{
-    font-family:'TH SarabunPSK','TH Sarabun New','Sarabun','Leelawadee UI','Tahoma',sans-serif;
+    /* 'Sarabun' (the web font) is listed FIRST on purpose: it is guaranteed to have a true,
+       distinct bold face because we load weight 700 explicitly below and wait for it before
+       printing. 'TH SarabunPSK' is kept only as a fallback for the rare case the network
+       request is blocked outright — some installed copies of it ship with only a regular
+       cut, which is what caused the fake-bold mismatch in the first place. */
+    font-family:'Sarabun','Noto Sans Thai','TH SarabunPSK',sans-serif;
     color:#000; font-size:16px; margin:0; padding:0;
     background:#fff;
     font-feature-settings:"locl" 0, "numr" 0, "dnom" 0;
@@ -1511,7 +1521,26 @@ function wrapSlipDocument(bodyHtml, docTitle){
 ${bodyHtml}
 <sc` + `ript>
   window.onload = function(){
-    setTimeout(function(){ window.print(); }, 250);
+    function doPrint(){ window.print(); }
+    // Explicitly request BOTH weights actually used on this page (regular body text + the
+    // bold headers/labels/totals), then wait for the browser to confirm they are ready before
+    // printing. This is what actually fixes the mismatched-font look: previously print() fired
+    // on a blind timer, so whichever text happened to paint before the web font finished
+    // downloading got stuck with a fallback font while the rest of the page updated once the
+    // font arrived — same page, two different-looking fonts. A hard 4s safety cap still fires
+    // print() even if the font request is blocked entirely (e.g. a restricted office network),
+    // so printing is never stuck waiting forever.
+    var fontsReady = (document.fonts && document.fonts.ready)
+      ? Promise.all([
+          document.fonts.load("400 16px 'Sarabun'"),
+          document.fonts.load("700 16px 'Sarabun'"),
+          document.fonts.ready
+        ]).catch(function(){})
+      : Promise.resolve();
+    var safetyTimeout = new Promise(function(resolve){ setTimeout(resolve, 4000); });
+    Promise.race([fontsReady, safetyTimeout]).then(function(){
+      setTimeout(doPrint, 50);
+    });
   };
 </sc` + `ript>
 </body>
