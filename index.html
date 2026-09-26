@@ -1255,6 +1255,19 @@ function fmt2(n){ return (Number(n)||0).toLocaleString('en-US',{minimumFractionD
 // Settings > Language & region > Regional format > Numbers fix, which is outside the page's control).
 function numEn(v){ return `<span lang="en" class="arabic-num">${v}</span>`; }
 function entryTotal(e){ return (Number(e.row.amount)||0) + (Number(e.row.tax)||0); }
+// Shrinks a printed label's font-size once it's longer than a threshold, so a long ชื่อบัญชี /
+// ชื่อกิจกรรม doesn't wrap onto extra lines in its narrow fixed-width "detail" table cell and push
+// the whole withdrawal slip onto a second printed page. Short labels are untouched (same 16px as
+// the rest of the document); every extra character past the threshold nudges the size down a
+// little further, down to a floor that stays legible.
+function fitLabelHtml(text){
+  const s = escapeHtml(text || '');
+  const len = (text || '').length;
+  const threshold = 14;
+  if(len <= threshold) return s;
+  const size = Math.max(9.5, 16 - (len - threshold) * 0.45);
+  return `<span style="font-size:${size.toFixed(1)}px;line-height:1.15;display:inline-block;">${s}</span>`;
+}
 
 /* ============ withdrawal / budget-deduction slip PDF ============ */
 function buildSlipBodyHtml(cc, entries, payerName, payerCode, payerPosition, docDateStr){
@@ -1334,9 +1347,9 @@ function buildSlipBodyHtml(cc, entries, payerName, payerCode, payerPosition, doc
       </colgroup>
       <tr>
         <td>ชื่อ-รหัสบัญชี</td>
-        <td class="hl">${s0 ? escapeHtml(s0.item.label) : ''}</td>
-        <td class="hl">${s1 ? escapeHtml(s1.item.label) : ''}</td>
-        <td class="hl">${s2 ? escapeHtml(s2.item.label) : ''}</td>
+        <td class="hl">${s0 ? fitLabelHtml(s0.item.label) : ''}</td>
+        <td class="hl">${s1 ? fitLabelHtml(s1.item.label) : ''}</td>
+        <td class="hl">${s2 ? fitLabelHtml(s2.item.label) : ''}</td>
         <td class="ctr">รวมค่าใช้จ่าย</td>
       </tr>
       <tr>
@@ -1515,9 +1528,9 @@ function buildProjectSlipBodyHtml(entries, payerName, payerCode, payerPosition, 
       </colgroup>
       <tr>
         <td>ชื่อ-รหัสบัญชี</td>
-        <td class="ctr hl">${s0 ? escapeHtml(s0.catLabel) : ''}</td>
-        <td class="ctr hl">${s1 ? escapeHtml(s1.catLabel) : ''}</td>
-        <td class="ctr hl">${s2 ? escapeHtml(s2.catLabel) : ''}</td>
+        <td class="ctr hl">${s0 ? fitLabelHtml(s0.catLabel) : ''}</td>
+        <td class="ctr hl">${s1 ? fitLabelHtml(s1.catLabel) : ''}</td>
+        <td class="ctr hl">${s2 ? fitLabelHtml(s2.catLabel) : ''}</td>
         <td class="ctr">รวมค่าใช้จ่าย</td>
       </tr>
       <tr>
