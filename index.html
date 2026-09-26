@@ -959,6 +959,7 @@ let state = {
   activeYear: DEFAULT_YEAR,
   activeCcId: null,
   activeItemKey: null,     // item.code used as key within a cost center
+  itemSearchQuery: '',    // filters the รายการบัญชี (budget item) list within the active cost center
   authMode: 'login',       // 'login' | 'signup'
   orgSettings: {},         // { officeName }
   slipSelection: [],       // [{itemCode, entryId}] entries picked to combine into one printed slip (max 3), scoped to activeCcId
@@ -1986,7 +1987,7 @@ async function deleteCc(){
 
 /* ============ selection ============ */
 function selectCc(id){
-  state.activeCcId = id; state.activeItemKey=null; state.slipSelection = []; render();
+  state.activeCcId = id; state.activeItemKey=null; state.slipSelection = []; state.itemSearchQuery = ''; render();
 }
 function selectItem(code){ state.activeItemKey = code; render(); }
 function backToItemGrid(){ state.activeItemKey = null; render(); }
@@ -2431,7 +2432,7 @@ async function submitOrgSettings(){
 
 function switchDept(key){
   state.activeDept = key;
-  state.activeCcId = null; state.activeItemKey = null; state.slipSelection = [];
+  state.activeCcId = null; state.activeItemKey = null; state.slipSelection = []; state.itemSearchQuery = '';
   state.activeProjectId = null; state.activeWorkTypeKey = null; state.activeProjectCatKey = null; state.projectSlipSelection = [];
   autoSelectFirstCc();
   render();
@@ -2527,21 +2528,13 @@ function renderMain(){
       html += `<div class="empty-state"><p>ยังไม่มีรายการงบประมาณในศูนย์ต้นทุนนี้</p>
         ${canManage ? `<button class="btn btn-primary btn-sm" onclick="openAddItemModal()">+ เพิ่มรายการงบประมาณ</button>` : `<span style="font-size:12.5px;color:var(--text-faint);">รอผู้ดูแลแผนกหรือแอดมินเพิ่มรายการ</span>`}</div>`;
     } else {
-      html += `<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
-        <div class="eyebrow" style="color:var(--text-faint);">รายการงบประมาณ (${items.length})</div>
-        ${canManage ? `<button class="btn btn-outline btn-sm" onclick="openAddItemModal()">+ เพิ่มรายการ</button>` : ''}
+      html += `<div style="margin-bottom:14px;">
+        <div style="display:flex;align-items:center;gap:8px;height:38px;padding:0 12px;border-radius:8px;border:1px solid var(--border);background:var(--card);max-width:320px;">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--text-faint)" stroke-width="2.2" stroke-linecap="round" style="flex-shrink:0;"><circle cx="11" cy="11" r="7"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
+          <input type="text" id="itemSearchInput" placeholder="ค้นหารายการบัญชี (รหัสหรือชื่อ)" value="${escapeHtml(state.itemSearchQuery||'')}" oninput="onItemSearchInput(this.value)" style="border:none;outline:none;background:transparent;font-family:inherit;font-size:13px;width:100%;color:var(--text);">
+        </div>
       </div>`;
-      html += `<div style="display:flex;gap:14px;padding:0 16px;margin-bottom:6px;font-size:11px;color:var(--text-faint);font-weight:700;text-transform:uppercase;letter-spacing:.04em;">
-        <span style="width:76px;flex-shrink:0;">รหัสบัญชี</span>
-        <span style="flex:1;">ชื่อรายการ</span>
-        <span style="min-width:110px;text-align:right;">งบทั้งปี</span>
-        <span style="width:14px;flex-shrink:0;"></span>
-      </div>`;
-      html += `<div class="item-list">`;
-      items.forEach(item=>{
-        html += renderItemCard(item);
-      });
-      html += `</div>`;
+      html += `<div id="itemListContainer">${buildItemListInnerHtml(cc)}</div>`;
     }
   }
 
@@ -2590,6 +2583,53 @@ function renderItemCard(item){
     <span class="item-budget">${fmt(t.budget)}</span>
     <span class="item-arrow">›</span>
   </div>`;
+}
+
+// Builds the รายการบัญชี (budget item) list body, filtered by state.itemSearchQuery.
+// Kept separate from renderMain() so the search box can refresh just this
+// container on every keystroke without losing focus on the input itself.
+function buildItemListInnerHtml(cc){
+  const items = cc.items || [];
+  const canManage = canManageDept(cc.deptKey);
+  const q = (state.itemSearchQuery||'').trim().toLowerCase();
+  const filtered = q
+    ? items.filter(it => (it.code||'').toLowerCase().includes(q) || (it.label||'').toLowerCase().includes(q))
+    : items;
+
+  let html = `<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
+    <div class="eyebrow" style="color:var(--text-faint);">รายการงบประมาณ (${filtered.length}${q ? ' จาก '+items.length : ''})</div>
+    ${canManage ? `<button class="btn btn-outline btn-sm" onclick="openAddItemModal()">+ เพิ่มรายการ</button>` : ''}
+  </div>`;
+
+  if(!filtered.length){
+    html += `<div class="empty-state"><p>ไม่พบรายการบัญชีที่ตรงกับคำค้นหา "${escapeHtml(state.itemSearchQuery||'')}"</p></div>`;
+    return html;
+  }
+
+  html += `<div style="display:flex;gap:14px;padding:0 16px;margin-bottom:6px;font-size:11px;color:var(--text-faint);font-weight:700;text-transform:uppercase;letter-spacing:.04em;">
+    <span style="width:76px;flex-shrink:0;">รหัสบัญชี</span>
+    <span style="flex:1;">ชื่อรายการ</span>
+    <span style="min-width:110px;text-align:right;">งบทั้งปี</span>
+    <span style="width:14px;flex-shrink:0;"></span>
+  </div>`;
+  html += `<div class="item-list">`;
+  filtered.forEach(item=>{
+    html += renderItemCard(item);
+  });
+  html += `</div>`;
+  return html;
+}
+
+function renderItemListContainer(){
+  const container = document.getElementById('itemListContainer');
+  const cc = getCc(state.activeCcId);
+  if(!container || !cc) return;
+  container.innerHTML = buildItemListInnerHtml(cc);
+}
+
+function onItemSearchInput(val){
+  state.itemSearchQuery = val;
+  renderItemListContainer();
 }
 
 function renderItemDetail(cc, item){
