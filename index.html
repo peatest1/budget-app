@@ -871,7 +871,7 @@ table.ledger .del-x:hover{color:var(--rust);}
     signInWithEmailAndPassword, signOut
   } from "https://www.gstatic.com/firebasejs/12.1.0/firebase-auth.js";
   import {
-    getFirestore, doc, getDoc, setDoc, deleteDoc, runTransaction,
+    getFirestore, doc, getDoc, getDocs, setDoc, deleteDoc, runTransaction,
     collection, query, where, onSnapshot
   } from "https://www.gstatic.com/firebasejs/12.1.0/firebase-firestore.js";
 
@@ -903,11 +903,21 @@ table.ledger .del-x:hover{color:var(--rust);}
     },
     setUserProfile: (uid, data) =>
       setDoc(doc(db, 'users', uid), data, { merge: true }),
-    // Cost centers are global (shared by everyone), filtered client-side by year.
-    subscribeCostCenters: (cb) => {
-      return onSnapshot(collection(db, 'costCenters'), (snap) => cb(snap.docs.map(d => d.data())), (err) => {
+    // Scoped to the one department currently being viewed (server-side filter via where()), instead
+    // of pulling every department's cost centers on every load. Year is still filtered client-side
+    // (ccsForYear) since a dept admin needs to see every year's cost centers to populate the year
+    // picker, and one department rarely has enough years' worth of data to matter.
+    subscribeCostCenters: (deptKey, cb) => {
+      const q = query(collection(db, 'costCenters'), where('deptKey', '==', deptKey));
+      return onSnapshot(q, (snap) => cb(snap.docs.map(d => d.data())), (err) => {
         console.error('subscribeCostCenters error', err);
       });
+    },
+    // One-time, unfiltered read across every department — used only for the admin "backup" export,
+    // which is meant to capture everything, not just whatever department happens to be open.
+    getAllCostCentersOnce: async () => {
+      const snap = await getDocs(collection(db, 'costCenters'));
+      return snap.docs.map(d => d.data());
     },
     saveCostCenter: (cc) => setDoc(doc(db, 'costCenters', cc.id), cc),
     // Adds/removes one ledger entry through a transaction: it re-reads the document from the
@@ -970,6 +980,17 @@ table.ledger .del-x:hover{color:var(--rust);}
       items[idx] = {...items[idx], entries};
       tx.set(ref, {...data, items});
     }),
+    // ---- STAGE 1 of the subcollection migration (see plan discussed with the user) ----
+    // These write a MIRROR copy of each ledger entry into costCenters/{ccId}/entries/{entryId},
+    // alongside (never instead of) the existing items[].entries[] array that the whole app still
+    // reads from today. Nothing here changes what the app displays or computes — it is purely
+    // additive, best-effort bookkeeping so future entries are already present in the new shape
+    // before anyone commits to reading from it. Historical entries created before this stage are
+    // NOT here yet; that is a separate, explicitly-approved backfill step, not automatic.
+    mirrorCostCenterEntry: (ccId, itemCode, entry) =>
+      setDoc(doc(db, 'costCenters', ccId, 'entries', entry.id), {...entry, itemCode}, {merge: true}),
+    deleteMirrorCostCenterEntry: (ccId, entryId) =>
+      deleteDoc(doc(db, 'costCenters', ccId, 'entries', entryId)),
     // Soft delete: marks the cost center as deleted instead of physically removing the document,
     // so an accidental click on "ลบศูนย์ต้นทุน" can still be undone from the trash view. The
     // document (and every entry inside it) stays in Firestore until someone empties the trash.
@@ -984,10 +1005,17 @@ table.ledger .del-x:hover{color:var(--rust);}
       });
     },
     setOrgSettings: (data) => setDoc(doc(db, 'settings', 'org'), data, { merge: true }),
-    subscribeProjects: (cb) => {
-      return onSnapshot(collection(db, 'constructionProjects'), (snap) => cb(snap.docs.map(d => d.data())), (err) => {
+    // Same scoping as subscribeCostCenters: only the department currently being viewed.
+    subscribeProjects: (deptKey, cb) => {
+      const q = query(collection(db, 'constructionProjects'), where('deptKey', '==', deptKey));
+      return onSnapshot(q, (snap) => cb(snap.docs.map(d => d.data())), (err) => {
         console.error('subscribeProjects error', err);
       });
+    },
+    // One-time, unfiltered read across every department — used only for the admin "backup" export.
+    getAllProjectsOnce: async () => {
+      const snap = await getDocs(collection(db, 'constructionProjects'));
+      return snap.docs.map(d => d.data());
     },
     saveProject: (p) => setDoc(doc(db, 'constructionProjects', p.id), p),
     // Same transactional pattern as addCostCenterEntryTx/deleteCostCenterEntryTx, for WBS
@@ -1049,6 +1077,11 @@ table.ledger .del-x:hover{color:var(--rust);}
       departments[workTypeKey] = {...wt, budgets: {...wt.budgets, [catKey]: {...cat, entries}}};
       tx.set(ref, {...data, departments});
     }),
+    // STAGE 1 mirror for WBS entries — same purpose/caveats as mirrorCostCenterEntry above.
+    mirrorProjectEntry: (projId, workTypeKey, catKey, entry) =>
+      setDoc(doc(db, 'constructionProjects', projId, 'entries', entry.id), {...entry, workTypeKey, catKey}, {merge: true}),
+    deleteMirrorProjectEntry: (projId, entryId) =>
+      deleteDoc(doc(db, 'constructionProjects', projId, 'entries', entryId)),
     softDeleteProject: (id, who) => setDoc(doc(db, 'constructionProjects', id),
       {deletedAt: Date.now(), deletedByUid: who.uid || null, deletedByName: who.name || null}, {merge: true}),
     restoreProject: (id) => setDoc(doc(db, 'constructionProjects', id),
@@ -2383,6 +2416,9 @@ function addEntry(itemCode){
   // local add is rolled back and the user is told, instead of pretending it saved.
   window.fb.addCostCenterEntryTx(cc.id, itemCode, entry).then(()=>{
     flashSaved(false);
+    // Stage 1 subcollection migration: best-effort mirror, never affects the primary save above —
+    // see the comment on mirrorCostCenterEntry for why this exists and what it does NOT do yet.
+    window.fb.mirrorCostCenterEntry(cc.id, itemCode, entry).catch(e=>console.error('mirror (add) failed', e));
   }).catch(e=>{
     console.error(e);
     item.entries = item.entries.filter(en=>en.id!==entry.id);
@@ -2418,6 +2454,7 @@ function deleteEntry(itemCode, entryId){
   render();
   window.fb.deleteCostCenterEntryTx(cc.id, itemCode, entryId, who).then(()=>{
     flashSaved(false);
+    window.fb.mirrorCostCenterEntry(cc.id, itemCode, entry).catch(e=>console.error('mirror (soft-delete) failed', e));
   }).catch(e=>{
     console.error(e);
     entry.deletedAt = prevDeletedAt; entry.deletedByUid = prevDeletedByUid; entry.deletedByName = prevDeletedByName;
@@ -2436,6 +2473,7 @@ function restoreEntry(itemCode, entryId){
   render();
   window.fb.restoreCostCenterEntryTx(cc.id, itemCode, entryId).then(()=>{
     flashSaved(false);
+    window.fb.mirrorCostCenterEntry(cc.id, itemCode, entry).catch(e=>console.error('mirror (restore) failed', e));
   }).catch(e=>{
     console.error(e);
     entry.deletedAt = prevDeletedAt; entry.deletedByUid = prevDeletedByUid; entry.deletedByName = prevDeletedByName;
@@ -2455,6 +2493,7 @@ function permanentlyDeleteEntry(itemCode, entryId){
   render();
   window.fb.purgeCostCenterEntryTx(cc.id, itemCode, entryId).then(()=>{
     flashSaved(false);
+    window.fb.deleteMirrorCostCenterEntry(cc.id, entryId).catch(e=>console.error('mirror (purge) failed', e));
   }).catch(e=>{
     console.error(e);
     item.entries.splice(idx, 0, removed);
@@ -2739,6 +2778,7 @@ function addProjectEntry(workTypeKey, catKey){
   // Same transactional write as the budget-mode addCostCenterEntryTx — see the comment there.
   window.fb.addProjectEntryTx(p.id, workTypeKey, catKey, entry).then(()=>{
     flashSaved(false);
+    window.fb.mirrorProjectEntry(p.id, workTypeKey, catKey, entry).catch(e=>console.error('mirror (add) failed', e));
   }).catch(e=>{
     console.error(e);
     cat.entries = cat.entries.filter(en=>en.id!==entry.id);
@@ -2761,6 +2801,7 @@ function deleteProjectEntry(workTypeKey, catKey, entryId){
   render();
   window.fb.deleteProjectEntryTx(p.id, workTypeKey, catKey, entryId, who).then(()=>{
     flashSaved(false);
+    window.fb.mirrorProjectEntry(p.id, workTypeKey, catKey, entry).catch(e=>console.error('mirror (soft-delete) failed', e));
   }).catch(e=>{
     console.error(e);
     entry.deletedAt = prevDeletedAt; entry.deletedByUid = prevDeletedByUid; entry.deletedByName = prevDeletedByName;
@@ -2779,6 +2820,7 @@ function restoreProjectEntry(workTypeKey, catKey, entryId){
   render();
   window.fb.restoreProjectEntryTx(p.id, workTypeKey, catKey, entryId).then(()=>{
     flashSaved(false);
+    window.fb.mirrorProjectEntry(p.id, workTypeKey, catKey, entry).catch(e=>console.error('mirror (restore) failed', e));
   }).catch(e=>{
     console.error(e);
     entry.deletedAt = prevDeletedAt; entry.deletedByUid = prevDeletedByUid; entry.deletedByName = prevDeletedByName;
@@ -2797,6 +2839,7 @@ function permanentlyDeleteProjectEntry(workTypeKey, catKey, entryId){
   render();
   window.fb.purgeProjectEntryTx(p.id, workTypeKey, catKey, entryId).then(()=>{
     flashSaved(false);
+    window.fb.deleteMirrorProjectEntry(p.id, entryId).catch(e=>console.error('mirror (purge) failed', e));
   }).catch(e=>{
     console.error(e);
     cat.entries.splice(idx, 0, removed);
@@ -2958,12 +3001,26 @@ function isBackupOverdue(){
 }
 async function downloadBackup(){
   if(!isAdmin()){ alert('เฉพาะแอดมินเท่านั้นที่สำรองข้อมูลทั้งหมดได้'); return; }
+  // state.costCenters/state.projects only hold the ONE department currently being viewed (the
+  // subscriptions are now scoped by deptKey to cut down on Firestore reads — see
+  // subscribeActiveDeptData). A backup has to cover every department regardless, so this does a
+  // separate one-time unfiltered read straight from Firestore instead of using that local state.
+  let costCenters, constructionProjects;
+  try{
+    [costCenters, constructionProjects] = await Promise.all([
+      window.fb.getAllCostCentersOnce(),
+      window.fb.getAllProjectsOnce(),
+    ]);
+  }catch(e){
+    alert('ดึงข้อมูลสำหรับสำรองไม่สำเร็จ: ' + e.message);
+    return;
+  }
   const payload = {
     exportedAt: new Date().toISOString(),
     exportedBy: state.user ? (state.user.displayName || state.user.email) : null,
     orgSettings: state.orgSettings || {},
-    costCenters: state.costCenters || [],
-    constructionProjects: state.projects || [],
+    costCenters,
+    constructionProjects,
   };
   const json = JSON.stringify(payload, null, 2);
   const blob = new Blob([json], {type: 'application/json'});
@@ -3034,11 +3091,40 @@ function renderTrashModal(){
     </div>`).join('');
 }
 
+// (Re)subscribes cost-center/project data scoped to state.activeDept only — a Firestore query
+// filter (where('deptKey','==', ...)) instead of pulling every department's documents on every
+// load, so read cost/quota scales with how many departments are actually being looked at, not with
+// the whole organization. Called at login and again whenever the viewed department changes.
+function subscribeActiveDeptData(){
+  if(ccUnsub){ ccUnsub(); ccUnsub = null; }
+  if(projectsUnsub){ projectsUnsub(); projectsUnsub = null; }
+  if(!state.activeDept) return;
+  ccUnsub = window.fb.subscribeCostCenters(state.activeDept, (ccs)=>{
+    state.costCenters = ccs;
+    const activeCc = ccs.find(c=>c.id===state.activeCcId);
+    if(state.activeCcId && (!activeCc || activeCc.deletedAt)){
+      state.activeCcId=null; state.activeItemKey=null;
+    }
+    autoSelectFirstCc();
+    render();
+    sweepExpiredTrash();
+  });
+  projectsUnsub = window.fb.subscribeProjects(state.activeDept, (projects)=>{
+    state.projects = projects;
+    const activeProj = projects.find(p=>p.id===state.activeProjectId);
+    if(state.activeProjectId && (!activeProj || activeProj.deletedAt)){
+      state.activeProjectId=null; state.activeWorkTypeKey=null; state.activeProjectCatKey=null;
+    }
+    render();
+    sweepExpiredTrash();
+  });
+}
 function switchDept(key){
   state.activeDept = key;
   state.activeCcId = null; state.activeItemKey = null; state.slipSelection = []; state.itemSearchQuery = '';
   state.activeProjectId = null; state.activeWorkTypeKey = null; state.activeProjectCatKey = null; state.projectSlipSelection = [];
-  autoSelectFirstCc();
+  state.costCenters = []; state.projects = [];
+  subscribeActiveDeptData();
   render();
 }
 function renderDeptWrap(){
@@ -3720,28 +3806,10 @@ function initAuthListener(){
     state.user.employeeCode = (profile && profile.employeeCode) ? profile.employeeCode : '';
     state.userDept = (profile && profile.deptKey) ? profile.deptKey : null;
     state.activeDept = canSwitchAllDepts() ? (state.activeDept || DEPARTMENTS[0].key) : state.userDept;
-    ccUnsub = window.fb.subscribeCostCenters((ccs)=>{
-      state.costCenters = ccs;
-      const activeCc = ccs.find(c=>c.id===state.activeCcId);
-      if(state.activeCcId && (!activeCc || activeCc.deletedAt)){
-        state.activeCcId=null; state.activeItemKey=null;
-      }
-      autoSelectFirstCc();
-      render();
-      sweepExpiredTrash();
-    });
+    subscribeActiveDeptData();
     orgUnsub = window.fb.subscribeOrgSettings((settings)=>{
       state.orgSettings = settings || {};
       render();
-    });
-    projectsUnsub = window.fb.subscribeProjects((projects)=>{
-      state.projects = projects;
-      const activeProj = projects.find(p=>p.id===state.activeProjectId);
-      if(state.activeProjectId && (!activeProj || activeProj.deletedAt)){
-        state.activeProjectId=null; state.activeWorkTypeKey=null; state.activeProjectCatKey=null;
-      }
-      render();
-      sweepExpiredTrash();
     });
     render();
   });
