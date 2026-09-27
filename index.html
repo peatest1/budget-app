@@ -247,7 +247,7 @@ body{
 .list-empty{color:#7C8A90;font-size:12.5px;padding:16px 4px;text-align:center;}
 
 /* main */
-.main{padding:28px 32px 60px;max-width:1180px;}
+.main{padding:28px 40px 60px;max-width:1560px;}
 @media (max-width:640px){.main{padding:18px 16px 40px;}}
 
 .welcome{
@@ -2817,6 +2817,25 @@ function projTotals(project){
   });
   return {amount100, usable80, totalPaid, remaining: usable80-totalPaid};
 }
+// Cheap, aggregate-only totals — safe to call for every WBS project in the sidebar list at once
+// (mirrors ccTotals's role in budget mode). Only reads the totalPaid field already precomputed on
+// each budget category, never the entries subcollection, so listing every project's % used costs
+// exactly the same as it does today — it doesn't scale with how many ledger entries exist.
+function projTotalsCheap(project){
+  let amount100=0, totalPaid=0;
+  Object.values(project.departments||{}).filter(dept=>!dept.deletedAt).forEach(dept=>{
+    Object.values(dept.budgets||{}).forEach(cat=>{
+      amount100 += Number(cat.amount100)||0;
+      totalPaid += catAggregateTotalPaid(cat);
+    });
+  });
+  return {amount100, totalPaid};
+}
+// Self-healing, same pattern as itemAggregateTotalPaid (budget mode) — see there for why.
+function catAggregateTotalPaid(cat){
+  if(typeof cat.totalPaid === 'number') return cat.totalPaid;
+  return (cat.entries||[]).filter(e=>!e.deletedAt).reduce((s,e)=> s + (Number(e.amount)||0) + (Number(e.tax)||0), 0);
+}
 function canDeleteProjectEntry(project, entry){
   if(canManageDept(project.deptKey)) return true;
   return !!(entry.addedBy && state.user && entry.addedBy === state.user.uid);
@@ -3795,9 +3814,14 @@ function renderProjectSidebar(){
   }
   list.innerHTML = projects.map(p=>{
     const active = p.id===state.activeProjectId;
+    const t = projTotalsCheap(p);
+    const pct = t.amount100>0 ? (t.totalPaid/t.amount100*100) : 0;
+    const gClass = gaugeClass(pct);
+    const barWidth = Math.min(pct,100);
     return `<div class="cc-item ${active?'active':''}" onclick="selectProject('${p.id}')">
       <div class="code">${escapeHtml(p.wbs)}</div>
       <div class="name">${escapeHtml(p.name)}</div>
+      <div class="cc-progress" title="ใช้ไปแล้ว ${pct.toFixed(0)}%"><div class="cc-progress-fill ${gClass}" style="width:${barWidth}%"></div></div>
     </div>`;
   }).join('');
 }
