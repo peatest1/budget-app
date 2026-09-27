@@ -848,6 +848,17 @@ table.ledger .del-x:hover{color:var(--rust);}
       <button class="btn btn-outline" onclick="closeModal('orgSettingsModal')">ยกเลิก</button>
       <button class="btn btn-primary" onclick="submitOrgSettings()">บันทึก</button>
     </div>
+
+    <div style="margin-top:22px;padding-top:16px;border-top:1px solid var(--border-soft);">
+      <div class="eyebrow" style="color:var(--text-faint);margin-bottom:6px;">ขั้นสูง — การย้ายข้อมูล (ทำครั้งเดียว)</div>
+      <p style="font-size:12.5px;color:var(--text-faint);margin:0 0 10px;">
+        คัดลอกรายการจ่ายเก่าที่มีอยู่แล้วเข้าโครงสร้างสำรองใหม่ (subcollection) — เป็นการ "คัดลอกเพิ่ม" เท่านั้น
+        ไม่ลบ/ไม่แก้ข้อมูลเดิมที่แอปใช้แสดงผลอยู่ตอนนี้แม้แต่นิดเดียว ทำได้หลายรอบซ้ำได้อย่างปลอดภัย
+        แนะนำให้กด "💾 ดาวน์โหลดข้อมูลสำรอง" ด้านบนไว้ก่อนเริ่ม
+      </p>
+      <button class="btn btn-outline" id="backfillBtn" onclick="runBackfillAndVerify()">🔄 เริ่มย้ายข้อมูลเก่า (ขั้นที่ 2)</button>
+      <div id="backfillReport" style="margin-top:10px;font-size:12.5px;"></div>
+    </div>
   </div>
 </div>
 
@@ -871,7 +882,7 @@ table.ledger .del-x:hover{color:var(--rust);}
     signInWithEmailAndPassword, signOut
   } from "https://www.gstatic.com/firebasejs/12.1.0/firebase-auth.js";
   import {
-    getFirestore, doc, getDoc, getDocs, setDoc, deleteDoc, runTransaction,
+    getFirestore, doc, getDoc, getDocs, setDoc, deleteDoc, runTransaction, writeBatch,
     collection, query, where, onSnapshot
   } from "https://www.gstatic.com/firebasejs/12.1.0/firebase-firestore.js";
 
@@ -1017,6 +1028,57 @@ table.ledger .del-x:hover{color:var(--rust);}
       const snap = await getDocs(collection(db, 'constructionProjects'));
       return snap.docs.map(d => d.data());
     },
+    // ---- STAGE 2 of the subcollection migration: backfill historical entries ----
+    // Copies every entry that already exists inside costCenters[].items[].entries[] /
+    // constructionProjects[].departments[].budgets[].entries[] into the new subcollections, using
+    // the exact same shape Stage 1's mirror* functions already write going forward. This ONLY adds
+    // documents (setDoc with merge) — it never reads the old array with intent to remove anything
+    // from it, and never touches items[]/entries[]/departments{} themselves. Soft-deleted entries
+    // are copied too (with their deletedAt as-is), so the mirror is a faithful, complete copy of
+    // history, not just of what's currently visible.
+    backfillEntriesToSubcollections: async (costCenters, projects, onProgress) => {
+      let written = 0;
+      let batch = writeBatch(db);
+      let opsInBatch = 0;
+      const BATCH_LIMIT = 400; // stay well under Firestore's 500-writes-per-batch hard limit
+      const flush = async () => {
+        if(opsInBatch === 0) return;
+        await batch.commit();
+        batch = writeBatch(db);
+        opsInBatch = 0;
+      };
+      const stage = async (ref, data) => {
+        batch.set(ref, data, { merge: true });
+        opsInBatch++;
+        written++;
+        if(opsInBatch >= BATCH_LIMIT) await flush();
+        if(onProgress && written % 50 === 0) onProgress(written);
+      };
+      for(const cc of (costCenters||[])){
+        for(const item of (cc.items||[])){
+          for(const entry of (item.entries||[])){
+            await stage(doc(db, 'costCenters', cc.id, 'entries', entry.id), {...entry, itemCode: item.code});
+          }
+        }
+      }
+      for(const p of (projects||[])){
+        for(const [wtKey, wt] of Object.entries(p.departments||{})){
+          for(const [catKey, cat] of Object.entries(wt.budgets||{})){
+            for(const entry of (cat.entries||[])){
+              await stage(doc(db, 'constructionProjects', p.id, 'entries', entry.id), {...entry, workTypeKey: wtKey, catKey});
+            }
+          }
+        }
+      }
+      await flush();
+      if(onProgress) onProgress(written);
+      return written;
+    },
+    // Counts how many entry documents currently exist in one cost center's / project's mirror
+    // subcollection — used only to verify the backfill against the original arrays, never during
+    // normal app usage.
+    countMirrorEntriesForCc: async (ccId) => (await getDocs(collection(db, 'costCenters', ccId, 'entries'))).size,
+    countMirrorEntriesForProject: async (projId) => (await getDocs(collection(db, 'constructionProjects', projId, 'entries'))).size,
     saveProject: (p) => setDoc(doc(db, 'constructionProjects', p.id), p),
     // Same transactional pattern as addCostCenterEntryTx/deleteCostCenterEntryTx, for WBS
     // category entries nested at departments[workTypeKey].budgets[catKey].entries.
@@ -3041,6 +3103,92 @@ async function downloadBackup(){
     renderBackupInfo();
   }catch(e){
     console.error('บันทึกเวลาสำรองข้อมูลล่าสุดไม่สำเร็จ', e);
+  }
+}
+
+/* ============ Stage 2 of the subcollection migration: backfill + verify (admin, manual, one-off) ============ */
+// Copies every historical entry (in both budget-mode cost centers and WBS project files) into the
+// new costCenters/{id}/entries and constructionProjects/{id}/entries subcollections that Stage 1's
+// mirror* functions already keep in sync for anything added/changed from now on. This function only
+// ADDS documents — it never reads items[]/entries[]/departments{} with intent to modify or remove
+// anything from them, and the app keeps reading from those original arrays exactly as before. Safe
+// to re-run: every write is a merge on the entry's own id, so running it twice just re-writes the
+// same documents, nothing duplicates.
+async function runBackfillAndVerify(){
+  if(!isAdmin()){ alert('เฉพาะแอดมินเท่านั้นที่ทำขั้นตอนนี้ได้'); return; }
+  if(!confirm(
+    'เริ่มคัดลอกรายการจ่ายเก่าทั้งหมดเข้าโครงสร้างสำรองใหม่?\n\n' +
+    '- จะไม่ลบหรือแก้ข้อมูลเดิมที่แอปใช้อยู่ตอนนี้เลย (เป็นการคัดลอกเพิ่มเท่านั้น)\n' +
+    '- ทำได้เฉพาะแอดมิน และควรทำตอนที่มีคนใช้งานน้อย (เช่น นอกเวลาทำการ)\n' +
+    '- ถ้ามีข้อมูลเยอะอาจใช้เวลาสักครู่ อย่าปิดหน้าต่างนี้ระหว่างทำ\n\n' +
+    'ยืนยันเริ่มเลยไหม?'
+  )) return;
+
+  const btn = document.getElementById('backfillBtn');
+  const report = document.getElementById('backfillReport');
+  if(btn) btn.disabled = true;
+  if(report) report.innerHTML = `<span style="color:var(--text-faint);">กำลังดึงข้อมูลทั้งหมด...</span>`;
+
+  let costCenters, constructionProjects;
+  try{
+    [costCenters, constructionProjects] = await Promise.all([
+      window.fb.getAllCostCentersOnce(),
+      window.fb.getAllProjectsOnce(),
+    ]);
+  }catch(e){
+    if(report) report.innerHTML = `<span style="color:var(--rust);">ดึงข้อมูลไม่สำเร็จ: ${escapeHtml(e.message)}</span>`;
+    if(btn) btn.disabled = false;
+    return;
+  }
+
+  try{
+    if(report) report.innerHTML = `<span style="color:var(--text-faint);">กำลังคัดลอกข้อมูล... (0 รายการ)</span>`;
+    const written = await window.fb.backfillEntriesToSubcollections(costCenters, constructionProjects, (n)=>{
+      if(report) report.innerHTML = `<span style="color:var(--text-faint);">กำลังคัดลอกข้อมูล... (${n} รายการ)</span>`;
+    });
+
+    if(report) report.innerHTML = `<span style="color:var(--text-faint);">คัดลอกเสร็จ ${written} รายการ — กำลังตรวจสอบความถูกต้อง...</span>`;
+
+    // Verify: for every cost center / project, compare how many entries the ORIGINAL arrays say
+    // should exist against how many documents actually landed in its new mirror subcollection.
+    const mismatches = [];
+    let totalExpected = 0, totalActual = 0, checked = 0;
+    for(const cc of costCenters){
+      const expected = (cc.items||[]).reduce((sum,item)=> sum + (item.entries||[]).length, 0);
+      const actual = await window.fb.countMirrorEntriesForCc(cc.id);
+      totalExpected += expected; totalActual += actual; checked++;
+      if(expected !== actual){
+        mismatches.push({label: `${cc.code||''} — ${cc.name||''} (ศูนย์ต้นทุน)`, expected, actual});
+      }
+    }
+    for(const p of constructionProjects){
+      let expected = 0;
+      Object.values(p.departments||{}).forEach(wt=>{
+        Object.values(wt.budgets||{}).forEach(cat=>{ expected += (cat.entries||[]).length; });
+      });
+      const actual = await window.fb.countMirrorEntriesForProject(p.id);
+      totalExpected += expected; totalActual += actual; checked++;
+      if(expected !== actual){
+        mismatches.push({label: `${p.wbs||''} — ${p.name||''} (แฟ้มงาน WBS)`, expected, actual});
+      }
+    }
+
+    if(report){
+      if(!mismatches.length){
+        report.innerHTML = `<div style="color:var(--teal);font-weight:600;">✓ ตรวจสอบผ่านทั้งหมด — ${checked} เอกสาร, ${totalActual} รายการจ่าย ตรงกันครบ 100%</div>
+          <div style="color:var(--text-faint);margin-top:4px;">ข้อมูลเก่าทั้งหมดถูกคัดลอกเข้าโครงสร้างใหม่เรียบร้อย และของเดิมยังอยู่ครบไม่ถูกแตะต้อง — พร้อมสำหรับขั้นต่อไปเมื่อต้องการ</div>`;
+      } else {
+        report.innerHTML = `<div style="color:var(--rust);font-weight:600;">⚠ พบ ${mismatches.length} รายการที่ไม่ตรงกัน (จากทั้งหมด ${checked}) — ยังไม่ควรไปขั้นต่อไปจนกว่าจะตรวจสอบจุดนี้</div>
+          <ul style="margin:6px 0 0 18px;padding:0;">
+            ${mismatches.map(m=>`<li>${escapeHtml(m.label)}: ของเดิมมี ${m.expected} รายการ แต่คัดลอกไปได้ ${m.actual} รายการ</li>`).join('')}
+          </ul>`;
+      }
+    }
+  }catch(e){
+    console.error(e);
+    if(report) report.innerHTML = `<span style="color:var(--rust);">เกิดข้อผิดพลาดระหว่างคัดลอก/ตรวจสอบ: ${escapeHtml(e.message)}</span>`;
+  } finally {
+    if(btn) btn.disabled = false;
   }
 }
 
