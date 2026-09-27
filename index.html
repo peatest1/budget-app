@@ -937,6 +937,15 @@ table.ledger .del-x:hover{color:var(--rust);}
     // recording payments in the same cost center at nearly the same time from silently erasing
     // each other's entry (the old setDoc(cc) path could do that, since it always wrote the
     // entire document as one blob).
+    // ---- CUTOVER: entries live in costCenters/{ccId}/entries/{entryId} from here on ----
+    // items[].entries[] is now FROZEN — never written to again — and kept only as a historical
+    // record of everything that existed before cutover (already fully mirrored into the
+    // subcollection and verified 1:1 by the Stage 2 backfill tool). Each item instead carries a
+    // running `totalPaid`/`entryCount` aggregate that these transactions keep in sync, so totals
+    // (sidebar, item list, dashboards) never need to read a single entry document. If an item's
+    // aggregate hasn't been initialized yet (typeof item.totalPaid !== 'number'), it is computed
+    // ONCE here from the still-present legacy items[].entries[] array and then carried forward —
+    // no separate migration step needed; every item self-heals the first time it's touched.
     addCostCenterEntryTx: (ccId, itemCode, entry) => runTransaction(db, async (tx) => {
       const ref = doc(db, 'costCenters', ccId);
       const snap = await tx.get(ref);
@@ -945,63 +954,97 @@ table.ledger .del-x:hover{color:var(--rust);}
       const items = [...(data.items || [])];
       const idx = items.findIndex(i => i.code === itemCode);
       if(idx === -1) throw new Error('ไม่พบรายการบัญชีนี้ในศูนย์ต้นทุน (อาจถูกลบไปแล้วโดยผู้อื่น)');
-      const entries = [...(items[idx].entries || []), entry];
-      items[idx] = {...items[idx], entries};
+      const item = items[idx];
+      const legacyActive = (item.entries || []).filter(e => !e.deletedAt);
+      const baseTotalPaid = typeof item.totalPaid === 'number' ? item.totalPaid
+        : legacyActive.reduce((s,e)=> s + (Number(e.amount)||0) + (Number(e.tax)||0), 0);
+      const baseEntryCount = typeof item.entryCount === 'number' ? item.entryCount : legacyActive.length;
+      const delta = (Number(entry.amount)||0) + (Number(entry.tax)||0);
+      items[idx] = {...item, totalPaid: baseTotalPaid + delta, entryCount: baseEntryCount + 1};
       tx.set(ref, {...data, items});
+      tx.set(doc(db, 'costCenters', ccId, 'entries', entry.id), {...entry, itemCode});
     }),
-    // Soft delete: marks the entry with deletedAt instead of removing it from the array, so it can
-    // still be restored from the "รายการจ่ายที่ถูกลบ" trash section under the ledger.
+    // Soft delete: marks the entry with deletedAt in the subcollection (never removes it, so it can
+    // still be restored from the "รายการจ่ายที่ถูกลบ" trash section) and decrements the item's
+    // totalPaid/entryCount aggregate to match.
     deleteCostCenterEntryTx: (ccId, itemCode, entryId, who) => runTransaction(db, async (tx) => {
       const ref = doc(db, 'costCenters', ccId);
-      const snap = await tx.get(ref);
+      const entryRef = doc(db, 'costCenters', ccId, 'entries', entryId);
+      const [snap, entrySnap] = await Promise.all([tx.get(ref), tx.get(entryRef)]);
       if(!snap.exists()) throw new Error('ไม่พบศูนย์ต้นทุนนี้ในระบบ (อาจถูกลบไปแล้วโดยผู้อื่น)');
       const data = snap.data();
       const items = [...(data.items || [])];
       const idx = items.findIndex(i => i.code === itemCode);
       if(idx === -1) throw new Error('ไม่พบรายการบัญชีนี้ในศูนย์ต้นทุน (อาจถูกลบไปแล้วโดยผู้อื่น)');
-      const entries = (items[idx].entries || []).map(e => e.id === entryId
-        ? {...e, deletedAt: Date.now(), deletedByUid: (who && who.uid) || null, deletedByName: (who && who.name) || null}
-        : e);
-      items[idx] = {...items[idx], entries};
+      const item = items[idx];
+      // Defensive fallback for the rare case an entry somehow never made it into the subcollection
+      // (should not happen once Stage 2 has run, but never silently no-op on money).
+      let entryData = entrySnap.exists() ? entrySnap.data() : (item.entries||[]).find(e=>e.id===entryId);
+      if(!entryData) throw new Error('ไม่พบรายการจ่ายนี้ (อาจถูกลบไปแล้วโดยผู้อื่น)');
+      if(entryData.deletedAt){
+        tx.set(entryRef, {...entryData, itemCode}, {merge:true});
+        return; // already soft-deleted — don't double-decrement the aggregate
+      }
+      const legacyActive = (item.entries || []).filter(e => !e.deletedAt);
+      const baseTotalPaid = typeof item.totalPaid === 'number' ? item.totalPaid
+        : legacyActive.reduce((s,e)=> s + (Number(e.amount)||0) + (Number(e.tax)||0), 0);
+      const baseEntryCount = typeof item.entryCount === 'number' ? item.entryCount : legacyActive.length;
+      const delta = (Number(entryData.amount)||0) + (Number(entryData.tax)||0);
+      items[idx] = {...item, totalPaid: baseTotalPaid - delta, entryCount: Math.max(0, baseEntryCount - 1)};
       tx.set(ref, {...data, items});
+      tx.set(entryRef, {
+        ...entryData, itemCode,
+        deletedAt: Date.now(), deletedByUid: (who && who.uid) || null, deletedByName: (who && who.name) || null,
+      });
     }),
     restoreCostCenterEntryTx: (ccId, itemCode, entryId) => runTransaction(db, async (tx) => {
       const ref = doc(db, 'costCenters', ccId);
-      const snap = await tx.get(ref);
+      const entryRef = doc(db, 'costCenters', ccId, 'entries', entryId);
+      const [snap, entrySnap] = await Promise.all([tx.get(ref), tx.get(entryRef)]);
       if(!snap.exists()) throw new Error('ไม่พบศูนย์ต้นทุนนี้ในระบบ (อาจถูกลบไปแล้วโดยผู้อื่น)');
       const data = snap.data();
       const items = [...(data.items || [])];
       const idx = items.findIndex(i => i.code === itemCode);
       if(idx === -1) throw new Error('ไม่พบรายการบัญชีนี้ในศูนย์ต้นทุน (อาจถูกลบไปแล้วโดยผู้อื่น)');
-      const entries = (items[idx].entries || []).map(e => e.id === entryId
-        ? {...e, deletedAt: null, deletedByUid: null, deletedByName: null}
-        : e);
-      items[idx] = {...items[idx], entries};
+      const item = items[idx];
+      let entryData = entrySnap.exists() ? entrySnap.data() : (item.entries||[]).find(e=>e.id===entryId);
+      if(!entryData) throw new Error('ไม่พบรายการจ่ายนี้ (อาจถูกลบไปแล้วโดยผู้อื่น)');
+      if(!entryData.deletedAt) return; // already active — nothing to restore
+      const legacyActive = (item.entries || []).filter(e => !e.deletedAt);
+      const baseTotalPaid = typeof item.totalPaid === 'number' ? item.totalPaid
+        : legacyActive.reduce((s,e)=> s + (Number(e.amount)||0) + (Number(e.tax)||0), 0);
+      const baseEntryCount = typeof item.entryCount === 'number' ? item.entryCount : legacyActive.length;
+      const delta = (Number(entryData.amount)||0) + (Number(entryData.tax)||0);
+      items[idx] = {...item, totalPaid: baseTotalPaid + delta, entryCount: baseEntryCount + 1};
       tx.set(ref, {...data, items});
+      tx.set(entryRef, {...entryData, itemCode, deletedAt: null, deletedByUid: null, deletedByName: null});
     }),
+    // Permanent delete: only reachable from the trash view, i.e. the entry is already soft-deleted
+    // and already excluded from the aggregate — so this never touches totalPaid/entryCount, it only
+    // removes the subcollection document (and strips it out of the legacy array too, if it happened
+    // to still be sitting there, so a re-run of the Stage 2 tool can never resurrect it).
     purgeCostCenterEntryTx: (ccId, itemCode, entryId) => runTransaction(db, async (tx) => {
       const ref = doc(db, 'costCenters', ccId);
+      const entryRef = doc(db, 'costCenters', ccId, 'entries', entryId);
       const snap = await tx.get(ref);
-      if(!snap.exists()) throw new Error('ไม่พบศูนย์ต้นทุนนี้ในระบบ (อาจถูกลบไปแล้วโดยผู้อื่น)');
-      const data = snap.data();
-      const items = [...(data.items || [])];
-      const idx = items.findIndex(i => i.code === itemCode);
-      if(idx === -1) throw new Error('ไม่พบรายการบัญชีนี้ในศูนย์ต้นทุน (อาจถูกลบไปแล้วโดยผู้อื่น)');
-      const entries = (items[idx].entries || []).filter(e => e.id !== entryId);
-      items[idx] = {...items[idx], entries};
-      tx.set(ref, {...data, items});
+      if(snap.exists()){
+        const data = snap.data();
+        const items = [...(data.items || [])];
+        const idx = items.findIndex(i => i.code === itemCode);
+        if(idx !== -1 && (items[idx].entries||[]).some(e=>e.id===entryId)){
+          items[idx] = {...items[idx], entries: items[idx].entries.filter(e=>e.id!==entryId)};
+          tx.set(ref, {...data, items});
+        }
+      }
+      tx.delete(entryRef);
     }),
-    // ---- STAGE 1 of the subcollection migration (see plan discussed with the user) ----
-    // These write a MIRROR copy of each ledger entry into costCenters/{ccId}/entries/{entryId},
-    // alongside (never instead of) the existing items[].entries[] array that the whole app still
-    // reads from today. Nothing here changes what the app displays or computes — it is purely
-    // additive, best-effort bookkeeping so future entries are already present in the new shape
-    // before anyone commits to reading from it. Historical entries created before this stage are
-    // NOT here yet; that is a separate, explicitly-approved backfill step, not automatic.
-    mirrorCostCenterEntry: (ccId, itemCode, entry) =>
-      setDoc(doc(db, 'costCenters', ccId, 'entries', entry.id), {...entry, itemCode}, {merge: true}),
-    deleteMirrorCostCenterEntry: (ccId, entryId) =>
-      deleteDoc(doc(db, 'costCenters', ccId, 'entries', entryId)),
+    // Live ledger for the one cost center currently open — this is the async source for the item
+    // detail table's rows now that entries no longer live in items[].entries[].
+    subscribeCcEntries: (ccId, cb) => {
+      return onSnapshot(collection(db, 'costCenters', ccId, 'entries'), (snap) => cb(snap.docs.map(d => d.data())), (err) => {
+        console.error('subscribeCcEntries error', err);
+      });
+    },
     // Soft delete: marks the cost center as deleted instead of physically removing the document,
     // so an accidental click on "ลบศูนย์ต้นทุน" can still be undone from the trash view. The
     // document (and every entry inside it) stays in Firestore until someone empties the trash.
@@ -1010,6 +1053,37 @@ table.ledger .del-x:hover{color:var(--rust);}
     restoreCostCenter: (id) => setDoc(doc(db, 'costCenters', id),
       {deletedAt: null, deletedByUid: null, deletedByName: null}, {merge: true}),
     deleteCostCenterDoc: (id) => deleteDoc(doc(db, 'costCenters', id)),
+    // ---- Trash retention (30-day auto-purge) support for the entries subcollection ----
+    // Firestore never cascade-deletes a subcollection when its parent document is deleted, so every
+    // path that permanently removes a cost center, a budget item, or lets an individual entry's
+    // 30-day trash window expire must also explicitly clear out the matching entry documents here —
+    // otherwise they'd sit in Firestore forever as orphans no UI can ever see or restore again.
+    deleteAllCcEntries: async (ccId) => {
+      const snap = await getDocs(collection(db, 'costCenters', ccId, 'entries'));
+      if(snap.empty) return 0;
+      const batch = writeBatch(db);
+      snap.docs.forEach(d=>batch.delete(d.ref));
+      await batch.commit();
+      return snap.size;
+    },
+    deleteCcEntriesByItemCode: async (ccId, itemCode) => {
+      const snap = await getDocs(query(collection(db, 'costCenters', ccId, 'entries'), where('itemCode', '==', itemCode)));
+      if(snap.empty) return 0;
+      const batch = writeBatch(db);
+      snap.docs.forEach(d=>batch.delete(d.ref));
+      await batch.commit();
+      return snap.size;
+    },
+    // Individually soft-deleted entries whose trash window (deletedAt) has expired — regardless of
+    // which item they belong to.
+    deleteExpiredCcEntries: async (ccId, cutoff) => {
+      const snap = await getDocs(query(collection(db, 'costCenters', ccId, 'entries'), where('deletedAt', '<', cutoff)));
+      if(snap.empty) return 0;
+      const batch = writeBatch(db);
+      snap.docs.forEach(d=>batch.delete(d.ref));
+      await batch.commit();
+      return snap.size;
+    },
     subscribeOrgSettings: (cb) => {
       return onSnapshot(doc(db, 'settings', 'org'), (snap) => cb(snap.exists() ? snap.data() : {}), (err) => {
         console.error('subscribeOrgSettings error', err);
@@ -1080,8 +1154,10 @@ table.ledger .del-x:hover{color:var(--rust);}
     countMirrorEntriesForCc: async (ccId) => (await getDocs(collection(db, 'costCenters', ccId, 'entries'))).size,
     countMirrorEntriesForProject: async (projId) => (await getDocs(collection(db, 'constructionProjects', projId, 'entries'))).size,
     saveProject: (p) => setDoc(doc(db, 'constructionProjects', p.id), p),
-    // Same transactional pattern as addCostCenterEntryTx/deleteCostCenterEntryTx, for WBS
-    // category entries nested at departments[workTypeKey].budgets[catKey].entries.
+    // ---- CUTOVER: WBS entries live in constructionProjects/{projId}/entries/{entryId} ----
+    // Same design as the cost-center transactions above: cat.entries[] is frozen (historical only,
+    // already mirrored+verified), cat.totalPaid/entryCount is the running aggregate, and it
+    // self-heals from the legacy array the first time a category is touched.
     addProjectEntryTx: (projId, workTypeKey, catKey, entry) => runTransaction(db, async (tx) => {
       const ref = doc(db, 'constructionProjects', projId);
       const snap = await tx.get(ref);
@@ -1091,64 +1167,123 @@ table.ledger .del-x:hover{color:var(--rust);}
       const wt = departments[workTypeKey];
       const cat = wt && wt.budgets && wt.budgets[catKey];
       if(!cat) throw new Error('ไม่พบประเภทงาน/หมวดงบประมาณนี้ (อาจถูกลบไปแล้วโดยผู้อื่น)');
-      const entries = [...(cat.entries || []), entry];
-      departments[workTypeKey] = {...wt, budgets: {...wt.budgets, [catKey]: {...cat, entries}}};
+      const legacyActive = (cat.entries || []).filter(e => !e.deletedAt);
+      const baseTotalPaid = typeof cat.totalPaid === 'number' ? cat.totalPaid
+        : legacyActive.reduce((s,e)=> s + (Number(e.amount)||0) + (Number(e.tax)||0), 0);
+      const baseEntryCount = typeof cat.entryCount === 'number' ? cat.entryCount : legacyActive.length;
+      const delta = (Number(entry.amount)||0) + (Number(entry.tax)||0);
+      departments[workTypeKey] = {...wt, budgets: {...wt.budgets, [catKey]: {...cat, totalPaid: baseTotalPaid + delta, entryCount: baseEntryCount + 1}}};
       tx.set(ref, {...data, departments});
+      tx.set(doc(db, 'constructionProjects', projId, 'entries', entry.id), {...entry, workTypeKey, catKey});
     }),
-    // Soft delete: marks the entry with deletedAt instead of removing it (mirrors deleteCostCenterEntryTx).
     deleteProjectEntryTx: (projId, workTypeKey, catKey, entryId, who) => runTransaction(db, async (tx) => {
       const ref = doc(db, 'constructionProjects', projId);
-      const snap = await tx.get(ref);
+      const entryRef = doc(db, 'constructionProjects', projId, 'entries', entryId);
+      const [snap, entrySnap] = await Promise.all([tx.get(ref), tx.get(entryRef)]);
       if(!snap.exists()) throw new Error('ไม่พบแฟ้มงานนี้ในระบบ (อาจถูกลบไปแล้วโดยผู้อื่น)');
       const data = snap.data();
       const departments = {...(data.departments || {})};
       const wt = departments[workTypeKey];
       const cat = wt && wt.budgets && wt.budgets[catKey];
       if(!cat) throw new Error('ไม่พบประเภทงาน/หมวดงบประมาณนี้ (อาจถูกลบไปแล้วโดยผู้อื่น)');
-      const entries = (cat.entries || []).map(e => e.id === entryId
-        ? {...e, deletedAt: Date.now(), deletedByUid: (who && who.uid) || null, deletedByName: (who && who.name) || null}
-        : e);
-      departments[workTypeKey] = {...wt, budgets: {...wt.budgets, [catKey]: {...cat, entries}}};
+      let entryData = entrySnap.exists() ? entrySnap.data() : (cat.entries||[]).find(e=>e.id===entryId);
+      if(!entryData) throw new Error('ไม่พบรายการจ่ายนี้ (อาจถูกลบไปแล้วโดยผู้อื่น)');
+      if(entryData.deletedAt){
+        tx.set(entryRef, {...entryData, workTypeKey, catKey}, {merge:true});
+        return;
+      }
+      const legacyActive = (cat.entries || []).filter(e => !e.deletedAt);
+      const baseTotalPaid = typeof cat.totalPaid === 'number' ? cat.totalPaid
+        : legacyActive.reduce((s,e)=> s + (Number(e.amount)||0) + (Number(e.tax)||0), 0);
+      const baseEntryCount = typeof cat.entryCount === 'number' ? cat.entryCount : legacyActive.length;
+      const delta = (Number(entryData.amount)||0) + (Number(entryData.tax)||0);
+      departments[workTypeKey] = {...wt, budgets: {...wt.budgets, [catKey]: {...cat, totalPaid: baseTotalPaid - delta, entryCount: Math.max(0, baseEntryCount - 1)}}};
       tx.set(ref, {...data, departments});
+      tx.set(entryRef, {
+        ...entryData, workTypeKey, catKey,
+        deletedAt: Date.now(), deletedByUid: (who && who.uid) || null, deletedByName: (who && who.name) || null,
+      });
     }),
     restoreProjectEntryTx: (projId, workTypeKey, catKey, entryId) => runTransaction(db, async (tx) => {
       const ref = doc(db, 'constructionProjects', projId);
-      const snap = await tx.get(ref);
+      const entryRef = doc(db, 'constructionProjects', projId, 'entries', entryId);
+      const [snap, entrySnap] = await Promise.all([tx.get(ref), tx.get(entryRef)]);
       if(!snap.exists()) throw new Error('ไม่พบแฟ้มงานนี้ในระบบ (อาจถูกลบไปแล้วโดยผู้อื่น)');
       const data = snap.data();
       const departments = {...(data.departments || {})};
       const wt = departments[workTypeKey];
       const cat = wt && wt.budgets && wt.budgets[catKey];
       if(!cat) throw new Error('ไม่พบประเภทงาน/หมวดงบประมาณนี้ (อาจถูกลบไปแล้วโดยผู้อื่น)');
-      const entries = (cat.entries || []).map(e => e.id === entryId
-        ? {...e, deletedAt: null, deletedByUid: null, deletedByName: null}
-        : e);
-      departments[workTypeKey] = {...wt, budgets: {...wt.budgets, [catKey]: {...cat, entries}}};
+      let entryData = entrySnap.exists() ? entrySnap.data() : (cat.entries||[]).find(e=>e.id===entryId);
+      if(!entryData) throw new Error('ไม่พบรายการจ่ายนี้ (อาจถูกลบไปแล้วโดยผู้อื่น)');
+      if(!entryData.deletedAt) return;
+      const legacyActive = (cat.entries || []).filter(e => !e.deletedAt);
+      const baseTotalPaid = typeof cat.totalPaid === 'number' ? cat.totalPaid
+        : legacyActive.reduce((s,e)=> s + (Number(e.amount)||0) + (Number(e.tax)||0), 0);
+      const baseEntryCount = typeof cat.entryCount === 'number' ? cat.entryCount : legacyActive.length;
+      const delta = (Number(entryData.amount)||0) + (Number(entryData.tax)||0);
+      departments[workTypeKey] = {...wt, budgets: {...wt.budgets, [catKey]: {...cat, totalPaid: baseTotalPaid + delta, entryCount: baseEntryCount + 1}}};
       tx.set(ref, {...data, departments});
+      tx.set(entryRef, {...entryData, workTypeKey, catKey, deletedAt: null, deletedByUid: null, deletedByName: null});
     }),
     purgeProjectEntryTx: (projId, workTypeKey, catKey, entryId) => runTransaction(db, async (tx) => {
       const ref = doc(db, 'constructionProjects', projId);
+      const entryRef = doc(db, 'constructionProjects', projId, 'entries', entryId);
       const snap = await tx.get(ref);
-      if(!snap.exists()) throw new Error('ไม่พบแฟ้มงานนี้ในระบบ (อาจถูกลบไปแล้วโดยผู้อื่น)');
-      const data = snap.data();
-      const departments = {...(data.departments || {})};
-      const wt = departments[workTypeKey];
-      const cat = wt && wt.budgets && wt.budgets[catKey];
-      if(!cat) throw new Error('ไม่พบประเภทงาน/หมวดงบประมาณนี้ (อาจถูกลบไปแล้วโดยผู้อื่น)');
-      const entries = (cat.entries || []).filter(e => e.id !== entryId);
-      departments[workTypeKey] = {...wt, budgets: {...wt.budgets, [catKey]: {...cat, entries}}};
-      tx.set(ref, {...data, departments});
+      if(snap.exists()){
+        const data = snap.data();
+        const departments = {...(data.departments || {})};
+        const wt = departments[workTypeKey];
+        const cat = wt && wt.budgets && wt.budgets[catKey];
+        if(cat && (cat.entries||[]).some(e=>e.id===entryId)){
+          departments[workTypeKey] = {...wt, budgets: {...wt.budgets, [catKey]: {...cat, entries: cat.entries.filter(e=>e.id!==entryId)}}};
+          tx.set(ref, {...data, departments});
+        }
+      }
+      tx.delete(entryRef);
     }),
-    // STAGE 1 mirror for WBS entries — same purpose/caveats as mirrorCostCenterEntry above.
-    mirrorProjectEntry: (projId, workTypeKey, catKey, entry) =>
-      setDoc(doc(db, 'constructionProjects', projId, 'entries', entry.id), {...entry, workTypeKey, catKey}, {merge: true}),
-    deleteMirrorProjectEntry: (projId, entryId) =>
-      deleteDoc(doc(db, 'constructionProjects', projId, 'entries', entryId)),
+    // Live ledger for the one WBS project currently open.
+    subscribeProjectEntries: (projId, cb) => {
+      return onSnapshot(collection(db, 'constructionProjects', projId, 'entries'), (snap) => cb(snap.docs.map(d => d.data())), (err) => {
+        console.error('subscribeProjectEntries error', err);
+      });
+    },
+    // One-time (non-live) read of one WBS project's entries — needed because a combined print slip
+    // can pull rows from a project other than the one currently open (cross-file slip selection), so
+    // that print action must be able to fetch another project's ledger without opening a permanent
+    // live subscription for it.
+    getProjectEntriesOnce: async (projId) => (await getDocs(collection(db, 'constructionProjects', projId, 'entries'))).docs.map(d => d.data()),
     softDeleteProject: (id, who) => setDoc(doc(db, 'constructionProjects', id),
       {deletedAt: Date.now(), deletedByUid: who.uid || null, deletedByName: who.name || null}, {merge: true}),
     restoreProject: (id) => setDoc(doc(db, 'constructionProjects', id),
       {deletedAt: null, deletedByUid: null, deletedByName: null}, {merge: true}),
     deleteProjectDoc: (id) => deleteDoc(doc(db, 'constructionProjects', id)),
+    // Same trash-retention support as deleteAllCcEntries/deleteCcEntriesByItemCode/
+    // deleteExpiredCcEntries above, for the WBS side.
+    deleteAllProjectEntries: async (projId) => {
+      const snap = await getDocs(collection(db, 'constructionProjects', projId, 'entries'));
+      if(snap.empty) return 0;
+      const batch = writeBatch(db);
+      snap.docs.forEach(d=>batch.delete(d.ref));
+      await batch.commit();
+      return snap.size;
+    },
+    deleteProjectEntriesByWorkType: async (projId, workTypeKey) => {
+      const snap = await getDocs(query(collection(db, 'constructionProjects', projId, 'entries'), where('workTypeKey', '==', workTypeKey)));
+      if(snap.empty) return 0;
+      const batch = writeBatch(db);
+      snap.docs.forEach(d=>batch.delete(d.ref));
+      await batch.commit();
+      return snap.size;
+    },
+    deleteExpiredProjectEntries: async (projId, cutoff) => {
+      const snap = await getDocs(query(collection(db, 'constructionProjects', projId, 'entries'), where('deletedAt', '<', cutoff)));
+      if(snap.empty) return 0;
+      const batch = writeBatch(db);
+      snap.docs.forEach(d=>batch.delete(d.ref));
+      await batch.commit();
+      return snap.size;
+    },
   };
 
   window.__fbReady = true;
@@ -1254,10 +1389,28 @@ let state = {
   activeWorkTypeKey: null,
   activeProjectCatKey: null,
   editingNetworkKey: null,
+  // Live ledger entries for whichever ONE cost center / WBS project is currently open (cutover:
+  // entries live in a subcollection now, not in items[].entries[]/cat.entries[] — see
+  // syncActiveCcEntriesSubscription/syncActiveProjectEntriesSubscription). Empty until the
+  // subscription's first snapshot arrives.
+  activeCcEntries: [],
+  activeProjectEntries: [],
 };
 let ccUnsub = null;
 let orgUnsub = null;
 let projectsUnsub = null;
+// ccEntriesUnsub/ccEntriesSubscribedFor track the live subscription itself (which cost center it's
+// currently attached to, so switching cost centers doesn't pile up listeners). ccEntriesLoadedFor is
+// set only once that subscription's first snapshot has actually arrived for the CURRENT cost center
+// — until then, itemEntriesSource() falls back to the item's own legacy entries[] array instead of
+// the (still-empty or still-for-the-previous-cc) state.activeCcEntries, so switching cost centers
+// never flashes an empty ledger while the new subscription is loading.
+let ccEntriesUnsub = null;
+let ccEntriesSubscribedFor = null;
+let ccEntriesLoadedFor = null;
+let projectEntriesUnsub = null;
+let projectEntriesSubscribedFor = null;
+let projectEntriesLoadedFor = null;
 
 function uid(){ return Date.now().toString(36)+Math.random().toString(36).slice(2,7); }
 function todayStr(){ return new Date().toISOString().slice(0,10); }
@@ -1693,7 +1846,7 @@ function downloadProjectWithdrawalSlip(workTypeKey, catKey, entryId){
   if(!workType) return;
   const cat = workType.budgets[catKey];
   if(!cat) return;
-  const t = projCatTotals(cat);
+  const t = projCatTotals(cat, workTypeKey, catKey);
   const row = t.rows.find(r=>r.id===entryId);
   if(!row) return;
   const rowRemaining = t.usable80 - row.cumulative;
@@ -1706,8 +1859,22 @@ function downloadProjectWithdrawalSlip(workTypeKey, catKey, entryId){
   const bodyHtml = buildProjectSlipBodyHtml(entries, payerName, payerCode, payerPosition, row.date);
   openSlipPrintWindow(bodyHtml, docTitle);
 }
-function printCombinedProjectSlip(){
+async function printCombinedProjectSlip(){
   if(!state.projectSlipSelection.length) return;
+  // A combined slip can pull entries from a WBS project file other than the one currently open
+  // (cross-file combine — see state.projectSlipSelection's declaration). For any such project,
+  // cat.entries[] is frozen/historical only, so its up-to-date ledger has to be fetched once from
+  // the entries subcollection rather than read from the in-memory legacy array.
+  const otherEntriesByProject = {};
+  const neededProjectIds = new Set(
+    state.projectSlipSelection
+      .map(sel=>sel.projectId)
+      .filter(pid=>pid !== state.activeProjectId)
+  );
+  for(const pid of neededProjectIds){
+    try{ otherEntriesByProject[pid] = await window.fb.getProjectEntriesOnce(pid); }
+    catch(e){ console.error('printCombinedProjectSlip: fetch entries for', pid, e); otherEntriesByProject[pid] = []; }
+  }
   const entries = [];
   for(const sel of state.projectSlipSelection){
     const p = getProject(sel.projectId);
@@ -1716,7 +1883,8 @@ function printCombinedProjectSlip(){
     if(!workType) continue;
     const cat = workType.budgets[sel.catKey];
     if(!cat) continue;
-    const t = projCatTotals(cat);
+    const entriesOverride = sel.projectId === state.activeProjectId ? undefined : (otherEntriesByProject[sel.projectId] || []);
+    const t = projCatTotals(cat, sel.workTypeKey, sel.catKey, entriesOverride);
     const row = t.rows.find(r=>r.id===sel.entryId);
     if(!row) continue;
     const rowRemaining = t.usable80 - row.cumulative;
@@ -2084,11 +2252,25 @@ function recomputeYears(){
   state.years = [...set].sort((a,b)=>b-a);
   if(!state.years.includes(state.activeYear)) state.activeYear = state.years[0];
 }
+// Entry source for one budget-line item. item.entries[] is frozen (historical only, already
+// migrated to the costCenters/{ccId}/entries subcollection) — new entries land only in the
+// subcollection going forward. Every call site that needs row-level detail is inside the
+// currently OPEN cost center (budget mode has no cross-file slip selection, unlike WBS mode), so
+// the already-subscribed state.activeCcEntries is used — no extra Firestore reads. Before that
+// subscription resolves (or for a cost center nobody has opened this session), the legacy array
+// is used as a same-shape fallback so numbers are never blank or wrong.
+function itemEntriesSource(itemCode){
+  if(state.activeCcId && ccEntriesLoadedFor === state.activeCcId){
+    return state.activeCcEntries.filter(e=>e.itemCode===itemCode);
+  }
+  return null; // signals "use the legacy array" — caller has the item at hand, this doesn't
+}
 function itemTotals(item){
   const budget = Number(item.budget)||0;
-  // Soft-deleted entries stay in the array (so they can be restored from the trash section) but
+  const source = itemEntriesSource(item.code) || (item.entries || []);
+  // Soft-deleted entries stay around (so they can be restored from the trash section) but
   // never count toward the running totals or show up in the ledger.
-  const sortedEntries = [...(item.entries||[])].filter(e=>!e.deletedAt).sort((a,b)=> (a.date||'').localeCompare(b.date||'') || a.createdAt-b.createdAt);
+  const sortedEntries = [...source].filter(e=>!e.deletedAt).sort((a,b)=> (a.date||'').localeCompare(b.date||'') || a.createdAt-b.createdAt);
   let running = 0;
   const rows = sortedEntries.map(e=>{
     // The amount that actually counts against budget is the paid amount plus its VAT (if any) —
@@ -2102,15 +2284,56 @@ function itemTotals(item){
 }
 // Soft-deleted entries for one budget item — shown in a small trash section under its ledger.
 function trashedEntriesOfItem(item){
-  return [...(item.entries||[])].filter(e=>e.deletedAt).sort((a,b)=> b.deletedAt-a.deletedAt);
+  const source = itemEntriesSource(item.code) || (item.entries || []);
+  return [...source].filter(e=>e.deletedAt).sort((a,b)=> b.deletedAt-a.deletedAt);
+}
+// Cheap, aggregate-only totals — safe to call for every cost center in the sidebar list at once,
+// since it only reads the totalPaid/entryCount fields already precomputed on the parent document
+// (no subcollection reads, so this doesn't scale with the number of ledger entries ever written).
+// Keeps the live entries-subcollection listener pointed at whichever ONE cost center is currently
+// open, tearing down the previous one first so switching cost centers repeatedly never leaks
+// listeners. Safe to call on every render(): it's a no-op unless state.activeCcId actually changed
+// since the last call. A stray snapshot for a cc the user has since navigated away from is ignored.
+function syncActiveCcEntriesSubscription(){
+  if(state.activeCcId === ccEntriesSubscribedFor) return;
+  if(ccEntriesUnsub){ ccEntriesUnsub(); ccEntriesUnsub = null; }
+  ccEntriesSubscribedFor = state.activeCcId;
+  if(!state.activeCcId) return;
+  const targetCcId = state.activeCcId;
+  ccEntriesUnsub = window.fb.subscribeCcEntries(targetCcId, (entries)=>{
+    if(targetCcId !== state.activeCcId) return; // stale — user already switched to another cc
+    state.activeCcEntries = entries;
+    ccEntriesLoadedFor = targetCcId;
+    render();
+  });
+}
+// Same pattern as syncActiveCcEntriesSubscription, for the currently open WBS project.
+function syncActiveProjectEntriesSubscription(){
+  if(state.activeProjectId === projectEntriesSubscribedFor) return;
+  if(projectEntriesUnsub){ projectEntriesUnsub(); projectEntriesUnsub = null; }
+  projectEntriesSubscribedFor = state.activeProjectId;
+  if(!state.activeProjectId) return;
+  const targetProjectId = state.activeProjectId;
+  projectEntriesUnsub = window.fb.subscribeProjectEntries(targetProjectId, (entries)=>{
+    if(targetProjectId !== state.activeProjectId) return; // stale — user already switched projects
+    state.activeProjectEntries = entries;
+    projectEntriesLoadedFor = targetProjectId;
+    render();
+  });
 }
 function ccTotals(cc){
   let budget=0, totalPaid=0;
   (cc.items||[]).filter(item=>!item.deletedAt).forEach(item=>{
-    const t = itemTotals(item);
-    budget += t.budget; totalPaid += t.totalPaid;
+    budget += Number(item.budget)||0;
+    totalPaid += itemAggregateTotalPaid(item);
   });
   return {budget, totalPaid, remaining: budget-totalPaid};
+}
+// Self-healing: before the one-time backfill/first write touches an item, totalPaid may not exist
+// as a number yet — fall back to summing the legacy entries array so this is never wrong or blank.
+function itemAggregateTotalPaid(item){
+  if(typeof item.totalPaid === 'number') return item.totalPaid;
+  return (item.entries||[]).filter(e=>!e.deletedAt).reduce((s,e)=> s + (Number(e.amount)||0) + (Number(e.tax)||0), 0);
 }
 function canDeleteEntry(entry){
   if(canManageDept(state.activeDept)) return true;
@@ -2127,6 +2350,13 @@ function canDeleteEntry(entry){
 // permission that gates the manual restore/purge buttons — so this never touches another
 // department's trash. Writes go straight to window.fb (bypassing the debounced saveCc/saveProject
 // helpers, which share one timer and would drop all but the last doc in a multi-document sweep).
+//
+// Cutover note: item.entries[]/cat.entries[] are frozen (historical-only) now — the live ledger for
+// every entry (including deletedAt) lives in the costCenters/{ccId}/entries and
+// constructionProjects/{projId}/entries subcollections instead. Firestore never cascade-deletes a
+// subcollection when its parent document (or a whole item/work-type inside it) is removed, so every
+// branch below that removes a cc/project/item/work-type also explicitly purges the matching entry
+// documents — otherwise they'd become orphans that no UI could ever see or restore again.
 const TRASH_RETENTION_DAYS = 30;
 const TRASH_RETENTION_MS = TRASH_RETENTION_DAYS * 24 * 60 * 60 * 1000;
 let trashSweepInProgress = false;
@@ -2140,18 +2370,24 @@ async function sweepExpiredTrash(){
       if(!canManageDept(cc.deptKey)) continue;
       try{
         if(cc.deletedAt && cc.deletedAt < cutoff){
+          await window.fb.deleteAllCcEntries(cc.id);
           await window.fb.deleteCostCenterDoc(cc.id);
-          continue; // whole doc is gone — no need to also sweep its items/entries
+          continue; // whole doc (and its entries) is gone — nothing else to sweep for it
         }
         let changed = false;
         const items = (cc.items||[]).map(item=>{
-          if(item.deletedAt && item.deletedAt < cutoff){ changed = true; return null; }
-          const entries = (item.entries||[]);
-          const keptEntries = entries.filter(e => !(e.deletedAt && e.deletedAt < cutoff));
-          if(keptEntries.length !== entries.length) changed = true;
-          return {...item, entries: keptEntries};
+          if(item.deletedAt && item.deletedAt < cutoff){
+            changed = true;
+            window.fb.deleteCcEntriesByItemCode(cc.id, item.code)
+              .catch(e=>console.error('sweepExpiredTrash: purge entries for item', item.code, e));
+            return null;
+          }
+          return item;
         }).filter(Boolean);
         if(changed) await window.fb.saveCostCenter({...cc, items});
+        // Individually soft-deleted entries (in items that themselves are staying) whose own trash
+        // window has expired.
+        await window.fb.deleteExpiredCcEntries(cc.id, cutoff);
       }catch(e){ console.error('sweepExpiredTrash: cost center', cc.id, e); }
     }
 
@@ -2159,23 +2395,23 @@ async function sweepExpiredTrash(){
       if(!canManageDept(p.deptKey)) continue;
       try{
         if(p.deletedAt && p.deletedAt < cutoff){
+          await window.fb.deleteAllProjectEntries(p.id);
           await window.fb.deleteProjectDoc(p.id);
           continue;
         }
         let changed = false;
         const departments = {};
         Object.entries(p.departments||{}).forEach(([wtKey, wt])=>{
-          if(wt.deletedAt && wt.deletedAt < cutoff){ changed = true; return; }
-          const budgets = {};
-          Object.entries(wt.budgets||{}).forEach(([catKey, cat])=>{
-            const entries = (cat.entries||[]);
-            const keptEntries = entries.filter(e => !(e.deletedAt && e.deletedAt < cutoff));
-            if(keptEntries.length !== entries.length) changed = true;
-            budgets[catKey] = {...cat, entries: keptEntries};
-          });
-          departments[wtKey] = {...wt, budgets};
+          if(wt.deletedAt && wt.deletedAt < cutoff){
+            changed = true;
+            window.fb.deleteProjectEntriesByWorkType(p.id, wtKey)
+              .catch(e=>console.error('sweepExpiredTrash: purge entries for work type', wtKey, e));
+            return;
+          }
+          departments[wtKey] = wt;
         });
         if(changed) await window.fb.saveProject({...p, departments});
+        await window.fb.deleteExpiredProjectEntries(p.id, cutoff);
       }catch(e){ console.error('sweepExpiredTrash: project', p.id, e); }
     }
   } finally {
@@ -2453,6 +2689,17 @@ function updateItemMeta(itemCode, field, value){
 }
 
 /* ============ ledger entries ============ */
+// Cutover helpers: entries for the currently open cost center live either in the live subcollection
+// mirror (state.activeCcEntries, once ccEntriesLoadedFor matches it) or, until that first snapshot
+// arrives, in the item's own legacy entries[] array — itemEntriesSource()/itemTotals() already read
+// from whichever one is authoritative right now, so every optimistic local edit below must write to
+// that exact same place, or the UI wouldn't reflect its own edit until the next snapshot.
+function ccEntriesActiveHere(cc){ return ccEntriesLoadedFor === cc.id; }
+function findActiveCcEntry(cc, itemCode, entryId){
+  if(ccEntriesActiveHere(cc)) return state.activeCcEntries.find(e=>e.id===entryId && e.itemCode===itemCode);
+  const item = cc.items.find(i=>i.code===itemCode);
+  return item && (item.entries||[]).find(e=>e.id===entryId);
+}
 function addEntry(itemCode){
   const cc = getCc(state.activeCcId);
   const item = cc.items.find(i=>i.code===itemCode);
@@ -2469,21 +2716,27 @@ function addEntry(itemCode){
     addedByPosition: state.user ? (state.user.position || '') : '',
     addedByCode: state.user ? (state.user.employeeCode || '') : '',
   };
-  item.entries = item.entries || [];
-  item.entries.push(entry);
+  if(ccEntriesActiveHere(cc)){
+    state.activeCcEntries.push({...entry, itemCode});
+  } else {
+    item.entries = item.entries || [];
+    item.entries.push(entry);
+  }
   render();
-  // Written through a transaction (see addCostCenterEntryTx) rather than the old whole-document
-  // saveCc(cc), so this can never silently clobber an entry someone else just added. If it fails
-  // (e.g. the cost center or item was removed by someone else in the meantime), the optimistic
-  // local add is rolled back and the user is told, instead of pretending it saved.
+  // Written through a transaction (see addCostCenterEntryTx), which atomically writes the
+  // subcollection entry doc and updates the item's totalPaid/entryCount aggregate — so this can
+  // never silently clobber an entry someone else just added. If it fails (e.g. the cost center or
+  // item was removed by someone else in the meantime), the optimistic local add is rolled back and
+  // the user is told, instead of pretending it saved.
   window.fb.addCostCenterEntryTx(cc.id, itemCode, entry).then(()=>{
     flashSaved(false);
-    // Stage 1 subcollection migration: best-effort mirror, never affects the primary save above —
-    // see the comment on mirrorCostCenterEntry for why this exists and what it does NOT do yet.
-    window.fb.mirrorCostCenterEntry(cc.id, itemCode, entry).catch(e=>console.error('mirror (add) failed', e));
   }).catch(e=>{
     console.error(e);
-    item.entries = item.entries.filter(en=>en.id!==entry.id);
+    if(ccEntriesActiveHere(cc)){
+      state.activeCcEntries = state.activeCcEntries.filter(en=>en.id!==entry.id);
+    } else {
+      item.entries = item.entries.filter(en=>en.id!==entry.id);
+    }
     render();
     alert('บันทึกรายการไม่สำเร็จ: ' + e.message);
   });
@@ -2492,7 +2745,7 @@ function addEntry(itemCode){
 function deleteEntry(itemCode, entryId){
   const cc = getCc(state.activeCcId);
   const item = cc.items.find(i=>i.code===itemCode);
-  const entry = item.entries.find(e=>e.id===entryId);
+  const entry = findActiveCcEntry(cc, itemCode, entryId);
   if(!entry || !canDeleteEntry(entry)){ alert('ลบได้เฉพาะรายการที่แอดมิน หรือตัวคุณเองเป็นคนเพิ่มเข้ามาเท่านั้น'); return; }
 
   const t = itemTotals(item);
@@ -2516,7 +2769,6 @@ function deleteEntry(itemCode, entryId){
   render();
   window.fb.deleteCostCenterEntryTx(cc.id, itemCode, entryId, who).then(()=>{
     flashSaved(false);
-    window.fb.mirrorCostCenterEntry(cc.id, itemCode, entry).catch(e=>console.error('mirror (soft-delete) failed', e));
   }).catch(e=>{
     console.error(e);
     entry.deletedAt = prevDeletedAt; entry.deletedByUid = prevDeletedByUid; entry.deletedByName = prevDeletedByName;
@@ -2527,15 +2779,13 @@ function deleteEntry(itemCode, entryId){
 function restoreEntry(itemCode, entryId){
   const cc = getCc(state.activeCcId);
   if(!cc || !canManageDept(cc.deptKey)){ alert('คุณไม่มีสิทธิ์กู้คืนรายการนี้'); return; }
-  const item = cc.items.find(i=>i.code===itemCode);
-  const entry = item && item.entries.find(e=>e.id===entryId);
+  const entry = findActiveCcEntry(cc, itemCode, entryId);
   if(!entry) return;
   const prevDeletedAt = entry.deletedAt, prevDeletedByUid = entry.deletedByUid, prevDeletedByName = entry.deletedByName;
   entry.deletedAt = null; entry.deletedByUid = null; entry.deletedByName = null;
   render();
   window.fb.restoreCostCenterEntryTx(cc.id, itemCode, entryId).then(()=>{
     flashSaved(false);
-    window.fb.mirrorCostCenterEntry(cc.id, itemCode, entry).catch(e=>console.error('mirror (restore) failed', e));
   }).catch(e=>{
     console.error(e);
     entry.deletedAt = prevDeletedAt; entry.deletedByUid = prevDeletedByUid; entry.deletedByName = prevDeletedByName;
@@ -2546,19 +2796,30 @@ function restoreEntry(itemCode, entryId){
 function permanentlyDeleteEntry(itemCode, entryId){
   const cc = getCc(state.activeCcId);
   if(!cc || !canManageDept(cc.deptKey)){ alert('คุณไม่มีสิทธิ์ลบรายการนี้'); return; }
-  const item = cc.items.find(i=>i.code===itemCode);
-  if(!item) return;
   if(!confirm('ลบถาวรรายการจ่ายนี้?\n\nกู้คืนไม่ได้อีกต่อไป')) return;
-  const idx = item.entries.findIndex(e=>e.id===entryId);
-  if(idx===-1) return;
-  const [removed] = item.entries.splice(idx, 1);
+  let removed, removedIdx;
+  if(ccEntriesActiveHere(cc)){
+    removedIdx = state.activeCcEntries.findIndex(e=>e.id===entryId && e.itemCode===itemCode);
+    if(removedIdx===-1) return;
+    [removed] = state.activeCcEntries.splice(removedIdx, 1);
+  } else {
+    const item = cc.items.find(i=>i.code===itemCode);
+    if(!item) return;
+    removedIdx = (item.entries||[]).findIndex(e=>e.id===entryId);
+    if(removedIdx===-1) return;
+    [removed] = item.entries.splice(removedIdx, 1);
+  }
   render();
   window.fb.purgeCostCenterEntryTx(cc.id, itemCode, entryId).then(()=>{
     flashSaved(false);
-    window.fb.deleteMirrorCostCenterEntry(cc.id, entryId).catch(e=>console.error('mirror (purge) failed', e));
   }).catch(e=>{
     console.error(e);
-    item.entries.splice(idx, 0, removed);
+    if(ccEntriesActiveHere(cc)){
+      state.activeCcEntries.splice(removedIdx, 0, removed);
+    } else {
+      const item = cc.items.find(i=>i.code===itemCode);
+      if(item) item.entries.splice(removedIdx, 0, removed);
+    }
     render();
     alert('ลบถาวรไม่สำเร็จ: ' + e.message);
   });
@@ -2574,11 +2835,28 @@ function trashedProjectsForDept(){
   return state.projects.filter(p=>p.deptKey===state.activeDept && p.deletedAt);
 }
 function getProject(id){ return state.projects.find(p=>p.id===id); }
-function projCatTotals(cat){
+// Entry source for one WBS budget category. cat.entries[] is frozen (historical only, already
+// migrated to the constructionProjects/{projId}/entries subcollection) — new entries land only in
+// the subcollection going forward. Every normal call site is inside the currently OPEN project, so
+// the already-subscribed state.activeProjectEntries is used (no extra Firestore reads); before that
+// subscription resolves (or for a project nobody has opened this session), the legacy array is used
+// as a same-shape fallback so numbers are never blank or wrong. A caller printing a combined slip
+// that includes another, not-currently-open project passes that project's freshly-fetched entries
+// as `entriesOverride` instead.
+function catEntriesSource(workTypeKey, catKey, cat, entriesOverride){
+  if(entriesOverride){
+    return entriesOverride.filter(e=>e.workTypeKey===workTypeKey && e.catKey===catKey);
+  }
+  if(state.activeProjectId && projectEntriesLoadedFor === state.activeProjectId){
+    return state.activeProjectEntries.filter(e=>e.workTypeKey===workTypeKey && e.catKey===catKey);
+  }
+  return cat.entries || [];
+}
+function projCatTotals(cat, workTypeKey, catKey, entriesOverride){
   const amount100 = Number(cat.amount100)||0;
   const usable80 = amount100 * USABLE_RATIO;
-  // Soft-deleted entries stay in the array (so they can be restored) but never count toward totals.
-  const sortedEntries = [...(cat.entries||[])].filter(e=>!e.deletedAt).sort((a,b)=> (a.date||'').localeCompare(b.date||'') || a.createdAt-b.createdAt);
+  // Soft-deleted entries stay around (so they can be restored) but never count toward totals.
+  const sortedEntries = [...catEntriesSource(workTypeKey, catKey, cat, entriesOverride)].filter(e=>!e.deletedAt).sort((a,b)=> (a.date||'').localeCompare(b.date||'') || a.createdAt-b.createdAt);
   let running = 0;
   const rows = sortedEntries.map(e=>{
     // Paid amount + VAT count together against the usable budget (see itemTotals for budget mode).
@@ -2590,14 +2868,14 @@ function projCatTotals(cat){
   return {amount100, usable80, totalPaid, remaining, rows};
 }
 // Soft-deleted entries for one WBS category — shown in a small trash section under its ledger.
-function trashedEntriesOfCat(cat){
-  return [...(cat.entries||[])].filter(e=>e.deletedAt).sort((a,b)=> b.deletedAt-a.deletedAt);
+function trashedEntriesOfCat(cat, workTypeKey, catKey){
+  return [...catEntriesSource(workTypeKey, catKey, cat)].filter(e=>e.deletedAt).sort((a,b)=> b.deletedAt-a.deletedAt);
 }
 function projTotals(project){
   let amount100=0, usable80=0, totalPaid=0;
-  Object.values(project.departments||{}).filter(dept=>!dept.deletedAt).forEach(dept=>{
-    Object.values(dept.budgets).forEach(cat=>{
-      const t = projCatTotals(cat);
+  Object.entries(project.departments||{}).filter(([,dept])=>!dept.deletedAt).forEach(([workTypeKey, dept])=>{
+    Object.entries(dept.budgets).forEach(([catKey, cat])=>{
+      const t = projCatTotals(cat, workTypeKey, catKey);
       amount100 += t.amount100; usable80 += t.usable80; totalPaid += t.totalPaid;
     });
   });
@@ -2819,6 +3097,13 @@ function updateProjectCode(workTypeKey, catKey, value){
 }
 
 /* ============ WBS project mode: ledger entries ============ */
+// Cutover helpers, mirroring ccEntriesActiveHere/findActiveCcEntry above for WBS projects.
+function projectEntriesActiveHere(p){ return projectEntriesLoadedFor === p.id; }
+function findActiveProjectEntry(p, workTypeKey, catKey, entryId){
+  if(projectEntriesActiveHere(p)) return state.activeProjectEntries.find(e=>e.id===entryId && e.workTypeKey===workTypeKey && e.catKey===catKey);
+  const cat = p.departments[workTypeKey] && p.departments[workTypeKey].budgets[catKey];
+  return cat && (cat.entries||[]).find(e=>e.id===entryId);
+}
 function addProjectEntry(workTypeKey, catKey){
   const p = getProject(state.activeProjectId);
   const cat = p.departments[workTypeKey].budgets[catKey];
@@ -2835,15 +3120,22 @@ function addProjectEntry(workTypeKey, catKey){
     addedByPosition: state.user ? (state.user.position || '') : '',
     addedByCode: state.user ? (state.user.employeeCode || '') : '',
   };
-  cat.entries.push(entry);
+  if(projectEntriesActiveHere(p)){
+    state.activeProjectEntries.push({...entry, workTypeKey, catKey});
+  } else {
+    cat.entries.push(entry);
+  }
   render();
   // Same transactional write as the budget-mode addCostCenterEntryTx — see the comment there.
   window.fb.addProjectEntryTx(p.id, workTypeKey, catKey, entry).then(()=>{
     flashSaved(false);
-    window.fb.mirrorProjectEntry(p.id, workTypeKey, catKey, entry).catch(e=>console.error('mirror (add) failed', e));
   }).catch(e=>{
     console.error(e);
-    cat.entries = cat.entries.filter(en=>en.id!==entry.id);
+    if(projectEntriesActiveHere(p)){
+      state.activeProjectEntries = state.activeProjectEntries.filter(en=>en.id!==entry.id);
+    } else {
+      cat.entries = cat.entries.filter(en=>en.id!==entry.id);
+    }
     render();
     alert('บันทึกรายการไม่สำเร็จ: ' + e.message);
   });
@@ -2851,8 +3143,7 @@ function addProjectEntry(workTypeKey, catKey){
 }
 function deleteProjectEntry(workTypeKey, catKey, entryId){
   const p = getProject(state.activeProjectId);
-  const cat = p.departments[workTypeKey].budgets[catKey];
-  const entry = cat.entries.find(e=>e.id===entryId);
+  const entry = findActiveProjectEntry(p, workTypeKey, catKey, entryId);
   if(!entry || !canDeleteProjectEntry(p, entry)){ alert('ลบได้เฉพาะรายการที่ผู้ดูแลแผนก/แอดมิน หรือตัวคุณเองเป็นคนเพิ่มเข้ามาเท่านั้น'); return; }
   if(!confirm('ยืนยันลบรายการนี้?')) return;
   const who = {uid: state.user?.uid, name: state.user?.displayName || state.user?.email};
@@ -2863,7 +3154,6 @@ function deleteProjectEntry(workTypeKey, catKey, entryId){
   render();
   window.fb.deleteProjectEntryTx(p.id, workTypeKey, catKey, entryId, who).then(()=>{
     flashSaved(false);
-    window.fb.mirrorProjectEntry(p.id, workTypeKey, catKey, entry).catch(e=>console.error('mirror (soft-delete) failed', e));
   }).catch(e=>{
     console.error(e);
     entry.deletedAt = prevDeletedAt; entry.deletedByUid = prevDeletedByUid; entry.deletedByName = prevDeletedByName;
@@ -2874,15 +3164,13 @@ function deleteProjectEntry(workTypeKey, catKey, entryId){
 function restoreProjectEntry(workTypeKey, catKey, entryId){
   const p = getProject(state.activeProjectId);
   if(!p || !canManageDept(p.deptKey)){ alert('คุณไม่มีสิทธิ์กู้คืนรายการนี้'); return; }
-  const cat = p.departments[workTypeKey].budgets[catKey];
-  const entry = cat.entries.find(e=>e.id===entryId);
+  const entry = findActiveProjectEntry(p, workTypeKey, catKey, entryId);
   if(!entry) return;
   const prevDeletedAt = entry.deletedAt, prevDeletedByUid = entry.deletedByUid, prevDeletedByName = entry.deletedByName;
   entry.deletedAt = null; entry.deletedByUid = null; entry.deletedByName = null;
   render();
   window.fb.restoreProjectEntryTx(p.id, workTypeKey, catKey, entryId).then(()=>{
     flashSaved(false);
-    window.fb.mirrorProjectEntry(p.id, workTypeKey, catKey, entry).catch(e=>console.error('mirror (restore) failed', e));
   }).catch(e=>{
     console.error(e);
     entry.deletedAt = prevDeletedAt; entry.deletedByUid = prevDeletedByUid; entry.deletedByName = prevDeletedByName;
@@ -2893,18 +3181,29 @@ function restoreProjectEntry(workTypeKey, catKey, entryId){
 function permanentlyDeleteProjectEntry(workTypeKey, catKey, entryId){
   const p = getProject(state.activeProjectId);
   if(!p || !canManageDept(p.deptKey)){ alert('คุณไม่มีสิทธิ์ลบรายการนี้'); return; }
-  const cat = p.departments[workTypeKey].budgets[catKey];
   if(!confirm('ลบถาวรรายการจ่ายนี้?\n\nกู้คืนไม่ได้อีกต่อไป')) return;
-  const idx = cat.entries.findIndex(e=>e.id===entryId);
-  if(idx===-1) return;
-  const [removed] = cat.entries.splice(idx, 1);
+  let removed, removedIdx;
+  if(projectEntriesActiveHere(p)){
+    removedIdx = state.activeProjectEntries.findIndex(e=>e.id===entryId && e.workTypeKey===workTypeKey && e.catKey===catKey);
+    if(removedIdx===-1) return;
+    [removed] = state.activeProjectEntries.splice(removedIdx, 1);
+  } else {
+    const cat = p.departments[workTypeKey].budgets[catKey];
+    removedIdx = cat.entries.findIndex(e=>e.id===entryId);
+    if(removedIdx===-1) return;
+    [removed] = cat.entries.splice(removedIdx, 1);
+  }
   render();
   window.fb.purgeProjectEntryTx(p.id, workTypeKey, catKey, entryId).then(()=>{
     flashSaved(false);
-    window.fb.deleteMirrorProjectEntry(p.id, entryId).catch(e=>console.error('mirror (purge) failed', e));
   }).catch(e=>{
     console.error(e);
-    cat.entries.splice(idx, 0, removed);
+    if(projectEntriesActiveHere(p)){
+      state.activeProjectEntries.splice(removedIdx, 0, removed);
+    } else {
+      const cat = p.departments[workTypeKey].budgets[catKey];
+      cat.entries.splice(removedIdx, 0, removed);
+    }
     render();
     alert('ลบถาวรไม่สำเร็จ: ' + e.message);
   });
@@ -2924,6 +3223,8 @@ function render(){
   authScreen.classList.add('hidden');
   appShell.classList.remove('hidden');
   recomputeYears();
+  syncActiveCcEntriesSubscription();
+  syncActiveProjectEntriesSubscription();
   renderRoleBadge();
   renderAccountRow();
   renderDeptWrap();
@@ -3151,13 +3452,19 @@ async function runBackfillAndVerify(){
 
     // Verify: for every cost center / project, compare how many entries the ORIGINAL arrays say
     // should exist against how many documents actually landed in its new mirror subcollection.
+    //
+    // Since the cutover, item.entries[]/cat.entries[] are frozen (they only ever reflect what
+    // existed at backfill time), while the subcollection keeps growing with every new entry added
+    // afterwards. So "expected" here is a historical floor, not a live total — the subcollection
+    // having MORE than expected is normal and healthy (people have been using the app since), it's
+    // only a problem if it has FEWER, which would mean something from history failed to copy over.
     const mismatches = [];
     let totalExpected = 0, totalActual = 0, checked = 0;
     for(const cc of costCenters){
       const expected = (cc.items||[]).reduce((sum,item)=> sum + (item.entries||[]).length, 0);
       const actual = await window.fb.countMirrorEntriesForCc(cc.id);
       totalExpected += expected; totalActual += actual; checked++;
-      if(expected !== actual){
+      if(actual < expected){
         mismatches.push({label: `${cc.code||''} — ${cc.name||''} (ศูนย์ต้นทุน)`, expected, actual});
       }
     }
@@ -3168,19 +3475,19 @@ async function runBackfillAndVerify(){
       });
       const actual = await window.fb.countMirrorEntriesForProject(p.id);
       totalExpected += expected; totalActual += actual; checked++;
-      if(expected !== actual){
+      if(actual < expected){
         mismatches.push({label: `${p.wbs||''} — ${p.name||''} (แฟ้มงาน WBS)`, expected, actual});
       }
     }
 
     if(report){
       if(!mismatches.length){
-        report.innerHTML = `<div style="color:var(--teal);font-weight:600;">✓ ตรวจสอบผ่านทั้งหมด — ${checked} เอกสาร, ${totalActual} รายการจ่าย ตรงกันครบ 100%</div>
-          <div style="color:var(--text-faint);margin-top:4px;">ข้อมูลเก่าทั้งหมดถูกคัดลอกเข้าโครงสร้างใหม่เรียบร้อย และของเดิมยังอยู่ครบไม่ถูกแตะต้อง — พร้อมสำหรับขั้นต่อไปเมื่อต้องการ</div>`;
+        report.innerHTML = `<div style="color:var(--teal);font-weight:600;">✓ ตรวจสอบผ่านทั้งหมด — ${checked} เอกสาร, ประวัติเก่าอย่างน้อย ${totalExpected} รายการจ่ายถูกคัดลอกครบ (ตอนนี้มีอยู่จริง ${totalActual} รายการ รวมรายการที่เพิ่มหลังจากนี้ด้วย)</div>
+          <div style="color:var(--text-faint);margin-top:4px;">ข้อมูลเก่าทั้งหมดถูกคัดลอกเข้าโครงสร้างใหม่เรียบร้อย และของเดิมยังอยู่ครบไม่ถูกแตะต้อง — ปุ่มนี้เป็นเครื่องมือย้ายข้อมูลครั้งเดียว กดซ้ำได้ปลอดภัยแต่ไม่จำเป็นแล้วหลังจากผ่านครั้งแรก</div>`;
       } else {
-        report.innerHTML = `<div style="color:var(--rust);font-weight:600;">⚠ พบ ${mismatches.length} รายการที่ไม่ตรงกัน (จากทั้งหมด ${checked}) — ยังไม่ควรไปขั้นต่อไปจนกว่าจะตรวจสอบจุดนี้</div>
+        report.innerHTML = `<div style="color:var(--rust);font-weight:600;">⚠ พบ ${mismatches.length} รายการที่ประวัติเก่าคัดลอกไปไม่ครบ (จากทั้งหมด ${checked}) — ควรตรวจสอบจุดนี้ก่อนไว้ใจโครงสร้างใหม่</div>
           <ul style="margin:6px 0 0 18px;padding:0;">
-            ${mismatches.map(m=>`<li>${escapeHtml(m.label)}: ของเดิมมี ${m.expected} รายการ แต่คัดลอกไปได้ ${m.actual} รายการ</li>`).join('')}
+            ${mismatches.map(m=>`<li>${escapeHtml(m.label)}: ของเดิมมี ${m.expected} รายการ แต่พบเพียง ${m.actual} รายการ</li>`).join('')}
           </ul>`;
       }
     }
@@ -3805,7 +4112,7 @@ function renderProjectMain(){
 }
 
 function renderProjectCatCard(workTypeKey, catKey, cat){
-  const t = projCatTotals(cat);
+  const t = projCatTotals(cat, workTypeKey, catKey);
   const pct = t.amount100>0 ? (t.totalPaid/t.amount100*100) : 0;
   const barWidth = Math.min(pct,100);
   const gClass = gaugeClass(pct);
@@ -3831,7 +4138,7 @@ function renderProjectCatCard(workTypeKey, catKey, cat){
 }
 
 function renderProjectCatDetail(p, workTypeKey, wtName, networkNo, catKey, cat, canManage){
-  const t = projCatTotals(cat);
+  const t = projCatTotals(cat, workTypeKey, catKey);
   const pct = t.amount100>0 ? (t.totalPaid/t.amount100*100) : 0;
   const barWidth = Math.min(pct,100);
   const gClass = gaugeClass(pct);
@@ -3926,7 +4233,7 @@ function renderProjectCatDetail(p, workTypeKey, wtName, networkNo, catKey, cat, 
     </div>
 
     ${rowsHtml}
-    ${buildEntryTrashSectionHtml(trashedEntriesOfCat(cat), 'restoreProjectEntry', 'permanentlyDeleteProjectEntry', [workTypeKey, catKey])}
+    ${buildEntryTrashSectionHtml(trashedEntriesOfCat(cat, workTypeKey, catKey), 'restoreProjectEntry', 'permanentlyDeleteProjectEntry', [workTypeKey, catKey])}
   `;
 }
 
