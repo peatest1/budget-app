@@ -1559,6 +1559,10 @@ function buildSlipBodyHtml(cc, entries, payerName, payerCode, payerPosition, doc
   const dateParts = thaiDateParts(docDateStr);
   const officeName = state.orgSettings.officeName || '';
   const grandTotal = entries.reduce((sum,e)=> sum + (Number(e.row.amount)||0) + (Number(e.row.tax)||0), 0);
+  // Cost-center detail table below tracks against the budget ledger, which excludes VAT —
+  // kept separate from grandTotal (which stays VAT-inclusive for the itemized invoice above).
+  const grandTotalNoTax = entries.reduce((sum,e)=> sum + (Number(e.row.amount)||0), 0);
+  const entryNoTax = (e)=> Number(e.row.amount)||0;
   const slot = (i) => entries[i] || null;
 
   const itemRows = entries.map((e,i)=>{
@@ -1645,10 +1649,10 @@ function buildSlipBodyHtml(cc, entries, payerName, payerCode, payerPosition, doc
       </tr>
       <tr>
         <td>${numEn(escapeHtml(cc.code))}</td>
-        <td class="num hl">${s0 ? numEn(fmt2(entryTotal(s0))) : ''}</td>
-        <td class="num hl">${s1 ? numEn(fmt2(entryTotal(s1))) : ''}</td>
-        <td class="num hl">${s2 ? numEn(fmt2(entryTotal(s2))) : ''}</td>
-        <td class="num hl">${numEn(fmt2(grandTotal))}</td>
+        <td class="num hl">${s0 ? numEn(fmt2(entryNoTax(s0))) : ''}</td>
+        <td class="num hl">${s1 ? numEn(fmt2(entryNoTax(s1))) : ''}</td>
+        <td class="num hl">${s2 ? numEn(fmt2(entryNoTax(s2))) : ''}</td>
+        <td class="num hl">${numEn(fmt2(grandTotalNoTax))}</td>
       </tr>
       <tr>
         <td>&nbsp;</td>
@@ -1659,10 +1663,10 @@ function buildSlipBodyHtml(cc, entries, payerName, payerCode, payerPosition, doc
       </tr>
       <tr>
         <td class="bold">รวม</td>
-        <td class="num bold">${s0 ? numEn(fmt2(entryTotal(s0))) : ''}</td>
-        <td class="num bold">${s1 ? numEn(fmt2(entryTotal(s1))) : ''}</td>
-        <td class="num bold">${s2 ? numEn(fmt2(entryTotal(s2))) : ''}</td>
-        <td class="num bold">${numEn(fmt2(grandTotal))}</td>
+        <td class="num bold">${s0 ? numEn(fmt2(entryNoTax(s0))) : ''}</td>
+        <td class="num bold">${s1 ? numEn(fmt2(entryNoTax(s1))) : ''}</td>
+        <td class="num bold">${s2 ? numEn(fmt2(entryNoTax(s2))) : ''}</td>
+        <td class="num bold">${numEn(fmt2(grandTotalNoTax))}</td>
       </tr>
       <tr>
         <td>งบประมาณคงเหลือหลังเบิกจ่ายครั้งนี้</td>
@@ -1722,6 +1726,9 @@ function buildProjectSlipBodyHtml(entries, payerName, payerCode, payerPosition, 
   const dateParts = thaiDateParts(docDateStr);
   const officeName = state.orgSettings.officeName || '';
   const grandTotal = entries.reduce((sum,e)=> sum + (Number(e.row.amount)||0) + (Number(e.row.tax)||0), 0);
+  // Cost-center detail table below tracks against the budget ledger, which excludes VAT —
+  // kept separate from grandTotal (which stays VAT-inclusive for the itemized invoice above).
+  const grandTotalNoTax = entries.reduce((sum,e)=> sum + (Number(e.row.amount)||0), 0);
   const slot = (i) => entries[i] || null;
   // Unique WBS/job numbers across all selected entries, in selection order, comma-separated —
   // shows every job number in the header when the print spans more than one project file.
@@ -1744,7 +1751,7 @@ function buildProjectSlipBodyHtml(entries, payerName, payerCode, payerPosition, 
   const blankItemRows = Array.from({length:blankItemRowCount}).map(()=>`<tr><td>&nbsp;</td><td></td><td></td><td></td><td></td></tr>`).join('');
 
   const s0 = slot(0), s1 = slot(1), s2 = slot(2);
-  const entryTotalP = (e)=> (Number(e.row.amount)||0) + (Number(e.row.tax)||0);
+  const entryNoTaxP = (e)=> Number(e.row.amount)||0;
 
   return `
     <table class="hdr">
@@ -1840,10 +1847,10 @@ function buildProjectSlipBodyHtml(entries, payerName, payerCode, payerPosition, 
       </tr>
       <tr>
         <td class="bold">รวม</td>
-        <td class="num bold">${s0 ? numEn(fmt2(entryTotalP(s0))) : ''}</td>
-        <td class="num bold">${s1 ? numEn(fmt2(entryTotalP(s1))) : ''}</td>
-        <td class="num bold">${s2 ? numEn(fmt2(entryTotalP(s2))) : ''}</td>
-        <td class="num bold">${numEn(fmt2(grandTotal))}</td>
+        <td class="num bold">${s0 ? numEn(fmt2(entryNoTaxP(s0))) : ''}</td>
+        <td class="num bold">${s1 ? numEn(fmt2(entryNoTaxP(s1))) : ''}</td>
+        <td class="num bold">${s2 ? numEn(fmt2(entryNoTaxP(s2))) : ''}</td>
+        <td class="num bold">${numEn(fmt2(grandTotalNoTax))}</td>
       </tr>
       <tr>
         <td>งบประมาณคงเหลือหลังเบิกจ่ายครั้งนี้</td>
