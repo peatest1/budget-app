@@ -988,6 +988,17 @@ table.ledger .del-x:hover{color:var(--rust);}
   const auth = getAuth(app);
   const db = getFirestore(app);
 
+  // Mirrors entryLedgerAmount() in the main app script (kept as a separate copy since this
+  // module script and the app script don't share scope). Only ever true for entries on the
+  // ค่าเชื้อเพลิงยานพาหนะ item (account code 53039010), where a per-entry "เครดิตภาษีซื้อได้"
+  // checkbox lets the user flag input VAT that cannot be credited — folding the tax into the
+  // totalPaid aggregate instead of excluding it like normal.
+  function entryLedgerAmount(e){
+    const amount = Number(e.amount)||0;
+    if(e.vatCreditable === false) return amount + (Number(e.tax)||0);
+    return amount;
+  }
+
   window.fb = {
     onAuthChange: (cb) => onAuthStateChanged(auth, cb),
     signUp: (email, password) => createUserWithEmailAndPassword(auth, email, password),
@@ -1042,9 +1053,9 @@ table.ledger .del-x:hover{color:var(--rust);}
       const item = items[idx];
       const legacyActive = (item.entries || []).filter(e => !e.deletedAt);
       const baseTotalPaid = typeof item.totalPaid === 'number' ? item.totalPaid
-        : legacyActive.reduce((s,e)=> s + (Number(e.amount)||0), 0);
+        : legacyActive.reduce((s,e)=> s + entryLedgerAmount(e), 0);
       const baseEntryCount = typeof item.entryCount === 'number' ? item.entryCount : legacyActive.length;
-      const delta = (Number(entry.amount)||0);
+      const delta = entryLedgerAmount(entry);
       items[idx] = {...item, totalPaid: baseTotalPaid + delta, entryCount: baseEntryCount + 1};
       tx.set(ref, {...data, items});
       tx.set(doc(db, 'costCenters', ccId, 'entries', entry.id), {...entry, itemCode});
@@ -1072,9 +1083,9 @@ table.ledger .del-x:hover{color:var(--rust);}
       }
       const legacyActive = (item.entries || []).filter(e => !e.deletedAt);
       const baseTotalPaid = typeof item.totalPaid === 'number' ? item.totalPaid
-        : legacyActive.reduce((s,e)=> s + (Number(e.amount)||0), 0);
+        : legacyActive.reduce((s,e)=> s + entryLedgerAmount(e), 0);
       const baseEntryCount = typeof item.entryCount === 'number' ? item.entryCount : legacyActive.length;
-      const delta = (Number(entryData.amount)||0);
+      const delta = entryLedgerAmount(entryData);
       items[idx] = {...item, totalPaid: baseTotalPaid - delta, entryCount: Math.max(0, baseEntryCount - 1)};
       tx.set(ref, {...data, items});
       tx.set(entryRef, {
@@ -1097,9 +1108,9 @@ table.ledger .del-x:hover{color:var(--rust);}
       if(!entryData.deletedAt) return; // already active — nothing to restore
       const legacyActive = (item.entries || []).filter(e => !e.deletedAt);
       const baseTotalPaid = typeof item.totalPaid === 'number' ? item.totalPaid
-        : legacyActive.reduce((s,e)=> s + (Number(e.amount)||0), 0);
+        : legacyActive.reduce((s,e)=> s + entryLedgerAmount(e), 0);
       const baseEntryCount = typeof item.entryCount === 'number' ? item.entryCount : legacyActive.length;
-      const delta = (Number(entryData.amount)||0);
+      const delta = entryLedgerAmount(entryData);
       items[idx] = {...item, totalPaid: baseTotalPaid + delta, entryCount: baseEntryCount + 1};
       tx.set(ref, {...data, items});
       tx.set(entryRef, {...entryData, itemCode, deletedAt: null, deletedByUid: null, deletedByName: null});
@@ -1561,8 +1572,8 @@ function buildSlipBodyHtml(cc, entries, payerName, payerCode, payerPosition, doc
   const grandTotal = entries.reduce((sum,e)=> sum + (Number(e.row.amount)||0) + (Number(e.row.tax)||0), 0);
   // Cost-center detail table below tracks against the budget ledger, which excludes VAT —
   // kept separate from grandTotal (which stays VAT-inclusive for the itemized invoice above).
-  const grandTotalNoTax = entries.reduce((sum,e)=> sum + (Number(e.row.amount)||0), 0);
-  const entryNoTax = (e)=> Number(e.row.amount)||0;
+  const grandTotalNoTax = entries.reduce((sum,e)=> sum + entryLedgerAmount(e.row), 0);
+  const entryNoTax = (e)=> entryLedgerAmount(e.row);
   const slot = (i) => entries[i] || null;
 
   const itemRows = entries.map((e,i)=>{
@@ -1728,7 +1739,7 @@ function buildProjectSlipBodyHtml(entries, payerName, payerCode, payerPosition, 
   const grandTotal = entries.reduce((sum,e)=> sum + (Number(e.row.amount)||0) + (Number(e.row.tax)||0), 0);
   // Cost-center detail table below tracks against the budget ledger, which excludes VAT —
   // kept separate from grandTotal (which stays VAT-inclusive for the itemized invoice above).
-  const grandTotalNoTax = entries.reduce((sum,e)=> sum + (Number(e.row.amount)||0), 0);
+  const grandTotalNoTax = entries.reduce((sum,e)=> sum + entryLedgerAmount(e.row), 0);
   const slot = (i) => entries[i] || null;
   // Unique WBS/job numbers across all selected entries, in selection order, comma-separated —
   // shows every job number in the header when the print spans more than one project file.
@@ -1751,7 +1762,7 @@ function buildProjectSlipBodyHtml(entries, payerName, payerCode, payerPosition, 
   const blankItemRows = Array.from({length:blankItemRowCount}).map(()=>`<tr><td>&nbsp;</td><td></td><td></td><td></td><td></td></tr>`).join('');
 
   const s0 = slot(0), s1 = slot(1), s2 = slot(2);
-  const entryNoTaxP = (e)=> Number(e.row.amount)||0;
+  const entryNoTaxP = (e)=> entryLedgerAmount(e.row);
 
   return `
     <table class="hdr">
@@ -2306,6 +2317,23 @@ function itemEntriesSource(itemCode){
   }
   return null; // signals "use the legacy array" — caller has the item at hand, this doesn't
 }
+// Account code that gets the "เครดิตภาษีซื้อได้" per-entry checkbox (ค่าเชื้อเพลิงยานพาหนะ only,
+// per the user's request — every other item keeps the normal always-exclude-tax behavior).
+const VAT_CREDIT_TOGGLE_ITEM_CODE = '53039010';
+function itemHasVatCreditToggle(item){
+  return !!item && item.code === VAT_CREDIT_TOGGLE_ITEM_CODE;
+}
+// Normally VAT is tracked on the entry and shown on the printed withdrawal slip, but excluded
+// from the ledger's running/remaining totals. For entries on VAT_CREDIT_TOGGLE_ITEM_CODE, a
+// per-entry checkbox can flag the input VAT as NOT creditable — in that case this flips and folds
+// the tax INTO the ledger amount instead (matches the note already printed on the withdrawal
+// slip: "กรณีไม่เครดิตภาษีซื้อ ให้ใช้ยอดเงินรวมภาษี"). Entries without the flag (including every
+// entry on every other item) default to creditable, i.e. the original behavior.
+function entryLedgerAmount(e){
+  const amount = Number(e.amount)||0;
+  if(e.vatCreditable === false) return amount + (Number(e.tax)||0);
+  return amount;
+}
 function itemTotals(item){
   const budget = Number(item.budget)||0;
   const source = itemEntriesSource(item.code) || (item.entries || []);
@@ -2314,9 +2342,7 @@ function itemTotals(item){
   const sortedEntries = [...source].filter(e=>!e.deletedAt).sort((a,b)=> (a.date||'').localeCompare(b.date||'') || a.createdAt-b.createdAt);
   let running = 0;
   const rows = sortedEntries.map(e=>{
-    // Only the paid amount counts against budget — VAT (if any) is tracked on the entry and shown
-    // on the printed withdrawal slip, but excluded from the ledger's running/remaining totals.
-    running += (Number(e.amount)||0);
+    running += entryLedgerAmount(e);
     return {...e, cumulative: running};
   });
   const totalPaid = running;
@@ -2374,7 +2400,7 @@ function ccTotals(cc){
 // as a number yet — fall back to summing the legacy entries array so this is never wrong or blank.
 function itemAggregateTotalPaid(item){
   if(typeof item.totalPaid === 'number') return item.totalPaid;
-  return (item.entries||[]).filter(e=>!e.deletedAt).reduce((s,e)=> s + (Number(e.amount)||0), 0);
+  return (item.entries||[]).filter(e=>!e.deletedAt).reduce((s,e)=> s + entryLedgerAmount(e), 0);
 }
 function canDeleteEntry(entry){
   if(canManageDept(state.activeDept)) return true;
@@ -2757,6 +2783,10 @@ function addEntry(itemCode){
     addedByPosition: state.user ? (state.user.position || '') : '',
     addedByCode: state.user ? (state.user.employeeCode || '') : '',
   };
+  if(itemHasVatCreditToggle(item)){
+    const vatEl = document.getElementById('entryVatCreditable');
+    entry.vatCreditable = vatEl ? !!vatEl.checked : true;
+  }
   if(ccEntriesActiveHere(cc)){
     state.activeCcEntries.push({...entry, itemCode});
   } else {
@@ -3804,11 +3834,13 @@ function renderItemDetail(cc, item){
           const rowRemaining = t.budget - r.cumulative;
           const canDelete = canDeleteEntry(r);
           const checked = isEntrySelected(item.code, r.id);
-          const paidThisTime = (Number(r.amount)||0);
+          const paidThisTime = entryLedgerAmount(r);
+          const vatBadge = (itemHasVatCreditToggle(item) && r.vatCreditable === false)
+            ? `<div style="font-size:10.5px;color:var(--rust);margin-top:2px;">เครดิตภาษีซื้อไม่ได้ — รวมภาษีแล้ว</div>` : '';
           return `<tr>
             <td style="text-align:center;"><input type="checkbox" title="เลือกรวมพิมพ์ใบตัดงบ" ${checked?'checked':''} onchange="toggleSlipSelection('${escapeHtml(item.code)}','${r.id}')"></td>
             <td class="mono">${escapeHtml(r.date)}</td>
-            <td>${escapeHtml(r.desc)}${(r.addedByName || r.addedByEmail) ? `<div style="font-size:10.5px;color:var(--text-faint);margin-top:2px;">เพิ่มโดย ${escapeHtml(r.addedByName || r.addedByEmail)}</div>` : ''}</td>
+            <td>${escapeHtml(r.desc)}${(r.addedByName || r.addedByEmail) ? `<div style="font-size:10.5px;color:var(--text-faint);margin-top:2px;">เพิ่มโดย ${escapeHtml(r.addedByName || r.addedByEmail)}</div>` : ''}${vatBadge}</td>
             <td class="num">${fmt(paidThisTime)}</td>
             <td class="num">${fmt(r.cumulative)}</td>
             <td class="num ${rowRemaining<0?'neg':''}">${fmt(rowRemaining)}</td>
@@ -3868,8 +3900,16 @@ function renderItemDetail(cc, item){
       <div class="field desc"><label>รายการ</label><input type="text" id="entryDesc" placeholder="เช่น ${escapeHtml(item.example || (item.label+' นายสมชาย ใจดี วันที่...'))}" onkeydown="if(event.key==='Enter'){addEntry('${escapeHtml(item.code)}');}"></div>
       <div class="field amt"><label>จ่ายรอบนี้ (บาท)</label><input type="number" id="entryAmount" min="0" step="0.01" placeholder="0.00" onkeydown="if(event.key==='Enter'){addEntry('${escapeHtml(item.code)}');}"></div>
       <div class="field tax"><label>ภาษีมูลค่าเพิ่ม (ถ้ามี)</label><input type="number" id="entryTax" min="0" step="0.01" placeholder="0.00" onkeydown="if(event.key==='Enter'){addEntry('${escapeHtml(item.code)}');}"></div>
+      ${itemHasVatCreditToggle(item) ? `
+      <div class="field" style="display:flex;align-items:center;gap:6px;padding-top:20px;">
+        <label style="display:flex;align-items:center;gap:6px;font-weight:400;white-space:nowrap;">
+          <input type="checkbox" id="entryVatCreditable" checked style="width:auto;">
+          เครดิตภาษีซื้อได้
+        </label>
+      </div>` : ''}
       <button class="btn btn-primary" type="button" onclick="addEntry('${escapeHtml(item.code)}')">+ เพิ่มรายการ</button>
     </div>
+    ${itemHasVatCreditToggle(item) ? `<div style="margin-top:-10px;margin-bottom:14px;font-size:11px;color:var(--text-faint);">ถ้าไม่ติ๊ก "เครดิตภาษีซื้อได้" ระบบจะเอาค่าภาษีมารวมในยอด "จ่ายรอบนี้/รวมจ่าย/คงเหลือ" (กลับด้านจากปกติ) — ค่าเริ่มต้นคือติ๊กไว้</div>` : ''}
 
     ${rowsHtml}
     ${buildEntryTrashSectionHtml(trashedEntriesOfItem(item), 'restoreEntry', 'permanentlyDeleteEntry', [item.code])}
@@ -3889,7 +3929,7 @@ function buildEntryTrashSectionHtml(trashed, restoreFn, purgeFn, leadingArgs){
       ${trashed.map(e => `
         <div style="background:var(--card);display:flex;justify-content:space-between;align-items:center;gap:12px;padding:10px 16px;">
           <div style="min-width:0;">
-            <div style="font-size:13px;"><span class="mono">${escapeHtml(e.date||'')}</span> — ${escapeHtml(e.desc||'')} <span style="font-weight:600;">${fmt((Number(e.amount)||0))}</span></div>
+            <div style="font-size:13px;"><span class="mono">${escapeHtml(e.date||'')}</span> — ${escapeHtml(e.desc||'')} <span style="font-weight:600;">${fmt(entryLedgerAmount(e))}</span></div>
             <div style="font-size:11px;color:var(--text-faint);margin-top:2px;">ลบเมื่อ ${new Date(e.deletedAt).toLocaleString('th-TH',{dateStyle:'medium',timeStyle:'short'})}${e.deletedByName ? ' โดย '+escapeHtml(e.deletedByName) : ''}</div>
           </div>
           <div style="display:flex;gap:8px;flex-shrink:0;">
