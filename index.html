@@ -1042,9 +1042,9 @@ table.ledger .del-x:hover{color:var(--rust);}
       const item = items[idx];
       const legacyActive = (item.entries || []).filter(e => !e.deletedAt);
       const baseTotalPaid = typeof item.totalPaid === 'number' ? item.totalPaid
-        : legacyActive.reduce((s,e)=> s + (Number(e.amount)||0) + (Number(e.tax)||0), 0);
+        : legacyActive.reduce((s,e)=> s + (Number(e.amount)||0), 0);
       const baseEntryCount = typeof item.entryCount === 'number' ? item.entryCount : legacyActive.length;
-      const delta = (Number(entry.amount)||0) + (Number(entry.tax)||0);
+      const delta = (Number(entry.amount)||0);
       items[idx] = {...item, totalPaid: baseTotalPaid + delta, entryCount: baseEntryCount + 1};
       tx.set(ref, {...data, items});
       tx.set(doc(db, 'costCenters', ccId, 'entries', entry.id), {...entry, itemCode});
@@ -1072,9 +1072,9 @@ table.ledger .del-x:hover{color:var(--rust);}
       }
       const legacyActive = (item.entries || []).filter(e => !e.deletedAt);
       const baseTotalPaid = typeof item.totalPaid === 'number' ? item.totalPaid
-        : legacyActive.reduce((s,e)=> s + (Number(e.amount)||0) + (Number(e.tax)||0), 0);
+        : legacyActive.reduce((s,e)=> s + (Number(e.amount)||0), 0);
       const baseEntryCount = typeof item.entryCount === 'number' ? item.entryCount : legacyActive.length;
-      const delta = (Number(entryData.amount)||0) + (Number(entryData.tax)||0);
+      const delta = (Number(entryData.amount)||0);
       items[idx] = {...item, totalPaid: baseTotalPaid - delta, entryCount: Math.max(0, baseEntryCount - 1)};
       tx.set(ref, {...data, items});
       tx.set(entryRef, {
@@ -1097,9 +1097,9 @@ table.ledger .del-x:hover{color:var(--rust);}
       if(!entryData.deletedAt) return; // already active — nothing to restore
       const legacyActive = (item.entries || []).filter(e => !e.deletedAt);
       const baseTotalPaid = typeof item.totalPaid === 'number' ? item.totalPaid
-        : legacyActive.reduce((s,e)=> s + (Number(e.amount)||0) + (Number(e.tax)||0), 0);
+        : legacyActive.reduce((s,e)=> s + (Number(e.amount)||0), 0);
       const baseEntryCount = typeof item.entryCount === 'number' ? item.entryCount : legacyActive.length;
-      const delta = (Number(entryData.amount)||0) + (Number(entryData.tax)||0);
+      const delta = (Number(entryData.amount)||0);
       items[idx] = {...item, totalPaid: baseTotalPaid + delta, entryCount: baseEntryCount + 1};
       tx.set(ref, {...data, items});
       tx.set(entryRef, {...entryData, itemCode, deletedAt: null, deletedByUid: null, deletedByName: null});
@@ -1203,9 +1203,9 @@ table.ledger .del-x:hover{color:var(--rust);}
       if(!cat) throw new Error('ไม่พบประเภทงาน/หมวดงบประมาณนี้ (อาจถูกลบไปแล้วโดยผู้อื่น)');
       const legacyActive = (cat.entries || []).filter(e => !e.deletedAt);
       const baseTotalPaid = typeof cat.totalPaid === 'number' ? cat.totalPaid
-        : legacyActive.reduce((s,e)=> s + (Number(e.amount)||0) + (Number(e.tax)||0), 0);
+        : legacyActive.reduce((s,e)=> s + (Number(e.amount)||0), 0);
       const baseEntryCount = typeof cat.entryCount === 'number' ? cat.entryCount : legacyActive.length;
-      const delta = (Number(entry.amount)||0) + (Number(entry.tax)||0);
+      const delta = (Number(entry.amount)||0);
       departments[workTypeKey] = {...wt, budgets: {...wt.budgets, [catKey]: {...cat, totalPaid: baseTotalPaid + delta, entryCount: baseEntryCount + 1}}};
       tx.set(ref, {...data, departments});
       tx.set(doc(db, 'constructionProjects', projId, 'entries', entry.id), {...entry, workTypeKey, catKey});
@@ -1228,9 +1228,9 @@ table.ledger .del-x:hover{color:var(--rust);}
       }
       const legacyActive = (cat.entries || []).filter(e => !e.deletedAt);
       const baseTotalPaid = typeof cat.totalPaid === 'number' ? cat.totalPaid
-        : legacyActive.reduce((s,e)=> s + (Number(e.amount)||0) + (Number(e.tax)||0), 0);
+        : legacyActive.reduce((s,e)=> s + (Number(e.amount)||0), 0);
       const baseEntryCount = typeof cat.entryCount === 'number' ? cat.entryCount : legacyActive.length;
-      const delta = (Number(entryData.amount)||0) + (Number(entryData.tax)||0);
+      const delta = (Number(entryData.amount)||0);
       departments[workTypeKey] = {...wt, budgets: {...wt.budgets, [catKey]: {...cat, totalPaid: baseTotalPaid - delta, entryCount: Math.max(0, baseEntryCount - 1)}}};
       tx.set(ref, {...data, departments});
       tx.set(entryRef, {
@@ -1253,9 +1253,9 @@ table.ledger .del-x:hover{color:var(--rust);}
       if(!entryData.deletedAt) return;
       const legacyActive = (cat.entries || []).filter(e => !e.deletedAt);
       const baseTotalPaid = typeof cat.totalPaid === 'number' ? cat.totalPaid
-        : legacyActive.reduce((s,e)=> s + (Number(e.amount)||0) + (Number(e.tax)||0), 0);
+        : legacyActive.reduce((s,e)=> s + (Number(e.amount)||0), 0);
       const baseEntryCount = typeof cat.entryCount === 'number' ? cat.entryCount : legacyActive.length;
-      const delta = (Number(entryData.amount)||0) + (Number(entryData.tax)||0);
+      const delta = (Number(entryData.amount)||0);
       departments[workTypeKey] = {...wt, budgets: {...wt.budgets, [catKey]: {...cat, totalPaid: baseTotalPaid + delta, entryCount: baseEntryCount + 1}}};
       tx.set(ref, {...data, departments});
       tx.set(entryRef, {...entryData, workTypeKey, catKey, deletedAt: null, deletedByUid: null, deletedByName: null});
@@ -2307,9 +2307,9 @@ function itemTotals(item){
   const sortedEntries = [...source].filter(e=>!e.deletedAt).sort((a,b)=> (a.date||'').localeCompare(b.date||'') || a.createdAt-b.createdAt);
   let running = 0;
   const rows = sortedEntries.map(e=>{
-    // The amount that actually counts against budget is the paid amount plus its VAT (if any) —
-    // they are entered as two separate fields but always deducted/tallied together as one total.
-    running += (Number(e.amount)||0) + (Number(e.tax)||0);
+    // Only the paid amount counts against budget — VAT (if any) is tracked on the entry and shown
+    // on the printed withdrawal slip, but excluded from the ledger's running/remaining totals.
+    running += (Number(e.amount)||0);
     return {...e, cumulative: running};
   });
   const totalPaid = running;
@@ -2367,7 +2367,7 @@ function ccTotals(cc){
 // as a number yet — fall back to summing the legacy entries array so this is never wrong or blank.
 function itemAggregateTotalPaid(item){
   if(typeof item.totalPaid === 'number') return item.totalPaid;
-  return (item.entries||[]).filter(e=>!e.deletedAt).reduce((s,e)=> s + (Number(e.amount)||0) + (Number(e.tax)||0), 0);
+  return (item.entries||[]).filter(e=>!e.deletedAt).reduce((s,e)=> s + (Number(e.amount)||0), 0);
 }
 function canDeleteEntry(entry){
   if(canManageDept(state.activeDept)) return true;
@@ -2893,8 +2893,8 @@ function projCatTotals(cat, workTypeKey, catKey, entriesOverride){
   const sortedEntries = [...catEntriesSource(workTypeKey, catKey, cat, entriesOverride)].filter(e=>!e.deletedAt).sort((a,b)=> (a.date||'').localeCompare(b.date||'') || a.createdAt-b.createdAt);
   let running = 0;
   const rows = sortedEntries.map(e=>{
-    // Paid amount + VAT count together against the usable budget (see itemTotals for budget mode).
-    running += (Number(e.amount)||0) + (Number(e.tax)||0);
+    // Only the paid amount counts against the usable budget — VAT is excluded (see itemTotals).
+    running += (Number(e.amount)||0);
     return {...e, cumulative: running};
   });
   const totalPaid = running;
@@ -2932,7 +2932,7 @@ function projTotalsCheap(project){
 // Self-healing, same pattern as itemAggregateTotalPaid (budget mode) — see there for why.
 function catAggregateTotalPaid(cat){
   if(typeof cat.totalPaid === 'number') return cat.totalPaid;
-  return (cat.entries||[]).filter(e=>!e.deletedAt).reduce((s,e)=> s + (Number(e.amount)||0) + (Number(e.tax)||0), 0);
+  return (cat.entries||[]).filter(e=>!e.deletedAt).reduce((s,e)=> s + (Number(e.amount)||0), 0);
 }
 function canDeleteProjectEntry(project, entry){
   if(canManageDept(project.deptKey)) return true;
@@ -3797,7 +3797,7 @@ function renderItemDetail(cc, item){
           const rowRemaining = t.budget - r.cumulative;
           const canDelete = canDeleteEntry(r);
           const checked = isEntrySelected(item.code, r.id);
-          const paidThisTime = (Number(r.amount)||0) + (Number(r.tax)||0);
+          const paidThisTime = (Number(r.amount)||0);
           return `<tr>
             <td style="text-align:center;"><input type="checkbox" title="เลือกรวมพิมพ์ใบตัดงบ" ${checked?'checked':''} onchange="toggleSlipSelection('${escapeHtml(item.code)}','${r.id}')"></td>
             <td class="mono">${escapeHtml(r.date)}</td>
@@ -3882,7 +3882,7 @@ function buildEntryTrashSectionHtml(trashed, restoreFn, purgeFn, leadingArgs){
       ${trashed.map(e => `
         <div style="background:var(--card);display:flex;justify-content:space-between;align-items:center;gap:12px;padding:10px 16px;">
           <div style="min-width:0;">
-            <div style="font-size:13px;"><span class="mono">${escapeHtml(e.date||'')}</span> — ${escapeHtml(e.desc||'')} <span style="font-weight:600;">${fmt((Number(e.amount)||0)+(Number(e.tax)||0))}</span></div>
+            <div style="font-size:13px;"><span class="mono">${escapeHtml(e.date||'')}</span> — ${escapeHtml(e.desc||'')} <span style="font-weight:600;">${fmt((Number(e.amount)||0))}</span></div>
             <div style="font-size:11px;color:var(--text-faint);margin-top:2px;">ลบเมื่อ ${new Date(e.deletedAt).toLocaleString('th-TH',{dateStyle:'medium',timeStyle:'short'})}${e.deletedByName ? ' โดย '+escapeHtml(e.deletedByName) : ''}</div>
           </div>
           <div style="display:flex;gap:8px;flex-shrink:0;">
@@ -4119,7 +4119,7 @@ function renderProjectCatDetail(p, workTypeKey, wtName, networkNo, catKey, cat, 
           const rowRemaining = t.usable80 - r.cumulative;
           const canDelete = canDeleteProjectEntry(p, r);
           const checked = isProjectEntrySelected(p.id, workTypeKey, catKey, r.id);
-          const paidThisTime = (Number(r.amount)||0) + (Number(r.tax)||0);
+          const paidThisTime = (Number(r.amount)||0);
           return `<tr>
             <td style="text-align:center;"><input type="checkbox" title="เลือกรวมพิมพ์ใบตัดงบ (เลือกข้ามแฟ้มงานได้)" ${checked?'checked':''} onchange="toggleProjectSlipSelection('${p.id}','${workTypeKey}','${catKey}','${r.id}')"></td>
             <td class="mono">${escapeHtml(r.date)}</td>
