@@ -362,6 +362,36 @@ body{
 }
 .page-header h1{font-family:'Space Grotesk';font-size:16px;font-weight:500;color:var(--text-muted);margin:0;line-height:1.3;}
 .header-actions{display:flex;gap:8px;flex-shrink:0;}
+.btn-reopen{border-color:rgba(47,122,110,.4) !important;color:var(--teal) !important;background:var(--teal-soft) !important;font-weight:600;}
+
+/* "ปิดงาน" (closed WBS project file) indicators */
+.closed-banner{
+  display:flex;align-items:center;gap:10px;background:var(--rust-soft);border:1px solid rgba(193,70,47,.35);
+  color:var(--rust);font-size:13px;font-weight:600;padding:10px 14px;border-radius:8px;margin-bottom:18px;
+}
+.stamp-overlay{
+  position:fixed;top:0;bottom:0;left:280px;right:0;display:flex;align-items:center;justify-content:center;
+  pointer-events:none;z-index:5;
+}
+.stamp{
+  width:min(600px, 80vw);height:min(280px, 38vw);border-radius:14px;
+  border:14px double var(--rust);
+  display:flex;flex-direction:column;align-items:center;justify-content:center;gap:16px;
+  transform:rotate(-8deg);
+  color:var(--rust);
+  opacity:.85;
+  mix-blend-mode:multiply;
+  box-shadow:inset 0 0 0 5px rgba(193,70,47,.12);
+  padding:0 30px;
+}
+.stamp .rule{width:170px;height:5px;background:var(--rust);border-radius:3px;opacity:.8;}
+.stamp .mid{font-family:'Space Grotesk';font-weight:800;font-size:58px;line-height:1.15;letter-spacing:.02em;text-align:center;white-space:nowrap;}
+.mini-stamp{
+  width:42px;height:30px;border-radius:4px;border:3px double var(--rust);
+  display:flex;align-items:center;justify-content:center;flex-shrink:0;
+  transform:rotate(-8deg);color:var(--rust);
+}
+.mini-stamp span{font-family:'Space Grotesk';font-weight:800;font-size:7.5px;line-height:1.1;text-align:center;}
 
 .stat-strip{
   display:grid;grid-template-columns:repeat(4,1fr);
@@ -668,6 +698,7 @@ table.ledger .del-x:hover{color:var(--rust);}
   .app-shell{grid-template-columns:1fr;}
   .sidebar{position:static;height:auto;min-height:0;}
   .main{padding:18px 16px 40px;}
+  .stamp-overlay{left:0;}
 }
 </style>
 </head>
@@ -3051,6 +3082,30 @@ function submitEditProject(){
   closeModal('editProjectModal');
   saveProject(p); render();
 }
+// Toggles the "ปิดงาน" (closed) flag on a WBS project file. Only a dept admin/admin may flip it
+// (same permission as edit/delete). While closed, addProjectEntry() refuses new ledger entries and
+// the ledger's own "+ เพิ่มรายการ" form is hidden (see renderProjectCatDetail) — everything else
+// (viewing totals, printing existing slips, deleting/restoring entries) stays available.
+async function toggleProjectClosed(){
+  const p = getProject(state.activeProjectId);
+  if(!p || !canManageDept(p.deptKey)){ alert('คุณไม่มีสิทธิ์ปิด/เปิดงานแฟ้มนี้ — ทำได้เฉพาะผู้ดูแลแผนกหรือแอดมิน'); return; }
+  const closing = !p.closed;
+  if(closing){
+    if(!confirm('ยืนยันปิดงานแฟ้ม "'+p.name+'" ?\n\nหลังปิดงานแล้ว จะไม่มีใครเพิ่มรายการจ่ายในแฟ้มนี้ได้ จนกว่าจะกด "ยกเลิกปิดงาน"')) return;
+  }
+  p.closed = closing;
+  p.closedAt = closing ? Date.now() : null;
+  p.closedByName = closing ? (state.user?.displayName || state.user?.email || null) : null;
+  render();
+  try{
+    await window.fb.saveProject(p);
+    flashSaved(false);
+  }catch(e){
+    p.closed = !closing; // roll back the optimistic local change
+    render();
+    alert('บันทึกสถานะปิดงานไม่สำเร็จ: ' + e.message);
+  }
+}
 async function deleteProject(){
   const p = getProject(state.activeProjectId);
   if(!p || !canManageDept(p.deptKey)){ alert('คุณไม่มีสิทธิ์ลบแฟ้มงานนี้'); return; }
@@ -3197,6 +3252,7 @@ function findActiveProjectEntry(p, workTypeKey, catKey, entryId){
 }
 function addProjectEntry(workTypeKey, catKey){
   const p = getProject(state.activeProjectId);
+  if(p.closed){ alert('แฟ้มงานนี้ปิดงานแล้ว — เพิ่มรายการจ่ายไม่ได้ จนกว่าผู้ดูแลแผนกหรือแอดมินจะกด "ยกเลิกปิดงาน"'); return false; }
   const cat = p.departments[workTypeKey].budgets[catKey];
   const date = document.getElementById('projEntryDate').value || todayStr();
   const desc = document.getElementById('projEntryDesc').value.trim();
@@ -3964,10 +4020,13 @@ function renderProjectSidebar(){
     const pct = t.amount100>0 ? (t.totalPaid/t.amount100*100) : 0;
     const gClass = gaugeClass(pct);
     const barWidth = Math.min(pct,100);
-    return `<div class="cc-item ${active?'active':''}" onclick="selectProject('${p.id}')">
-      <div class="code">${escapeHtml(p.wbs)}</div>
-      <div class="name">${escapeHtml(p.name)}</div>
-      <div class="cc-progress" title="ใช้ไปแล้ว ${pct.toFixed(0)}%"><div class="cc-progress-fill ${gClass}" style="width:${barWidth}%"></div></div>
+    return `<div class="cc-item ${active?'active':''}" onclick="selectProject('${p.id}')" style="display:flex;align-items:center;gap:8px;">
+      <div style="flex:1;min-width:0;">
+        <div class="code">${escapeHtml(p.wbs)}</div>
+        <div class="name">${escapeHtml(p.name)}</div>
+        <div class="cc-progress" title="ใช้ไปแล้ว ${pct.toFixed(0)}%"><div class="cc-progress-fill ${gClass}" style="width:${barWidth}%"></div></div>
+      </div>
+      ${p.closed ? `<div class="mini-stamp" title="ปิดงานแล้ว"><span>ปิด<br>งาน</span></div>` : ''}
     </div>`;
   }).join('');
 }
@@ -4004,6 +4063,14 @@ function renderProjectMain(){
   const canManage = canManageDept(p.deptKey);
 
   let html = `
+    ${p.closed ? `
+    <div class="stamp-overlay">
+      <div class="stamp">
+        <div class="rule"></div>
+        <div class="mid">ปิดงานแล้ว</div>
+        <div class="rule"></div>
+      </div>
+    </div>` : ''}
     <div class="page-header">
       <div>
         <div class="code-tag mono">${escapeHtml(p.wbs)}</div>
@@ -4012,10 +4079,15 @@ function renderProjectMain(){
       <div class="header-actions">
         ${canManage ? `
           <button class="btn btn-outline btn-sm" onclick="openEditProjectModal()">แก้ไข</button>
+          ${p.closed
+            ? `<button class="btn btn-reopen btn-sm" onclick="toggleProjectClosed()">↺ ยกเลิกปิดงาน</button>`
+            : `<button class="btn btn-danger-ghost btn-sm" onclick="toggleProjectClosed()">🔒 ปิดงาน</button>`}
           <button class="btn btn-danger-ghost btn-sm" onclick="deleteProject()">ลบแฟ้มงาน</button>
         ` : `<span class="eyebrow" style="color:var(--text-faint);">ดูอย่างเดียว · เพิ่มรายการจ่ายได้</span>`}
       </div>
     </div>
+
+    ${p.closed ? `<div class="closed-banner">🔒 แฟ้มงานนี้ปิดงานแล้ว - ไม่สามารถเพิ่มรายจ่ายได้</div>` : ''}
 
     <div class="stat-strip">
       <div class="stat-box"><div class="label">งบทั้งหมด (100%)</div><div class="value">${fmt(totals.amount100)}</div></div>
@@ -4228,13 +4300,14 @@ function renderProjectCatDetail(p, workTypeKey, wtName, networkNo, catKey, cat, 
       ${canManage ? '' : `<div style="margin-top:12px;font-size:11.5px;color:var(--text-faint);">งบแก้ไขได้เฉพาะผู้ดูแลแผนกหรือแอดมิน — คุณเพิ่มรายการจ่ายได้ และลบได้เฉพาะรายการที่คุณเพิ่มเอง</div>`}
     </div>
 
+    ${p.closed ? `<div style="font-size:12.5px;color:var(--text-faint);margin-bottom:14px;">ฟอร์มเพิ่มรายการถูกซ่อนไว้ — แฟ้มงานนี้ปิดงานแล้ว</div>` : `
     <div class="entry-form">
       <div class="field"><label>วันที่</label><input type="date" id="projEntryDate"></div>
       <div class="field desc"><label>รายการ</label><input type="text" id="projEntryDesc" placeholder="เช่น ค่าแรงคนงาน 1-15 ส.ค. 69" onkeydown="if(event.key==='Enter'){addProjectEntry('${workTypeKey}','${catKey}');}"></div>
       <div class="field amt"><label>จ่ายรอบนี้ (บาท)</label><input type="number" id="projEntryAmount" min="0" step="0.01" placeholder="0.00" onkeydown="if(event.key==='Enter'){addProjectEntry('${workTypeKey}','${catKey}');}"></div>
       <div class="field tax"><label>ภาษีมูลค่าเพิ่ม (ถ้ามี)</label><input type="number" id="projEntryTax" min="0" step="0.01" placeholder="0.00" onkeydown="if(event.key==='Enter'){addProjectEntry('${workTypeKey}','${catKey}');}"></div>
       <button class="btn btn-primary" type="button" onclick="addProjectEntry('${workTypeKey}','${catKey}')">+ เพิ่มรายการ</button>
-    </div>
+    </div>`}
 
     ${rowsHtml}
     ${buildEntryTrashSectionHtml(trashedEntriesOfCat(cat, workTypeKey, catKey), 'restoreProjectEntry', 'permanentlyDeleteProjectEntry', [workTypeKey, catKey])}
