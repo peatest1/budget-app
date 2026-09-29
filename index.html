@@ -387,11 +387,16 @@ body{
 .stamp .rule{width:170px;height:5px;background:var(--rust);border-radius:3px;opacity:.8;}
 .stamp .mid{font-family:'Space Grotesk';font-weight:800;font-size:58px;line-height:1.15;letter-spacing:.02em;text-align:center;white-space:nowrap;}
 .mini-stamp{
-  width:42px;height:30px;border-radius:4px;border:3px double var(--rust);
-  display:flex;align-items:center;justify-content:center;flex-shrink:0;
-  transform:rotate(-8deg);color:var(--rust);
+  position:absolute;top:50%;right:6px;width:46px;height:30px;
+  border-radius:4px;border:2.5px solid #FF6259;
+  display:flex;align-items:center;justify-content:center;pointer-events:none;
+  transform:translateY(-50%) rotate(-8deg);
+  background:rgba(15,20,25,.55);
 }
-.mini-stamp span{font-family:'Space Grotesk';font-weight:800;font-size:7.5px;line-height:1.1;text-align:center;}
+.mini-stamp span{
+  font-family:'Space Grotesk';font-weight:800;font-size:7px;line-height:1.15;letter-spacing:.02em;text-align:center;
+  color:#FFEDEC;text-shadow:0 0 3px rgba(0,0,0,.6);
+}
 
 .stat-strip{
   display:grid;grid-template-columns:repeat(4,1fr);
@@ -4020,12 +4025,10 @@ function renderProjectSidebar(){
     const pct = t.amount100>0 ? (t.totalPaid/t.amount100*100) : 0;
     const gClass = gaugeClass(pct);
     const barWidth = Math.min(pct,100);
-    return `<div class="cc-item ${active?'active':''}" onclick="selectProject('${p.id}')" style="display:flex;align-items:center;gap:8px;">
-      <div style="flex:1;min-width:0;">
-        <div class="code">${escapeHtml(p.wbs)}</div>
-        <div class="name">${escapeHtml(p.name)}</div>
-        <div class="cc-progress" title="ใช้ไปแล้ว ${pct.toFixed(0)}%"><div class="cc-progress-fill ${gClass}" style="width:${barWidth}%"></div></div>
-      </div>
+    return `<div class="cc-item ${active?'active':''}" onclick="selectProject('${p.id}')" style="position:relative;">
+      <div class="code">${escapeHtml(p.wbs)}</div>
+      <div class="name">${escapeHtml(p.name)}</div>
+      <div class="cc-progress" title="ใช้ไปแล้ว ${pct.toFixed(0)}%"><div class="cc-progress-fill ${gClass}" style="width:${barWidth}%"></div></div>
       ${p.closed ? `<div class="mini-stamp" title="ปิดงานแล้ว"><span>ปิด<br>งาน</span></div>` : ''}
     </div>`;
   }).join('');
