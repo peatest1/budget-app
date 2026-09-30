@@ -530,7 +530,9 @@ body{
 
 /* WBS project mode: category cards */
 .cat-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:14px;}
-@media (max-width:900px){.cat-grid{grid-template-columns:1fr;}}
+.cat-grid.cols4{grid-template-columns:repeat(4,1fr);}
+@media (max-width:1300px){.cat-grid.cols4{grid-template-columns:repeat(2,1fr);}}
+@media (max-width:900px){.cat-grid,.cat-grid.cols4{grid-template-columns:1fr;}}
 .cat-card{
   background:var(--card);border:1px solid var(--border-soft);border-radius:14px;
   padding:16px 18px;cursor:pointer;transition:box-shadow .15s, border-color .15s, transform .1s;
@@ -1027,9 +1029,9 @@ table.ledger .del-x:hover{color:var(--rust);}
 
   // Mirrors entryLedgerAmount() in the main app script (kept as a separate copy since this
   // module script and the app script don't share scope). Only ever true for entries on the
-  // ค่าเชื้อเพลิงยานพาหนะ item (account code 53039010), where a per-entry "เครดิตภาษีซื้อได้"
-  // checkbox lets the user flag input VAT that cannot be credited — folding the tax into the
-  // totalPaid aggregate instead of excluding it like normal.
+  // ค่าเชื้อเพลิงยานพาหนะ item (account code 53039010) and WBS เบ็ดเตล็ด entries, where a per-entry
+  // "เครดิตภาษีซื้อได้" checkbox lets the user flag input VAT that cannot be credited — folding the
+  // tax into the totalPaid aggregate instead of excluding it like normal.
   function entryLedgerAmount(e){
     const amount = Number(e.amount)||0;
     if(e.vatCreditable === false) return amount + (Number(e.tax)||0);
@@ -1247,13 +1249,16 @@ table.ledger .del-x:hover{color:var(--rust);}
       const data = snap.data();
       const departments = {...(data.departments || {})};
       const wt = departments[workTypeKey];
-      const cat = wt && wt.budgets && wt.budgets[catKey];
+      let cat = wt && wt.budgets && wt.budgets[catKey];
+      // Project files created before ค่าขนส่ง existed have no 'transport' category stored yet —
+      // materialize it (budget 0, blank account code) the first time an entry is added to it.
+      if(!cat && wt && wt.budgets && catKey === 'transport') cat = {label:'ค่าขนส่ง', code:'', amount100:0, entries:[]};
       if(!cat) throw new Error('ไม่พบประเภทงาน/หมวดงบประมาณนี้ (อาจถูกลบไปแล้วโดยผู้อื่น)');
       const legacyActive = (cat.entries || []).filter(e => !e.deletedAt);
       const baseTotalPaid = typeof cat.totalPaid === 'number' ? cat.totalPaid
-        : legacyActive.reduce((s,e)=> s + (Number(e.amount)||0), 0);
+        : legacyActive.reduce((s,e)=> s + entryLedgerAmount(e), 0);
       const baseEntryCount = typeof cat.entryCount === 'number' ? cat.entryCount : legacyActive.length;
-      const delta = (Number(entry.amount)||0);
+      const delta = entryLedgerAmount(entry);
       departments[workTypeKey] = {...wt, budgets: {...wt.budgets, [catKey]: {...cat, totalPaid: baseTotalPaid + delta, entryCount: baseEntryCount + 1}}};
       tx.set(ref, {...data, departments});
       tx.set(doc(db, 'constructionProjects', projId, 'entries', entry.id), {...entry, workTypeKey, catKey});
@@ -1276,9 +1281,9 @@ table.ledger .del-x:hover{color:var(--rust);}
       }
       const legacyActive = (cat.entries || []).filter(e => !e.deletedAt);
       const baseTotalPaid = typeof cat.totalPaid === 'number' ? cat.totalPaid
-        : legacyActive.reduce((s,e)=> s + (Number(e.amount)||0), 0);
+        : legacyActive.reduce((s,e)=> s + entryLedgerAmount(e), 0);
       const baseEntryCount = typeof cat.entryCount === 'number' ? cat.entryCount : legacyActive.length;
-      const delta = (Number(entryData.amount)||0);
+      const delta = entryLedgerAmount(entryData);
       departments[workTypeKey] = {...wt, budgets: {...wt.budgets, [catKey]: {...cat, totalPaid: baseTotalPaid - delta, entryCount: Math.max(0, baseEntryCount - 1)}}};
       tx.set(ref, {...data, departments});
       tx.set(entryRef, {
@@ -1301,9 +1306,9 @@ table.ledger .del-x:hover{color:var(--rust);}
       if(!entryData.deletedAt) return;
       const legacyActive = (cat.entries || []).filter(e => !e.deletedAt);
       const baseTotalPaid = typeof cat.totalPaid === 'number' ? cat.totalPaid
-        : legacyActive.reduce((s,e)=> s + (Number(e.amount)||0), 0);
+        : legacyActive.reduce((s,e)=> s + entryLedgerAmount(e), 0);
       const baseEntryCount = typeof cat.entryCount === 'number' ? cat.entryCount : legacyActive.length;
-      const delta = (Number(entryData.amount)||0);
+      const delta = entryLedgerAmount(entryData);
       departments[workTypeKey] = {...wt, budgets: {...wt.budgets, [catKey]: {...cat, totalPaid: baseTotalPaid + delta, entryCount: baseEntryCount + 1}}};
       tx.set(ref, {...data, departments});
       tx.set(entryRef, {...entryData, workTypeKey, catKey, deletedAt: null, deletedByUid: null, deletedByName: null});
@@ -1434,20 +1439,49 @@ const WORK_TYPES = [
   {key:'tr_construct', name:'แผนกก่อสร้างหม้อแปลง'},
   {key:'tr_demolish',  name:'แผนกรื้อถอนหม้อแปลง'},
 ];
+// Display order: ค่าแรง → ค่าควบคุมงาน → ค่าขนส่ง → เบ็ดเตล็ด. ค่าขนส่ง exists only on the "construct"
+// (ก่อสร้าง) work types — never on รื้อถอน (see onlyWorkTypes). Default account codes are NOT fixed
+// per category: they run in sequence from PROJECT_CODE_START by PROJECT_CODE_STEP over whichever
+// categories a work type actually has (see projectCategoryDefsFor), e.g. construct: 0030/0040/0050/0060,
+// demolish: 0030/0040/0050.
+const TRANSPORT_WORK_TYPES = ['hv_construct','lv_construct','tr_construct'];
 const PROJECT_CATEGORY_DEFS = [
-  {key:'labor',   label:'ค่าแรง',        code:'0030'},
-  {key:'control', label:'ค่าควบคุมงาน',  code:'0040'},
-  {key:'misc',    label:'เบ็ดเตล็ด',     code:'0050'},
+  {key:'labor',     label:'ค่าแรง'},
+  {key:'control',   label:'ค่าควบคุมงาน'},
+  {key:'transport', label:'ค่าขนส่ง', onlyWorkTypes: TRANSPORT_WORK_TYPES},
+  {key:'misc',      label:'เบ็ดเตล็ด'},
 ];
+const PROJECT_CODE_START = 30, PROJECT_CODE_STEP = 10;
 const USABLE_RATIO = 0.8;
+// Category defs that apply to one work type, in display order, each with its default running code.
+function projectCategoryDefsFor(workTypeKey){
+  return PROJECT_CATEGORY_DEFS
+    .filter(d=> !d.onlyWorkTypes || d.onlyWorkTypes.includes(workTypeKey))
+    .map((d,i)=> ({...d, code: String(PROJECT_CODE_START + i*PROJECT_CODE_STEP).padStart(4,'0')}));
+}
 function newProjectBudgetCat(def){
   return {label:def.label, code:def.code, amount100:0, entries:[]};
 }
-function newProjectWorkType(){
+function newProjectWorkType(workTypeKey){
   const budgets = {};
-  PROJECT_CATEGORY_DEFS.forEach(d=> budgets[d.key] = newProjectBudgetCat(d));
+  projectCategoryDefsFor(workTypeKey).forEach(d=> budgets[d.key] = newProjectBudgetCat(d));
   return {networkNo:'', budgets};
 }
+// Project files saved before ค่าขนส่ง existed have no 'transport' category on their construct work
+// types. Add it in memory (budget 0, BLANK account code — existing codes are deliberately left
+// untouched, an admin fills it in) so every screen sees a complete category list. Idempotent; it is
+// persisted the next time the project is saved or an entry is added to it (see addProjectEntryTx).
+function normalizeProjectBudgets(p){
+  Object.entries(p.departments || {}).forEach(([workTypeKey, wt])=>{
+    if(!wt || !wt.budgets || !TRANSPORT_WORK_TYPES.includes(workTypeKey) || wt.budgets.transport) return;
+    wt.budgets.transport = {label:'ค่าขนส่ง', code:'', amount100:0, entries:[]};
+  });
+  return p;
+}
+// Only the ค่าขนส่ง-independent "เบ็ดเตล็ด" category gets the per-entry "เครดิตภาษีซื้อได้" checkbox
+// (same behavior as account 53039010 in general budget mode — see entryLedgerAmount).
+const PROJECT_VAT_CREDIT_TOGGLE_CAT_KEY = 'misc';
+function projectCatHasVatCreditToggle(catKey){ return catKey === PROJECT_VAT_CREDIT_TOGGLE_CAT_KEY; }
 
 /* ============ state ============ */
 let state = {
@@ -2967,8 +3001,9 @@ function projCatTotals(cat, workTypeKey, catKey, entriesOverride){
   const sortedEntries = [...catEntriesSource(workTypeKey, catKey, cat, entriesOverride)].filter(e=>!e.deletedAt).sort((a,b)=> (a.date||'').localeCompare(b.date||'') || a.createdAt-b.createdAt);
   let running = 0;
   const rows = sortedEntries.map(e=>{
-    // Only the paid amount counts against the usable budget — VAT is excluded (see itemTotals).
-    running += (Number(e.amount)||0);
+    // Only the paid amount counts against the usable budget — VAT is excluded, except for entries
+    // flagged "เครดิตภาษีซื้อไม่ได้" (เบ็ดเตล็ด only), which fold their VAT in — see entryLedgerAmount.
+    running += entryLedgerAmount(e);
     return {...e, cumulative: running};
   });
   const totalPaid = running;
@@ -3006,7 +3041,7 @@ function projTotalsCheap(project){
 // Self-healing, same pattern as itemAggregateTotalPaid (budget mode) — see there for why.
 function catAggregateTotalPaid(cat){
   if(typeof cat.totalPaid === 'number') return cat.totalPaid;
-  return (cat.entries||[]).filter(e=>!e.deletedAt).reduce((s,e)=> s + (Number(e.amount)||0), 0);
+  return (cat.entries||[]).filter(e=>!e.deletedAt).reduce((s,e)=> s + entryLedgerAmount(e), 0);
 }
 function canDeleteProjectEntry(project, entry){
   if(canManageDept(project.deptKey)) return true;
@@ -3166,7 +3201,7 @@ function submitAddWorkType(){
   const p = getProject(state.activeProjectId);
   if(!p || !canManageDept(p.deptKey)){ alert('คุณไม่มีสิทธิ์เพิ่มประเภทงานนี้'); return; }
   const checked = [...document.querySelectorAll('#workTypeCheckList input:checked')].map(c=>c.value);
-  checked.forEach(key=>{ if(!p.departments[key]) p.departments[key] = newProjectWorkType(); });
+  checked.forEach(key=>{ if(!p.departments[key]) p.departments[key] = newProjectWorkType(key); });
   if(checked.length){ state.activeWorkTypeKey = checked[0]; state.activeProjectCatKey = null; }
   closeModal('addWorkTypeModal');
   saveProject(p); render();
@@ -3242,9 +3277,30 @@ function updateProjectAmount100(workTypeKey, catKey, value){
 function updateProjectCode(workTypeKey, catKey, value){
   const p = getProject(state.activeProjectId);
   if(!canManageDept(p.deptKey)){ alert('แก้ไขรหัสกิจกรรมได้เฉพาะผู้ดูแลแผนกหรือแอดมิน'); render(); return; }
-  const cat = p.departments[workTypeKey].budgets[catKey];
+  const workType = p.departments[workTypeKey];
+  const cat = workType.budgets[catKey];
   cat.code = value;
+  cascadeProjectCodes(workType, workTypeKey, catKey);
   saveProject(p); render();
+}
+// Auto-run: editing one category's code renumbers every category AFTER it in the same work type,
+// +PROJECT_CODE_STEP each, keeping the code's prefix/suffix and zero-padding — e.g. labor 0030 →
+// control 0040 → transport 0050 → misc 0060 (รื้อถอน has no transport, so it just runs on to misc).
+// A non-numeric code has nothing to count from, so it is left alone.
+function cascadeProjectCodes(workType, workTypeKey, fromCatKey){
+  const defs = projectCategoryDefsFor(workTypeKey);
+  const from = defs.findIndex(d=>d.key===fromCatKey);
+  if(from < 0) return;
+  const m = /^(\D*)(\d+)(\D*)$/.exec(String(workType.budgets[fromCatKey].code||'').trim());
+  if(!m) return;
+  const width = m[2].length;
+  let n = parseInt(m[2],10);
+  for(let i=from+1; i<defs.length; i++){
+    const next = workType.budgets[defs[i].key];
+    if(!next) continue;
+    n += PROJECT_CODE_STEP;
+    next.code = m[1] + String(n).padStart(width,'0') + m[3];
+  }
 }
 
 /* ============ WBS project mode: ledger entries ============ */
@@ -3272,6 +3328,10 @@ function addProjectEntry(workTypeKey, catKey){
     addedByPosition: state.user ? (state.user.position || '') : '',
     addedByCode: state.user ? (state.user.employeeCode || '') : '',
   };
+  if(projectCatHasVatCreditToggle(catKey)){
+    const vatEl = document.getElementById('projEntryVatCreditable');
+    entry.vatCreditable = vatEl ? !!vatEl.checked : true;
+  }
   if(projectEntriesActiveHere(p)){
     state.activeProjectEntries.push({...entry, workTypeKey, catKey});
   } else {
@@ -3615,6 +3675,7 @@ function subscribeActiveDeptData(){
     sweepExpiredTrash();
   });
   projectsUnsub = window.fb.subscribeProjects(state.activeDept, (projects)=>{
+    projects.forEach(normalizeProjectBudgets);
     state.projects = projects;
     const activeProj = projects.find(p=>p.id===state.activeProjectId);
     if(state.activeProjectId && (!activeProj || activeProj.deletedAt)){
@@ -4152,10 +4213,11 @@ function renderProjectMain(){
         </div>
         ${canManage ? `<button class="btn btn-danger-ghost btn-sm" onclick="removeWorkType('${workTypeKey}')">ลบประเภทงานนี้</button>` : ''}
       </div>`;
-      html += `<div class="cat-grid">`;
-      PROJECT_CATEGORY_DEFS.forEach(def=>{
-        const cat = workType.budgets[def.key];
-        html += renderProjectCatCard(workTypeKey, def.key, cat);
+      const catDefs = projectCategoryDefsFor(workTypeKey).filter(def=> workType.budgets[def.key]);
+      // 4 cards (ก่อสร้าง: with ค่าขนส่ง) sit in one row; 3 cards (รื้อถอน) keep the original 3 columns.
+      html += `<div class="cat-grid ${catDefs.length>=4 ? 'cols4' : ''}">`;
+      catDefs.forEach(def=>{
+        html += renderProjectCatCard(workTypeKey, def.key, workType.budgets[def.key]);
       });
       html += `</div>`;
     }
@@ -4242,11 +4304,13 @@ function renderProjectCatDetail(p, workTypeKey, wtName, networkNo, catKey, cat, 
           const rowRemaining = t.usable80 - r.cumulative;
           const canDelete = canDeleteProjectEntry(p, r);
           const checked = isProjectEntrySelected(p.id, workTypeKey, catKey, r.id);
-          const paidThisTime = (Number(r.amount)||0);
+          const paidThisTime = entryLedgerAmount(r);
+          const vatBadge = (projectCatHasVatCreditToggle(catKey) && r.vatCreditable === false)
+            ? `<div style="font-size:10.5px;color:var(--rust);margin-top:2px;">เครดิตภาษีซื้อไม่ได้ — รวมภาษีแล้ว</div>` : '';
           return `<tr>
             <td style="text-align:center;"><input type="checkbox" title="เลือกรวมพิมพ์ใบตัดงบ (เลือกข้ามแฟ้มงานได้)" ${checked?'checked':''} onchange="toggleProjectSlipSelection('${p.id}','${workTypeKey}','${catKey}','${r.id}')"></td>
             <td class="mono">${escapeHtml(r.date)}</td>
-            <td>${escapeHtml(r.desc)}${(r.addedByName || r.addedByEmail) ? `<div style="font-size:10.5px;color:var(--text-faint);margin-top:2px;">เพิ่มโดย ${escapeHtml(r.addedByName || r.addedByEmail)}</div>` : ''}</td>
+            <td>${escapeHtml(r.desc)}${(r.addedByName || r.addedByEmail) ? `<div style="font-size:10.5px;color:var(--text-faint);margin-top:2px;">เพิ่มโดย ${escapeHtml(r.addedByName || r.addedByEmail)}</div>` : ''}${vatBadge}</td>
             <td class="num">${fmt(paidThisTime)}</td>
             <td class="num">${fmt(r.cumulative)}</td>
             <td class="num ${rowRemaining<0?'neg':''}">${fmt(rowRemaining)}</td>
@@ -4309,8 +4373,16 @@ function renderProjectCatDetail(p, workTypeKey, wtName, networkNo, catKey, cat, 
       <div class="field desc"><label>รายการ</label><input type="text" id="projEntryDesc" placeholder="เช่น ค่าแรงคนงาน 1-15 ส.ค. 69" onkeydown="if(event.key==='Enter'){addProjectEntry('${workTypeKey}','${catKey}');}"></div>
       <div class="field amt"><label>จ่ายรอบนี้ (บาท)</label><input type="number" id="projEntryAmount" min="0" step="0.01" placeholder="0.00" onkeydown="if(event.key==='Enter'){addProjectEntry('${workTypeKey}','${catKey}');}"></div>
       <div class="field tax"><label>ภาษีมูลค่าเพิ่ม (ถ้ามี)</label><input type="number" id="projEntryTax" min="0" step="0.01" placeholder="0.00" onkeydown="if(event.key==='Enter'){addProjectEntry('${workTypeKey}','${catKey}');}"></div>
+      ${projectCatHasVatCreditToggle(catKey) ? `
+      <div class="field" style="display:flex;align-items:center;gap:6px;padding-top:20px;">
+        <label style="display:flex;align-items:center;gap:6px;font-weight:400;white-space:nowrap;">
+          <input type="checkbox" id="projEntryVatCreditable" checked style="width:auto;">
+          เครดิตภาษีซื้อได้
+        </label>
+      </div>` : ''}
       <button class="btn btn-primary" type="button" onclick="addProjectEntry('${workTypeKey}','${catKey}')">+ เพิ่มรายการ</button>
-    </div>`}
+    </div>
+    ${projectCatHasVatCreditToggle(catKey) ? `<div style="margin-top:-10px;margin-bottom:14px;font-size:11px;color:var(--text-faint);">ถ้าไม่ติ๊ก "เครดิตภาษีซื้อได้" ระบบจะเอาค่าภาษีมารวมในยอด "จ่ายรอบนี้/รวมจ่าย/คงเหลือ" (กลับด้านจากปกติ) — ค่าเริ่มต้นคือติ๊กไว้</div>` : ''}`}
 
     ${rowsHtml}
     ${buildEntryTrashSectionHtml(trashedEntriesOfCat(cat, workTypeKey, catKey), 'restoreProjectEntry', 'permanentlyDeleteProjectEntry', [workTypeKey, catKey])}
