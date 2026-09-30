@@ -1439,16 +1439,14 @@ const WORK_TYPES = [
   {key:'tr_construct', name:'แผนกก่อสร้างหม้อแปลง'},
   {key:'tr_demolish',  name:'แผนกรื้อถอนหม้อแปลง'},
 ];
-// Display order: ค่าแรง → ค่าควบคุมงาน → ค่าขนส่ง → เบ็ดเตล็ด. ค่าขนส่ง exists only on the "construct"
-// (ก่อสร้าง) work types — never on รื้อถอน (see onlyWorkTypes). Default account codes are NOT fixed
+// Display order: ค่าแรง → ค่าควบคุมงาน → ค่าขนส่ง → เบ็ดเตล็ด. ค่าขนส่ง exists on EVERY work type
+// (ก่อสร้าง and รื้อถอน). Default account codes are NOT fixed
 // per category: they run in sequence from PROJECT_CODE_START by PROJECT_CODE_STEP over whichever
-// categories a work type actually has (see projectCategoryDefsFor), e.g. construct: 0030/0040/0050/0060,
-// demolish: 0030/0040/0050.
-const TRANSPORT_WORK_TYPES = ['hv_construct','lv_construct','tr_construct'];
+// categories a work type actually has (see projectCategoryDefsFor), e.g. every work type: 0030/0040/0050/0060.
 const PROJECT_CATEGORY_DEFS = [
   {key:'labor',     label:'ค่าแรง'},
   {key:'control',   label:'ค่าควบคุมงาน'},
-  {key:'transport', label:'ค่าขนส่ง', onlyWorkTypes: TRANSPORT_WORK_TYPES},
+  {key:'transport', label:'ค่าขนส่ง'},
   {key:'misc',      label:'เบ็ดเตล็ด'},
 ];
 const PROJECT_CODE_START = 30, PROJECT_CODE_STEP = 10;
@@ -1456,7 +1454,6 @@ const USABLE_RATIO = 0.8;
 // Category defs that apply to one work type, in display order, each with its default running code.
 function projectCategoryDefsFor(workTypeKey){
   return PROJECT_CATEGORY_DEFS
-    .filter(d=> !d.onlyWorkTypes || d.onlyWorkTypes.includes(workTypeKey))
     .map((d,i)=> ({...d, code: String(PROJECT_CODE_START + i*PROJECT_CODE_STEP).padStart(4,'0')}));
 }
 function newProjectBudgetCat(def){
@@ -1467,13 +1464,13 @@ function newProjectWorkType(workTypeKey){
   projectCategoryDefsFor(workTypeKey).forEach(d=> budgets[d.key] = newProjectBudgetCat(d));
   return {networkNo:'', budgets};
 }
-// Project files saved before ค่าขนส่ง existed have no 'transport' category on their construct work
+// Project files saved before ค่าขนส่ง existed have no 'transport' category on their work
 // types. Add it in memory (budget 0, BLANK account code — existing codes are deliberately left
 // untouched, an admin fills it in) so every screen sees a complete category list. Idempotent; it is
 // persisted the next time the project is saved or an entry is added to it (see addProjectEntryTx).
 function normalizeProjectBudgets(p){
   Object.entries(p.departments || {}).forEach(([workTypeKey, wt])=>{
-    if(!wt || !wt.budgets || !TRANSPORT_WORK_TYPES.includes(workTypeKey) || wt.budgets.transport) return;
+    if(!wt || !wt.budgets || wt.budgets.transport) return;
     wt.budgets.transport = {label:'ค่าขนส่ง', code:'', amount100:0, entries:[]};
   });
   return p;
