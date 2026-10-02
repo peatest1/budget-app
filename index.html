@@ -2408,7 +2408,9 @@ function trLetterCss(){
   .tr-letter .approve{width:62%;margin-top:18px;break-inside:avoid;}
   .tr-letter .approve .distro{padding-left:12px;white-space:pre-line;}
   .tr-letter .approve .c{text-align:center;}
-  .tr-letter .sign .gap,.tr-letter .approve .gap{height:56px;}`;
+  .tr-letter .sign .gap{height:56px;}
+  /* the manager signs here — two extra lines of room on top of the signer's own gap */
+  .tr-letter .approve .gap{height:104px;}`;
 }
 function trRows(d){
   return TR_ORDER.filter(k=> (d[k] && ((d[k].approved||0) !== 0 || (d[k].actual||0) !== 0)));
