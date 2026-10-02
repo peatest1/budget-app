@@ -2314,7 +2314,8 @@ function trLabel(k){ return TR_CATS[k] || k; }
 function trOffice(){ return 'กฟส.' + ((state.orgSettings.officeName||'').trim() || 'เบตง'); }
 // ผปบ. → หผ.ปบ. , ผกส. → หผ.กส. — the section head the letter is routed through.
 function trDeptHead(deptKey){ const d = deptByKey(deptKey); return d ? 'หผ.'+String(d.abbr).replace(/^ผ/,'') : 'หผ.'; }
-function trParse(s){ return Math.round((parseFloat(String(s).replace(/,/g,''))||0)*100); }
+// money everywhere in this app is plain baht (see cat.amount100), so keep baht with 2 decimals
+function trParse(s){ return Math.round((parseFloat(String(s).replace(/,/g,''))||0)*100)/100; }
 function trThaiDate(iso){ const p = thaiDateParts(iso); return p.day ? (p.day+' '+p.month+' '+p.year) : ''; }
 
 // The four WBS categories, pooled over every work type in the file. 80% is the usable budget
@@ -2329,7 +2330,7 @@ function trAmountsFromProject(p){
       out[catKey].approved += t.usable80; out[catKey].actual += t.totalPaid;
     });
   });
-  TR_ORDER.forEach(k=>{ out[k].approved = Math.round(out[k].approved); out[k].actual = Math.round(out[k].actual); });
+  TR_ORDER.forEach(k=>{ out[k].approved = Math.round(out[k].approved*100)/100; out[k].actual = Math.round(out[k].actual*100)/100; });
   return out;
 }
 function trNegCount(p){
@@ -2340,21 +2341,25 @@ function trNegCount(p){
 // much as it is short, from the categories that still have budget (also in TR_ORDER). What a
 // category cannot be given (because the file as a whole is short) comes back as `short`.
 function trCompute(d){
+  // Baht values are floats, so every result is snapped back to satang precision — otherwise a
+  // 0.000000001 left over from subtraction would show up as a phantom 0.00 transfer line.
+  const R = n => Math.round(n*100)/100;
   const rem={}, left={}, give={}, recv={}, short={}, plan=[];
   TR_ORDER.forEach(k=>{ const c = d[k] || {approved:0, actual:0};
-    rem[k] = (c.approved||0) - (c.actual||0); left[k] = Math.max(rem[k],0); give[k]=0; recv[k]=0; short[k]=0; });
+    rem[k] = R((c.approved||0) - (c.actual||0)); left[k] = Math.max(rem[k],0); give[k]=0; recv[k]=0; short[k]=0; });
   TR_ORDER.forEach(to=>{
     if(rem[to] >= 0) return;
     let need = -rem[to];
     TR_ORDER.forEach(from=>{
       if(need<=0 || from===to || left[from]<=0) return;
-      const take = Math.min(need, left[from]);
-      left[from]-=take; give[from]+=take; recv[to]+=take; need-=take;
+      const take = R(Math.min(need, left[from]));
+      if(take <= 0) return;
+      left[from]=R(left[from]-take); give[from]=R(give[from]+take); recv[to]=R(recv[to]+take); need=R(need-take);
       plan.push({from, to, amount:take});
     });
-    short[to] = need;
+    short[to] = R(need);
   });
-  const after={}; TR_ORDER.forEach(k=> after[k] = rem[k] - give[k] + recv[k]);
+  const after={}; TR_ORDER.forEach(k=> after[k] = R(rem[k] - give[k] + recv[k]));
   return {rem, give, recv, short, after, plan};
 }
 
@@ -2405,19 +2410,23 @@ function trLetterCss(){
   .tr-letter .approve .c{text-align:center;}
   .tr-letter .sign .gap,.tr-letter .approve .gap{height:56px;}`;
 }
+function trRows(d){
+  return TR_ORDER.filter(k=> (d[k] && ((d[k].approved||0) !== 0 || (d[k].actual||0) !== 0)));
+}
 function trLetterHtml(t){
   const d = t.amounts, r = trCompute(d), L = t.letter;
-  const showMat = (d[TR_EXTRA_KEY].approved||0) !== 0 || (d[TR_EXTRA_KEY].actual||0) !== 0;
+  // A category with no budget and nothing spent (ค่าขนส่ง on an older file, ค่าพัสดุเข้างาน left at 0)
+  // is left off the letter entirely — it can never be part of a transfer anyway.
   // Short categories are listed first so whoever signs sees the problem straight away.
-  const rows = TR_ORDER.filter(k=> k !== TR_EXTRA_KEY || showMat).sort((a,b)=> (r.rem[a]<0?0:1)-(r.rem[b]<0?0:1));
-  const cell = (n, dashWhenZero) => n===0 ? (dashWhenZero?'-':'') : `<span class="${n<0?'neg':''}">${n<0?'-':''}${fmt(Math.abs(n)/100)}</span>`;
+  const rows = trRows(d).sort((a,b)=> (r.rem[a]<0?0:1)-(r.rem[b]<0?0:1));
+  const cell = (n, dashWhenZero) => n===0 ? (dashWhenZero?'-':'') : `<span class="${n<0?'neg':''}">${n<0?'-':''}${fmt(Math.abs(n))}</span>`;
   let tA=0,tU=0,tG=0,tR=0,tAfter=0;
   const body = rows.map(k=>{
     tA+=d[k].approved; tU+=d[k].actual; tG+=r.give[k]; tR+=r.recv[k]; tAfter+=r.after[k];
-    return `<tr><td>${escapeHtml(trLabel(k))}</td><td>${fmt(d[k].approved/100)}</td>
-      <td>${d[k].actual ? fmt(d[k].actual/100) : '-'}</td><td>${cell(r.rem[k], false)}</td>
-      <td>${r.give[k] ? fmt(r.give[k]/100) : (k===TR_EXTRA_KEY ? '' : '-')}</td>
-      <td>${r.recv[k] ? fmt(r.recv[k]/100) : ''}</td><td>${cell(r.after[k], false)}</td></tr>`;
+    return `<tr><td>${escapeHtml(trLabel(k))}</td><td>${fmt(d[k].approved)}</td>
+      <td>${d[k].actual ? fmt(d[k].actual) : '-'}</td><td>${cell(r.rem[k], false)}</td>
+      <td>${r.give[k] ? fmt(r.give[k]) : (k===TR_EXTRA_KEY ? '' : '-')}</td>
+      <td>${r.recv[k] ? fmt(r.recv[k]) : ''}</td><td>${cell(r.after[k], false)}</td></tr>`;
   }).join('');
   return `
     <div class="lh"><img src="${TR_LOGO}" alt="การไฟฟ้าส่วนภูมิภาค"></div>
@@ -2435,8 +2444,8 @@ function trLetterHtml(t){
         <tr class="hd"><th>รายการ</th><th>อนุมัติ<br>(80 %)</th><th>ค่าใช้จ่ายจริง<br>(บาท)</th><th>คงเหลือ<br>(บาท)</th><th>โอนระหว่าง<br>กิจกรรม</th><th>รับโอนระหว่าง<br>กิจกรรม</th><th>คงเหลือ<br>(บาท)</th></tr>
       </thead>
       <tbody>${body}
-        <tr class="total"><td>รวม</td><td>${fmt(tA/100)}</td><td>${fmt(tU/100)}</td><td></td>
-        <td>${fmt(tG/100)}</td><td>${fmt(tR/100)}</td><td>${fmt(tAfter/100)}</td></tr>
+        <tr class="total"><td>รวม</td><td>${fmt(tA)}</td><td>${fmt(tU)}</td><td></td>
+        <td>${fmt(tG)}</td><td>${fmt(tR)}</td><td>${fmt(tAfter)}</td></tr>
       </tbody>
     </table>
     <p class="body">${escapeHtml(L.body)}</p>
@@ -2589,7 +2598,7 @@ function trListHtml(p){
         <div class="no">เลขที่ ${escapeHtml(t.letter && t.letter.no ? t.letter.no : '(ยังไม่ระบุเลขที่)')}</div>
         <div class="meta">ลงวันที่ ${escapeHtml(trThaiDate(t.letter ? t.letter.date : '') || '-')} · แก้ไขล่าสุดโดย ${escapeHtml(t.createdByName||'')}</div>
       </div>
-      <div class="amt">โอนรวม ${fmt(total/100)}</div>
+      <div class="amt">โอนรวม ${fmt(total)}</div>
       <div style="display:flex;gap:6px;">
         <button class="btn btn-outline btn-sm" onclick="trOpen('${t.id}')">เปิด / แก้ไข</button>
         <button class="btn btn-outline btn-sm" onclick="trOpen('${t.id}', true)">🖨 พิมพ์</button>
@@ -2613,8 +2622,8 @@ function trEditorHtml(p){
   const amountRows = TR_ORDER.map(k=>{
     const ro = k !== TR_EXTRA_KEY;
     return `<tr><td>${trLabel(k)}${ro?'':'<span class="tr-tag">กรอกเอง</span>'}</td>
-      <td><input value="${fmt(t.amounts[k].approved/100)}" ${ro?'readonly tabindex="-1"':`onchange="trMaterial('approved', this.value)"`}></td>
-      <td><input value="${fmt(t.amounts[k].actual/100)}" ${ro?'readonly tabindex="-1"':`onchange="trMaterial('actual', this.value)"`}></td></tr>`;
+      <td><input value="${fmt(t.amounts[k].approved)}" ${ro?'readonly tabindex="-1"':`onchange="trMaterial('approved', this.value)"`}></td>
+      <td><input value="${fmt(t.amounts[k].actual)}" ${ro?'readonly tabindex="-1"':`onchange="trMaterial('actual', this.value)"`}></td></tr>`;
   }).join('');
   return `<div class="tr-head">
       <button class="btn btn-outline btn-sm" onclick="state.trCur=null;trRender()">← กลับ</button>
@@ -2680,19 +2689,18 @@ function trRenderPreview(){
     wrap.style.height = (sheet.offsetHeight * k) + 'px';
   }
   const r = trCompute(t.amounts);
-  const showMat = t.amounts[TR_EXTRA_KEY].approved !== 0 || t.amounts[TR_EXTRA_KEY].actual !== 0;
-  const keys = TR_ORDER.filter(k=> k !== TR_EXTRA_KEY || showMat);
+  const keys = trRows(t.amounts);
   const neg = keys.filter(k=> r.rem[k] < 0), shortfall = keys.filter(k=> r.short[k] > 0);
   const alert = document.getElementById('trAlert');
   if(alert){
     if(!neg.length) alert.innerHTML = '<div class="tr-alert ok">✓ ไม่มีหมวดไหนติดลบ — ไม่ต้องขอโอนงบ</div>';
-    else if(shortfall.length) alert.innerHTML = `<div class="tr-alert warn">⚠ งบรวมไม่พอ — ${shortfall.map(trLabel).join(', ')} ยังขาดอีก ${fmt(shortfall.reduce((s,k)=>s+r.short[k],0)/100)} บาท แม้โอนจากทุกหมวดแล้ว (ต้องขอเพิ่มงบ ไม่ใช่แค่โอน)</div>`;
+    else if(shortfall.length) alert.innerHTML = `<div class="tr-alert warn">⚠ งบรวมไม่พอ — ${shortfall.map(trLabel).join(', ')} ยังขาดอีก ${fmt(shortfall.reduce((s,k)=>s+r.short[k],0))} บาท แม้โอนจากทุกหมวดแล้ว (ต้องขอเพิ่มงบ ไม่ใช่แค่โอน)</div>`;
     else alert.innerHTML = `<div class="tr-alert warn">พบหมวดงบติดลบ ${neg.length} หมวด (${neg.map(trLabel).join(', ')}) — ระบบจัดแผนโอนจากหมวดที่เหลือให้แล้ว</div>`;
   }
   const plan = document.getElementById('trPlan');
   if(plan){
     plan.innerHTML = r.plan.length
-      ? r.plan.map(x=>`<li><span class="from">${escapeHtml(trLabel(x.from))}</span><span>→</span><span class="to">${escapeHtml(trLabel(x.to))}</span><span class="amt">${fmt(x.amount/100)}</span></li>`).join('')
+      ? r.plan.map(x=>`<li><span class="from">${escapeHtml(trLabel(x.from))}</span><span>→</span><span class="to">${escapeHtml(trLabel(x.to))}</span><span class="amt">${fmt(x.amount)}</span></li>`).join('')
       : '<li style="color:var(--text-faint)">ไม่มีรายการโอน</li>';
   }
 }
