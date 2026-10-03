@@ -204,10 +204,20 @@ body{
   height:100vh;
   overflow-y:auto;
   overflow-x:hidden;
+  /* จองที่ว่างสำหรับสกรอลบาร์ไว้เสมอ ไม่ว่าจะมีสกรอลหรือไม่ — ไม่งั้นบน Windows ที่สกรอลบาร์เป็นแบบ
+     กินพื้นที่จริง (ไม่ลอยทับ) พอสลับไปโหมดที่รายการยาวจนล้น สกรอลบาร์จะโผล่มาเบียดความกว้าง 280px
+     ทำให้ปุ่มและการ์ดทุกใบในแถบข้างแคบลงกะทันหัน เห็นชัดว่า "แถบข้างเล็กลง" ตอนสลับโหมด */
+  scrollbar-gutter:stable;
   display:flex;
   flex-direction:column;
   gap:16px;
 }
+/* สกรอลบาร์บางๆ กลืนกับพื้นหลังเข้ม แทนแถบเทาหนาของระบบ */
+.sidebar::-webkit-scrollbar{width:8px;}
+.sidebar::-webkit-scrollbar-track{background:transparent;}
+.sidebar::-webkit-scrollbar-thumb{background:rgba(255,255,255,.14);border-radius:99px;}
+.sidebar::-webkit-scrollbar-thumb:hover{background:rgba(255,255,255,.26);}
+.sidebar{scrollbar-width:thin;scrollbar-color:rgba(255,255,255,.18) transparent;}
 .sidebar::before,.sidebar::after{
   content:"";position:absolute;border-radius:50%;filter:blur(6px);pointer-events:none;z-index:0;
 }
@@ -323,7 +333,11 @@ body{
 #budgetModeSection, #warehouseModeSection{display:flex;flex-direction:column;gap:14px;}
 
 .list-eyebrow{color:#7C8A90;margin-bottom:8px;display:flex;justify-content:space-between;align-items:center;}
-.cc-list{display:flex;flex-direction:column;gap:6px;overflow-y:auto;flex:1;}
+/* รายการในแถบข้างก็เลื่อนได้เอง จึงต้องจองที่สกรอลบาร์ไว้เหมือนกัน ด้วยเหตุผลเดียวกับ .sidebar */
+.cc-list{display:flex;flex-direction:column;gap:6px;overflow-y:auto;flex:1;scrollbar-gutter:stable;scrollbar-width:thin;scrollbar-color:rgba(255,255,255,.18) transparent;}
+.cc-list::-webkit-scrollbar{width:8px;}
+.cc-list::-webkit-scrollbar-track{background:transparent;}
+.cc-list::-webkit-scrollbar-thumb{background:rgba(255,255,255,.14);border-radius:99px;}
 .cc-item{
   position:relative;
   padding:10px 12px 10px 16px;
