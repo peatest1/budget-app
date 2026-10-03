@@ -295,21 +295,32 @@ body{
 .mode-switch button.active{background:var(--amber);color:var(--ink);}
 .mode-switch button:not(.active):hover{background:rgba(255,255,255,.08);color:#DCE3E6;}
 
+/* ปีงบประมาณเป็น "หัวแถบ" ไม่ใช่ช่องกรอก: ปีเป็นตัวกำหนดว่าทั้งหน้าจะเห็นข้อมูลชุดไหน จึงวางเป็น
+   หัวข้อ แล้วเว้นเส้นคั่นก่อนปุ่มสร้างใหม่ เดิมช่องปีมีพื้นส้มอ่อน+ขอบส้มและวางติดปุ่มสีส้มเต็มทันที
+   เลยกลืนเป็นก้อนส้มก้อนเดียวจนแยกไม่ออกว่าอันไหนกดได้ — ตอนนี้สีส้มเหลือที่ปุ่มชิ้นเดียว */
 .year-picker{
-  display:flex;align-items:center;gap:8px;
-  background:rgba(232,163,61,.1);border:1px solid rgba(232,163,61,.3);
-  border-radius:8px;padding:9px 11px;
+  border-bottom:1px solid rgba(255,255,255,.1);
+  padding-bottom:10px;
 }
+.year-picker .yp-label{
+  font-family:'Space Grotesk',sans-serif;font-size:10px;letter-spacing:.1em;text-transform:uppercase;
+  color:#7C8A90;font-weight:700;margin-bottom:5px;
+}
+.year-picker .yp-ctl{display:flex;align-items:center;gap:8px;}
 .year-picker select{
-  flex:1;background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.2);
-  color:#F5E4C2;font-family:'JetBrains Mono';font-size:13px;font-weight:700;
-  padding:6px 8px;border-radius:6px;
+  flex:1;min-width:0;background:none;border:none;
+  color:#F5E4C2;font-family:'Space Grotesk',sans-serif;font-size:18px;font-weight:800;
+  padding:0;cursor:pointer;letter-spacing:.01em;
 }
-.year-picker select option{color:#1C2B33;}
+.year-picker select option{color:#1C2B33;font-size:13px;}
 .year-picker button{
-  background:none;border:none;color:var(--amber);font-size:16px;font-weight:700;cursor:pointer;
-  width:26px;height:26px;flex-shrink:0;
+  background:rgba(255,255,255,.07);border:none;color:#B7C2C6;
+  font-size:15px;font-weight:700;line-height:1;cursor:pointer;
+  width:28px;height:28px;border-radius:7px;flex-shrink:0;transition:background .12s, color .12s;
 }
+.year-picker button:hover{background:rgba(232,163,61,.22);color:var(--amber);}
+/* ของในแต่ละโหมดเคยวางติดกันสนิทเพราะ section ไม่มี gap ของตัวเอง */
+#budgetModeSection, #warehouseModeSection{display:flex;flex-direction:column;gap:14px;}
 
 .list-eyebrow{color:#7C8A90;margin-bottom:8px;display:flex;justify-content:space-between;align-items:center;}
 .cc-list{display:flex;flex-direction:column;gap:6px;overflow-y:auto;flex:1;}
@@ -755,6 +766,39 @@ table.ledger .del-x:hover{color:var(--rust);}
 .tr-item .meta{font-size:12px;color:var(--text-muted);margin-top:2px;}
 .tr-item .amt{font-family:'JetBrains Mono';font-weight:700;color:var(--amber-dark);white-space:nowrap;}
 .tr-empty{text-align:center;color:var(--text-faint);padding:34px 0;font-size:13px;}
+
+/* ===== คลังพัสดุ: การ์ดสรุปงบซื้อของ (รวมตัวเลขทั้งหมด + เกจ + แถบ ไว้ในใบเดียว) ===== */
+.wh-hero{
+  display:flex;align-items:center;gap:28px;flex-wrap:wrap;
+  background:linear-gradient(150deg, rgba(255,255,255,.97), rgba(247,250,249,.9));
+  border:1px solid var(--border-soft);border-radius:14px;padding:20px 24px;margin-bottom:22px;
+  box-shadow:0 10px 26px -14px rgba(22,33,43,.18), 0 1px 2px rgba(22,33,43,.04);
+}
+.wh-hero-gauge{width:96px;height:96px;border-radius:50%;flex-shrink:0;display:flex;align-items:center;justify-content:center;}
+.wh-hero-gauge-inner{
+  width:74px;height:74px;border-radius:50%;background:var(--card);
+  display:flex;flex-direction:column;align-items:center;justify-content:center;gap:1px;
+  box-shadow:inset 0 1px 3px rgba(22,33,43,.06);
+}
+.wh-hero-pct{font-family:'Space Grotesk';font-size:20px;font-weight:800;}
+.wh-hero-lab{font-size:9px;color:var(--text-faint);}
+.wh-hero-body{flex:1;min-width:300px;}
+.wh-hero-nums{display:flex;gap:34px;flex-wrap:wrap;margin-bottom:12px;}
+.wh-hero-num .l{font-size:11.5px;color:var(--text-muted);margin-bottom:3px;}
+.wh-hero-num .v{font-family:'JetBrains Mono';font-size:20px;font-weight:700;line-height:1;}
+.wh-hero-num .v.pos{color:var(--teal);}
+.wh-hero-num .v.neg{color:var(--rust);}
+.wh-hero-num.sep{border-left:1px solid var(--border-soft);padding-left:34px;}
+.wh-hero-track{height:8px;border-radius:99px;background:var(--border-soft);overflow:hidden;}
+.wh-hero-fill{height:100%;border-radius:99px;background:linear-gradient(90deg,var(--teal),#47A594);}
+.wh-hero-fill.warn{background:linear-gradient(90deg,var(--amber-dark),var(--amber));}
+.wh-hero-fill.over{background:linear-gradient(90deg,#9E3522,var(--rust));}
+.wh-hero-foot{display:flex;justify-content:space-between;gap:12px;font-size:11px;color:var(--text-faint);margin-top:7px;flex-wrap:wrap;}
+@media (max-width:620px){
+  .wh-hero{gap:18px;padding:16px;}
+  .wh-hero-nums{gap:18px;}
+  .wh-hero-num.sep{border-left:0;padding-left:0;}
+}
 </style>
 </head>
 <body>
@@ -842,8 +886,11 @@ table.ledger .del-x:hover{color:var(--rust);}
 
     <div id="budgetModeSection">
       <div class="year-picker">
-        <select id="yearSelect" onchange="onYearChange(this.value)"></select>
-        <button title="เพิ่มปีงบประมาณใหม่" onclick="promptAddYear()">+</button>
+        <div class="yp-label">ปีงบประมาณ</div>
+        <div class="yp-ctl">
+          <select id="yearSelect" onchange="onYearChange(this.value)"></select>
+          <button title="เพิ่มปีงบประมาณใหม่" onclick="promptAddYear()">+</button>
+        </div>
       </div>
 
       <button class="btn btn-primary btn-block" id="newCcBtn" onclick="openNewCcModal()">+ ศูนย์ต้นทุนใหม่</button>
@@ -863,8 +910,11 @@ table.ledger .del-x:hover{color:var(--rust);}
 
     <div id="warehouseModeSection" class="hidden">
       <div class="year-picker">
-        <select id="whYearSelect" onchange="onYearChange(this.value)"></select>
-        <button title="เพิ่มปีงบประมาณใหม่" onclick="promptAddYear()">+</button>
+        <div class="yp-label">ปีงบประมาณ</div>
+        <div class="yp-ctl">
+          <select id="whYearSelect" onchange="onYearChange(this.value)"></select>
+          <button title="เพิ่มปีงบประมาณใหม่" onclick="promptAddYear()">+</button>
+        </div>
       </div>
       <button class="btn btn-primary btn-block" id="newWhFileBtn" onclick="openNewWhFileModal()">+ แฟ้มงบซื้อของใหม่</button>
       <div>
@@ -4619,7 +4669,8 @@ function renderDeptWrap(){
 function renderYearPicker(){
   // Budget mode and the warehouse's งบซื้อของ mode each have their own <select> in the sidebar but
   // share one state.activeYear, so both are filled from the same list whichever mode is showing.
-  const opts = state.years.map(y=>`<option value="${y}" ${y===state.activeYear?'selected':''}>ปีงบประมาณ ${y}</option>`).join('');
+  // คำว่า "ปีงบประมาณ" ย้ายไปอยู่ป้ายเหนือช่องแล้ว ตัวเลือกจึงเหลือแค่เลขปี
+  const opts = state.years.map(y=>`<option value="${y}" ${y===state.activeYear?'selected':''}>${y}</option>`).join('');
   const sel = document.getElementById('yearSelect');
   if(sel) sel.innerHTML = opts;
   const whSel = document.getElementById('whYearSelect');
@@ -5046,6 +5097,7 @@ function renderWhMain(){
 
   const t = whTotals(f);
   const pct = t.budget>0 ? (t.totalPaid/t.budget*100) : 0;
+  const barWidth = Math.min(pct,100);
   const gClass = gaugeClass(pct);
   const gaugeColorVar = gClass==='over' ? 'var(--rust)' : (gClass==='warn' ? 'var(--amber)' : 'var(--teal)');
   const rows = whRows(f);
@@ -5110,22 +5162,24 @@ function renderWhMain(){
 
     ${f.closed ? `<div class="closed-banner">🔒 แฟ้มงบซื้อของนี้ปิดงานแล้ว - ไม่สามารถเพิ่มรายการซื้อได้</div>` : ''}
 
-    <div class="stat-strip">
-      <div class="stat-box"><div class="label">งบที่ได้รับอนุมัติ (100%)</div><div class="value">${fmt(t.budget)}</div></div>
-      <div class="stat-box"><div class="label">ซื้อไปแล้ว</div><div class="value">${fmt(t.totalPaid)}</div></div>
-      <div class="stat-box remain"><div class="label">คงเหลือ</div><div class="value ${t.remaining<0?'neg':'pos'}">${fmt(t.remaining)}</div></div>
-    </div>
-
-    <div class="summary-card" style="margin-bottom:18px;">
-      <div class="radial-gauge" style="background:conic-gradient(${gaugeColorVar} 0% ${Math.min(pct,100)}%, var(--border-soft) ${Math.min(pct,100)}% 100%);">
-        <div class="radial-gauge-inner">
-          <span class="radial-gauge-pct">${Math.round(pct)}%</span>
-          <span class="radial-gauge-label">ใช้ไปแล้ว</span>
+    <div class="wh-hero">
+      <div class="wh-hero-gauge" style="background:conic-gradient(${gaugeColorVar} 0% ${barWidth}%, var(--border-soft) ${barWidth}% 100%);">
+        <div class="wh-hero-gauge-inner">
+          <span class="wh-hero-pct" style="color:${gaugeColorVar};">${Math.round(pct)}%</span>
+          <span class="wh-hero-lab">ใช้ไปแล้ว</span>
         </div>
       </div>
-      <div class="detail-summary-row">
-        <div class="summary-item"><div class="label">จำนวนรายการซื้อ</div><div class="val">${rows.length}</div></div>
-        <div class="summary-item"><div class="label">คงเหลือ</div><div class="val ${t.remaining<0?'neg':'pos'}">${fmt(t.remaining)}</div></div>
+      <div class="wh-hero-body">
+        <div class="wh-hero-nums">
+          <div class="wh-hero-num"><div class="l">งบที่ได้รับอนุมัติ (100%)</div><div class="v">${fmt(t.budget)}</div></div>
+          <div class="wh-hero-num sep"><div class="l">ซื้อไปแล้ว</div><div class="v">${fmt(t.totalPaid)}</div></div>
+          <div class="wh-hero-num sep"><div class="l">คงเหลือ</div><div class="v ${t.remaining<0?'neg':'pos'}">${fmt(t.remaining)}</div></div>
+        </div>
+        <div class="wh-hero-track"><div class="wh-hero-fill ${gClass==='ok'?'':gClass}" style="width:${barWidth}%"></div></div>
+        <div class="wh-hero-foot">
+          <span>รายการซื้อ ${rows.length} รายการ</span>
+          <span>ปีงบประมาณ ${f.year}</span>
+        </div>
       </div>
     </div>
 
