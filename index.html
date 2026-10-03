@@ -860,6 +860,18 @@ table.ledger .del-x:hover{color:var(--rust);}
         <div class="cc-list" id="projectList"></div>
       </div>
     </div>
+
+    <div id="warehouseModeSection" class="hidden">
+      <div class="year-picker">
+        <select id="whYearSelect" onchange="onYearChange(this.value)"></select>
+        <button title="เพิ่มปีงบประมาณใหม่" onclick="promptAddYear()">+</button>
+      </div>
+      <button class="btn btn-primary btn-block" id="newWhFileBtn" onclick="openNewWhFileModal()">+ แฟ้มงบซื้อของใหม่</button>
+      <div>
+        <div class="eyebrow list-eyebrow"><span>แฟ้มงบซื้อของ (WBS)</span></div>
+        <div class="cc-list" id="whFileList"></div>
+      </div>
+    </div>
   </aside>
 
   <main class="main" id="main"></main>
@@ -956,6 +968,30 @@ table.ledger .del-x:hover{color:var(--rust);}
     <div class="modal-actions">
       <button class="btn btn-outline" onclick="closeModal('newProjectModal')">ยกเลิก</button>
       <button class="btn btn-primary" onclick="submitNewProject()">สร้างแฟ้มงาน</button>
+    </div>
+  </div>
+</div>
+
+<!-- คลังพัสดุ: new / edit งบซื้อของ file modal (one modal serves both; see openNewWhFileModal) -->
+<div class="modal-overlay hidden" id="whFileModal">
+  <div class="modal">
+    <h2 id="whFileModalTitle">สร้างแฟ้มงบซื้อของใหม่</h2>
+    <p class="modal-desc" id="whFileModalDesc"></p>
+    <div class="field">
+      <label>หมายเลขงาน (WBS)</label>
+      <input type="text" id="whfWbs" placeholder="เช่น M-69-L-BETONG.WH.0012">
+    </div>
+    <div class="field">
+      <label>ชื่องาน/รายละเอียด</label>
+      <input type="text" id="whfName" placeholder="เช่น จัดซื้อลูกถ้วยและอุปกรณ์สายส่ง">
+    </div>
+    <div class="field">
+      <label>งบประมาณที่ได้รับอนุมัติ (บาท)</label>
+      <input type="number" id="whfBudget" min="0" step="0.01" placeholder="0.00">
+    </div>
+    <div class="modal-actions">
+      <button class="btn btn-outline" onclick="closeModal('whFileModal')">ยกเลิก</button>
+      <button class="btn btn-primary" id="whFileModalSubmit" onclick="submitWhFile(null)">บันทึก</button>
     </div>
   </div>
 </div>
@@ -1401,6 +1437,68 @@ table.ledger .del-x:hover{color:var(--rust);}
       (await getDocs(collection(db, 'constructionProjects', projId, 'transfers'))).docs.map(d => d.data()),
     saveTransfer: (projId, t) => setDoc(doc(db, 'constructionProjects', projId, 'transfers', t.id), t),
     deleteTransfer: (projId, id) => deleteDoc(doc(db, 'constructionProjects', projId, 'transfers', id)),
+    /* ---- คลังพัสดุ: งบซื้อของตามหมายเลข WBS — warehouseFiles/{fileId} ----
+       Deliberately much simpler than constructionProjects: ONE budget pot per WBS file (no work
+       types, no categories), 100% of the approved budget usable (no 80% haircut), and purchase
+       lines carry no VAT split. The running aggregate therefore lives on the file document itself
+       (totalPaid/entryCount) rather than per-category, but the transaction shape is identical to
+       addProjectEntryTx so concurrent adds from two people can never clobber each other. */
+    subscribeWarehouseFiles: (deptKey, cb) => {
+      const q = query(collection(db, 'warehouseFiles'), where('deptKey', '==', deptKey));
+      return onSnapshot(q, (snap) => cb(snap.docs.map(d => d.data())), (err) => {
+        console.error('subscribeWarehouseFiles error', err);
+      });
+    },
+    getAllWarehouseFilesOnce: async () => {
+      const snap = await getDocs(collection(db, 'warehouseFiles'));
+      return snap.docs.map(d => d.data());
+    },
+    saveWarehouseFile: (f) => setDoc(doc(db, 'warehouseFiles', f.id), f),
+    subscribeWarehouseEntries: (fileId, cb) => {
+      return onSnapshot(collection(db, 'warehouseFiles', fileId, 'entries'), (snap) => cb(snap.docs.map(d => d.data())), (err) => {
+        console.error('subscribeWarehouseEntries error', err);
+      });
+    },
+    getWarehouseEntriesOnce: async (fileId) =>
+      (await getDocs(collection(db, 'warehouseFiles', fileId, 'entries'))).docs.map(d => d.data()),
+    addWarehouseEntryTx: (fileId, entry) => runTransaction(db, async (tx) => {
+      const ref = doc(db, 'warehouseFiles', fileId);
+      const snap = await tx.get(ref);
+      if(!snap.exists()) throw new Error('ไม่พบแฟ้มงบซื้อของนี้ในระบบ (อาจถูกลบไปแล้วโดยผู้อื่น)');
+      const data = snap.data();
+      const baseTotalPaid = typeof data.totalPaid === 'number' ? data.totalPaid : 0;
+      const baseEntryCount = typeof data.entryCount === 'number' ? data.entryCount : 0;
+      tx.set(ref, {...data, totalPaid: baseTotalPaid + (Number(entry.amount)||0), entryCount: baseEntryCount + 1});
+      tx.set(doc(db, 'warehouseFiles', fileId, 'entries', entry.id), entry);
+    }),
+    // Purchase lines are removed outright (no trash tier) — the ปิดงาน stamp is what freezes a
+    // finished file, and every delete is confirmed in the UI first.
+    deleteWarehouseEntryTx: (fileId, entryId) => runTransaction(db, async (tx) => {
+      const ref = doc(db, 'warehouseFiles', fileId);
+      const entryRef = doc(db, 'warehouseFiles', fileId, 'entries', entryId);
+      const [snap, entrySnap] = await Promise.all([tx.get(ref), tx.get(entryRef)]);
+      if(!snap.exists()) throw new Error('ไม่พบแฟ้มงบซื้อของนี้ในระบบ (อาจถูกลบไปแล้วโดยผู้อื่น)');
+      if(!entrySnap.exists()) return;
+      const data = snap.data();
+      const entryData = entrySnap.data();
+      const baseTotalPaid = typeof data.totalPaid === 'number' ? data.totalPaid : 0;
+      const baseEntryCount = typeof data.entryCount === 'number' ? data.entryCount : 0;
+      tx.set(ref, {...data, totalPaid: baseTotalPaid - (Number(entryData.amount)||0), entryCount: Math.max(0, baseEntryCount - 1)});
+      tx.delete(entryRef);
+    }),
+    softDeleteWarehouseFile: (id, who) => setDoc(doc(db, 'warehouseFiles', id),
+      {deletedAt: Date.now(), deletedByUid: (who && who.uid) || null, deletedByName: (who && who.name) || null}, {merge: true}),
+    restoreWarehouseFile: (id) => setDoc(doc(db, 'warehouseFiles', id),
+      {deletedAt: null, deletedByUid: null, deletedByName: null}, {merge: true}),
+    deleteWarehouseFileDoc: (id) => deleteDoc(doc(db, 'warehouseFiles', id)),
+    deleteAllWarehouseEntries: async (fileId) => {
+      const snap = await getDocs(collection(db, 'warehouseFiles', fileId, 'entries'));
+      if(snap.empty) return 0;
+      const batch = writeBatch(db);
+      snap.docs.forEach(d=>batch.delete(d.ref));
+      await batch.commit();
+      return snap.size;
+    },
     softDeleteProject: (id, who) => setDoc(doc(db, 'constructionProjects', id),
       {deletedAt: Date.now(), deletedByUid: who.uid || null, deletedByName: who.name || null}, {merge: true}),
     restoreProject: (id) => setDoc(doc(db, 'constructionProjects', id),
@@ -1557,7 +1655,11 @@ let state = {
   orgSettings: {},         // { officeName }
   slipSelection: [],       // [{itemCode, entryId}] entries picked to combine into one printed slip (max 3), scoped to activeCcId
   projectSlipSelection: [], // [{workTypeKey, catKey, entryId}] WBS-mode equivalent of slipSelection, scoped to activeProjectId
-  appMode: 'budget',       // 'budget' | 'project' — which mode's UI is showing
+  appMode: 'budget',       // 'budget' | 'project' | 'warehouse' — which mode's UI is showing
+  whFiles: [],             // คลังพัสดุ: งบซื้อของตาม WBS (year-scoped, warehouse department only)
+  activeWhFileId: null,
+  activeWhEntries: [],     // live purchase lines of the one warehouse file currently open
+  whSlipSelection: [],     // [entryId] picked to combine into one printed ใบตัดงบ (max 3), scoped to activeWhFileId
   projects: [],            // WBS construction-project books (not year-scoped)
   transfers: [],           // ใบขอโอนงบ of the project currently open in the transfer modal (loaded on demand)
   trCur: null,             // the ใบขอโอนงบ being edited in that modal (null = showing the list)
@@ -1587,6 +1689,10 @@ let ccEntriesLoadedFor = null;
 let projectEntriesUnsub = null;
 let projectEntriesSubscribedFor = null;
 let projectEntriesLoadedFor = null;
+let whUnsub = null;
+let whEntriesUnsub = null;
+let whEntriesSubscribedFor = null;
+let whEntriesLoadedFor = null;
 
 function uid(){ return Date.now().toString(36)+Math.random().toString(36).slice(2,7); }
 function todayStr(){ return new Date().toISOString().slice(0,10); }
@@ -1894,6 +2000,11 @@ function buildProjectSlipBodyHtml(entries, payerName, payerCode, payerPosition, 
 
   const s0 = slot(0), s1 = slot(1), s2 = slot(2);
   const entryNoTaxP = (e)=> entryLedgerAmount(e.row);
+  // The warehouse's งบซื้อของ files have no หมวดงบ / กิจกรรม / โครงข่าย at all (one pot per WBS),
+  // so entries flagged blankCodes leave those three cells empty rather than printing a '—'.
+  const labelCell = (e)=> !e ? '' : (e.blankCodes ? '' : fitLabelHtml(e.catLabel));
+  const codeCell  = (e)=> !e ? '' : (e.blankCodes ? '' : numEn(escapeHtml(e.catCode)));
+  const netCell   = (e)=> !e ? '' : (e.blankCodes ? '' : (e.networkNo ? numEn(escapeHtml(e.networkNo)) : '—'));
 
   return `
     <table class="hdr">
@@ -1961,9 +2072,9 @@ function buildProjectSlipBodyHtml(entries, payerName, payerCode, payerPosition, 
       </colgroup>
       <tr>
         <td>ชื่อ-รหัสบัญชี</td>
-        <td class="ctr hl">${s0 ? fitLabelHtml(s0.catLabel) : ''}</td>
-        <td class="ctr hl">${s1 ? fitLabelHtml(s1.catLabel) : ''}</td>
-        <td class="ctr hl">${s2 ? fitLabelHtml(s2.catLabel) : ''}</td>
+        <td class="ctr hl">${labelCell(s0)}</td>
+        <td class="ctr hl">${labelCell(s1)}</td>
+        <td class="ctr hl">${labelCell(s2)}</td>
         <td class="ctr">รวมค่าใช้จ่าย</td>
       </tr>
       <tr>
@@ -1975,16 +2086,16 @@ function buildProjectSlipBodyHtml(entries, payerName, payerCode, payerPosition, 
       </tr>
       <tr>
         <td>กิจกรรม</td>
-        <td class="hl">${s0 ? numEn(escapeHtml(s0.catCode)) : ''}</td>
-        <td class="hl">${s1 ? numEn(escapeHtml(s1.catCode)) : ''}</td>
-        <td class="hl">${s2 ? numEn(escapeHtml(s2.catCode)) : ''}</td>
+        <td class="hl">${codeCell(s0)}</td>
+        <td class="hl">${codeCell(s1)}</td>
+        <td class="hl">${codeCell(s2)}</td>
         <td></td>
       </tr>
       <tr>
         <td>โครงข่าย</td>
-        <td class="hl">${s0 ? (s0.networkNo ? numEn(escapeHtml(s0.networkNo)) : '—') : ''}</td>
-        <td class="hl">${s1 ? (s1.networkNo ? numEn(escapeHtml(s1.networkNo)) : '—') : ''}</td>
-        <td class="hl">${s2 ? (s2.networkNo ? numEn(escapeHtml(s2.networkNo)) : '—') : ''}</td>
+        <td class="hl">${netCell(s0)}</td>
+        <td class="hl">${netCell(s1)}</td>
+        <td class="hl">${netCell(s2)}</td>
         <td></td>
       </tr>
       <tr>
@@ -2937,6 +3048,20 @@ function syncActiveProjectEntriesSubscription(){
     render();
   });
 }
+// Same pattern again, for the one warehouse purchase file currently open.
+function syncActiveWhEntriesSubscription(){
+  if(state.activeWhFileId === whEntriesSubscribedFor) return;
+  if(whEntriesUnsub){ whEntriesUnsub(); whEntriesUnsub = null; }
+  whEntriesSubscribedFor = state.activeWhFileId;
+  if(!state.activeWhFileId) return;
+  const targetId = state.activeWhFileId;
+  whEntriesUnsub = window.fb.subscribeWarehouseEntries(targetId, (entries)=>{
+    if(targetId !== state.activeWhFileId) return; // stale — user already switched files
+    state.activeWhEntries = entries;
+    whEntriesLoadedFor = targetId;
+    render();
+  });
+}
 function ccTotals(cc){
   let budget=0, totalPaid=0;
   (cc.items||[]).filter(item=>!item.deletedAt).forEach(item=>{
@@ -3090,7 +3215,9 @@ function closeModal(id){ document.getElementById(id).classList.add('hidden'); }
 function onYearChange(val){
   state.activeYear = Number(val);
   state.activeCcId = null; state.activeItemKey = null; state.slipSelection = [];
+  state.activeWhFileId = null; state.whSlipSelection = [];
   autoSelectFirstCc();
+  autoSelectFirstWhFile();
   render();
 }
 function promptAddYear(){
@@ -3447,6 +3574,249 @@ function permanentlyDeleteEntry(itemCode, entryId){
 
 /* ============ WBS project mode: data helpers ============ */
 function isProjectModeAllowed(deptKey){ return WBS_ALLOWED_DEPTS.includes(deptKey); }
+
+/* ============ คลังพัสดุ: คุมงบซื้อของตามหมายเลข WBS ============
+   A parallel, deliberately simpler WBS mode for the warehouse department only. Each file is one
+   WBS number with ONE budget pot (no work types, no categories) and 100% of the approved budget
+   usable — unlike the construction WBS mode's 80% haircut. Files are scoped to a fiscal year and
+   reuse the budget mode's year picker (state.activeYear), so "ปีงบประมาณ" means one thing app-wide. */
+const WAREHOUSE_DEPT = 'warehouse';
+function isWarehouseModeAllowed(deptKey){ return deptKey === WAREHOUSE_DEPT; }
+function whFilesForYear(){
+  return state.whFiles
+    .filter(f=> f.deptKey===WAREHOUSE_DEPT && !f.deletedAt && Number(f.year)===Number(state.activeYear))
+    .sort((a,b)=> String(a.wbs||'').localeCompare(String(b.wbs||'')));
+}
+function trashedWhFiles(){ return state.whFiles.filter(f=> f.deptKey===WAREHOUSE_DEPT && f.deletedAt); }
+function getWhFile(id){ return state.whFiles.find(f=>f.id===id); }
+// Mirrors itemAggregateTotalPaid/projTotalsCheap: use the stored aggregate when present, otherwise
+// fall back to summing whatever entries are loaded, so a file never shows a blank or stale total.
+function whAggregateTotalPaid(f){
+  if(typeof f.totalPaid === 'number') return f.totalPaid;
+  if(f.id === state.activeWhFileId && whEntriesLoadedFor === f.id){
+    return state.activeWhEntries.reduce((s,e)=> s + (Number(e.amount)||0), 0);
+  }
+  return 0;
+}
+function whTotals(f){
+  const budget = Number(f.budget)||0;
+  const totalPaid = whAggregateTotalPaid(f);
+  return {budget, totalPaid, remaining: budget - totalPaid};
+}
+// Purchase lines of the open file, oldest first, each carrying its running cumulative total —
+// the same shape projCatTotals produces, so the ledger table and the slip can share the maths.
+function whRows(f){
+  if(!f || f.id !== state.activeWhFileId || whEntriesLoadedFor !== f.id) return [];
+  const rows = [...state.activeWhEntries]
+    .filter(e=>!e.deletedAt)
+    .sort((a,b)=> (a.date||'').localeCompare(b.date||'') || (a.createdAt||0)-(b.createdAt||0));
+  let running = 0;
+  return rows.map(r=>{ running += (Number(r.amount)||0); return {...r, cumulative: running}; });
+}
+function whCanManage(){ return canManageDept(WAREHOUSE_DEPT); }
+function canDeleteWhEntry(entry){
+  if(whCanManage()) return true;
+  return !!(entry.addedBy && state.user && entry.addedBy === state.user.uid);
+}
+
+function selectWhFile(id){
+  state.activeWhFileId = id;
+  state.whSlipSelection = [];
+  render();
+}
+function autoSelectFirstWhFile(){
+  if(state.activeWhFileId && whFilesForYear().some(f=>f.id===state.activeWhFileId)) return;
+  const first = whFilesForYear()[0];
+  state.activeWhFileId = first ? first.id : null;
+  state.whSlipSelection = [];
+}
+
+/* ---- file CRUD ---- */
+function openNewWhFileModal(){
+  if(!whCanManage()){ alert('สร้างแฟ้มงบซื้อของได้เฉพาะผู้ดูแลแผนกคลังพัสดุและแอดมินเท่านั้น'); return; }
+  document.getElementById('whfWbs').value='';
+  document.getElementById('whfName').value='';
+  document.getElementById('whfBudget').value='';
+  document.getElementById('whFileModalTitle').textContent='สร้างแฟ้มงบซื้อของใหม่';
+  document.getElementById('whFileModalDesc').textContent=`จะสร้างในปีงบประมาณ ${state.activeYear}`;
+  document.getElementById('whFileModalSubmit').setAttribute('onclick','submitWhFile(null)');
+  openModal('whFileModal');
+  setTimeout(()=>document.getElementById('whfWbs').focus(),50);
+}
+function openEditWhFileModal(){
+  const f = getWhFile(state.activeWhFileId);
+  if(!f || !whCanManage()) return;
+  document.getElementById('whfWbs').value=f.wbs||'';
+  document.getElementById('whfName').value=f.name||'';
+  document.getElementById('whfBudget').value=Number(f.budget)||0;
+  document.getElementById('whFileModalTitle').textContent='แก้ไขแฟ้มงบซื้อของ';
+  document.getElementById('whFileModalDesc').textContent=`ปีงบประมาณ ${f.year}`;
+  document.getElementById('whFileModalSubmit').setAttribute('onclick',`submitWhFile('${f.id}')`);
+  openModal('whFileModal');
+  setTimeout(()=>document.getElementById('whfWbs').focus(),50);
+}
+async function submitWhFile(editId){
+  const wbs = document.getElementById('whfWbs').value.trim();
+  const name = document.getElementById('whfName').value.trim();
+  const budget = Number(document.getElementById('whfBudget').value)||0;
+  if(!wbs || !name){ alert('กรุณากรอกหมายเลขงาน (WBS) และชื่องานให้ครบ'); return; }
+  if(budget < 0){ alert('งบประมาณต้องไม่ติดลบ'); return; }
+  let f;
+  if(editId){
+    const cur = getWhFile(editId);
+    if(!cur) return;
+    f = {...cur, wbs, name, budget};
+    Object.assign(cur, {wbs, name, budget});
+  } else {
+    f = {
+      id: uid(), year: Number(state.activeYear), wbs, name, budget,
+      deptKey: WAREHOUSE_DEPT, closed: false, totalPaid: 0, entryCount: 0,
+      createdBy: state.user ? state.user.uid : null, createdAt: Date.now(),
+    };
+    state.whFiles.push(f);
+    state.activeWhFileId = f.id;
+    state.whSlipSelection = [];
+  }
+  closeModal('whFileModal');
+  render();
+  try{ await window.fb.saveWarehouseFile(f); flashSaved(); }
+  catch(e){ console.error(e); flashSaved(true); alert('บันทึกไม่สำเร็จ: '+e.message); }
+}
+async function toggleWhFileClosed(){
+  const f = getWhFile(state.activeWhFileId);
+  if(!f || !whCanManage()) return;
+  const next = !f.closed;
+  if(next && !confirm('ปิดงานแฟ้มงบซื้อของนี้?\nเมื่อปิดแล้วจะเพิ่มรายการซื้อไม่ได้ จนกว่าจะยกเลิกปิดงาน')) return;
+  f.closed = next;
+  render();
+  try{ await window.fb.saveWarehouseFile(f); flashSaved(); }
+  catch(e){ console.error(e); flashSaved(true); }
+}
+async function deleteWhFile(){
+  const f = getWhFile(state.activeWhFileId);
+  if(!f || !whCanManage()) return;
+  if(!confirm(`ย้ายแฟ้มงบซื้อของ "${f.wbs} — ${f.name}" ไปถังขยะ?\nกู้คืนได้จากถังขยะภายใน 30 วัน`)) return;
+  f.deletedAt = Date.now();
+  state.activeWhFileId = null;
+  autoSelectFirstWhFile();
+  render();
+  try{
+    await window.fb.softDeleteWarehouseFile(f.id, {uid: state.user?.uid, name: state.user?.displayName || state.user?.email});
+    flashSaved();
+  }catch(e){ console.error(e); flashSaved(true); }
+}
+async function restoreWhFile(id){
+  const f = getWhFile(id);
+  if(!f) return;
+  f.deletedAt = null;
+  render();
+  try{ await window.fb.restoreWarehouseFile(id); flashSaved(); }
+  catch(e){ console.error(e); flashSaved(true); }
+}
+async function permanentlyDeleteWhFile(id, label){
+  if(!confirm(`ลบถาวร "${label}" พร้อมรายการซื้อทั้งหมด?\nการลบถาวรกู้คืนไม่ได้`)) return;
+  try{
+    await window.fb.deleteAllWarehouseEntries(id);
+    await window.fb.deleteWarehouseFileDoc(id);
+    state.whFiles = state.whFiles.filter(f=>f.id!==id);
+    render(); flashSaved();
+  }catch(e){ console.error(e); flashSaved(true); alert('ลบไม่สำเร็จ: '+e.message); }
+}
+
+/* ---- purchase lines ---- */
+async function addWhEntry(){
+  const f = getWhFile(state.activeWhFileId);
+  if(!f) return;
+  if(f.closed){ alert('แฟ้มงบซื้อของนี้ปิดงานแล้ว ไม่สามารถเพิ่มรายการซื้อได้'); return; }
+  const dateEl = document.getElementById('whEntryDate');
+  const descEl = document.getElementById('whEntryDesc');
+  const amtEl  = document.getElementById('whEntryAmount');
+  const date = dateEl.value || todayStr();
+  const desc = descEl.value.trim();
+  const amount = Number(amtEl.value)||0;
+  if(!desc){ alert('กรุณากรอกชื่อรายการ/รายการพัสดุที่ซื้อ'); descEl.focus(); return; }
+  if(amount <= 0){ alert('กรุณากรอกจำนวนเงินให้ถูกต้อง'); amtEl.focus(); return; }
+  const entry = {
+    id: uid(), date, desc, amount,
+    addedBy: state.user ? state.user.uid : null,
+    addedByName: state.user ? (state.user.displayName || '') : '',
+    addedByEmail: state.user ? (state.user.email || '') : '',
+    addedByCode: state.user ? (state.user.employeeCode || '') : '',
+    addedByPosition: state.user ? (state.user.position || '') : '',
+    createdAt: Date.now(),
+  };
+  descEl.value=''; amtEl.value='';
+  try{
+    await window.fb.addWarehouseEntryTx(f.id, entry);
+    flashSaved();
+  }catch(e){ console.error(e); flashSaved(true); alert('บันทึกไม่สำเร็จ: '+e.message); }
+}
+async function deleteWhEntry(entryId){
+  const f = getWhFile(state.activeWhFileId);
+  if(!f) return;
+  const row = whRows(f).find(r=>r.id===entryId);
+  if(!row) return;
+  if(!canDeleteWhEntry(row)){ alert('ลบได้เฉพาะรายการที่คุณเพิ่มเอง หรือผู้ดูแลแผนก/แอดมิน'); return; }
+  if(!confirm(`ลบรายการ "${row.desc}" (${fmt(row.amount)} บาท)?\nรายการซื้อไม่มีถังขยะ — ลบแล้วกู้คืนไม่ได้`)) return;
+  state.whSlipSelection = state.whSlipSelection.filter(id=>id!==entryId);
+  try{
+    await window.fb.deleteWarehouseEntryTx(f.id, entryId);
+    flashSaved();
+  }catch(e){ console.error(e); flashSaved(true); alert('ลบไม่สำเร็จ: '+e.message); }
+}
+
+/* ---- ใบตัดงบ (shares buildProjectSlipBodyHtml with the construction WBS mode) ---- */
+// The warehouse has no หมวดงบ / กิจกรรม / โครงข่าย, so those detail cells print blank — blankCodes
+// tells the shared builder to leave them empty instead of filling in a '—' placeholder.
+function whSlipEntry(f, row){
+  return {
+    project: {wbs: f.wbs}, catLabel: '', catCode: '', networkNo: '', blankCodes: true,
+    row, rowRemaining: (Number(f.budget)||0) - row.cumulative,
+  };
+}
+function downloadWhSlip(entryId){
+  const f = getWhFile(state.activeWhFileId);
+  if(!f) return;
+  const row = whRows(f).find(r=>r.id===entryId);
+  if(!row) return;
+  const payerName = row.addedByName || row.addedByEmail || '';
+  const payerCode = row.addedByCode || '';
+  const payerPosition = row.addedByPosition || '';
+  const docTitle = `ใบตัดงบ_${f.wbs}_${row.date}`;
+  openSlipPrintWindow(buildProjectSlipBodyHtml([whSlipEntry(f, row)], payerName, payerCode, payerPosition, row.date), docTitle);
+}
+function toggleWhSlipSelection(entryId){
+  const i = state.whSlipSelection.indexOf(entryId);
+  if(i>=0) state.whSlipSelection.splice(i,1);
+  else{
+    if(state.whSlipSelection.length >= MAX_SLIP_SELECTION){
+      alert(`เลือกรวมพิมพ์ได้สูงสุด ${MAX_SLIP_SELECTION} รายการต่อใบตัดงบ`);
+      render(); return;
+    }
+    state.whSlipSelection.push(entryId);
+  }
+  render();
+}
+function isWhEntrySelected(entryId){ return state.whSlipSelection.includes(entryId); }
+function clearWhSlipSelection(){ state.whSlipSelection = []; render(); }
+function printCombinedWhSlip(){
+  const f = getWhFile(state.activeWhFileId);
+  if(!f || !state.whSlipSelection.length) return;
+  const rows = whRows(f);
+  const entries = state.whSlipSelection.map(id=>rows.find(r=>r.id===id)).filter(Boolean).map(r=>whSlipEntry(f, r));
+  if(!entries.length){
+    alert('ไม่พบรายการที่เลือกไว้ อาจถูกลบไปแล้ว');
+    state.whSlipSelection = []; render(); return;
+  }
+  const payerName = state.user ? (state.user.displayName || state.user.email) : '';
+  const payerCode = state.user ? (state.user.employeeCode || '') : '';
+  const payerPosition = state.user ? (state.user.position || '') : '';
+  const docDateStr = todayStr();
+  openSlipPrintWindow(
+    buildProjectSlipBodyHtml(entries, payerName, payerCode, payerPosition, docDateStr),
+    `ใบตัดงบรวม_${f.wbs}_${docDateStr}`);
+}
+
 function projectsForDept(){
   return state.projects.filter(p=>p.deptKey===state.activeDept && !p.deletedAt);
 }
@@ -3545,7 +3915,7 @@ function saveProject(p){
 function switchAppMode(mode){
   if(state.appMode === mode) return;
   state.appMode = mode;
-  state.slipSelection = []; state.projectSlipSelection = [];
+  state.slipSelection = []; state.projectSlipSelection = []; state.whSlipSelection = [];
   render();
 }
 
@@ -3915,6 +4285,7 @@ function render(){
   recomputeYears();
   syncActiveCcEntriesSubscription();
   syncActiveProjectEntriesSubscription();
+  syncActiveWhEntriesSubscription();
   renderRoleBadge();
   renderAccountRow();
   renderDeptWrap();
@@ -3922,18 +4293,37 @@ function render(){
 
   const budgetSection = document.getElementById('budgetModeSection');
   const projectSection = document.getElementById('projectModeSection');
+  const warehouseSection = document.getElementById('warehouseModeSection');
+  // The warehouse mode's button only exists while the warehouse department is active, so leaving
+  // that department (admins/reps can switch) has to drop the mode too, or the UI would be stuck
+  // in a mode with no way back to it.
+  if(state.appMode === 'warehouse' && !isWarehouseModeAllowed(state.activeDept)){
+    state.appMode = 'budget';
+    state.whSlipSelection = [];
+  }
+  budgetSection.classList.add('hidden');
+  projectSection.classList.add('hidden');
+  warehouseSection.classList.add('hidden');
   if(state.appMode === 'project'){
-    budgetSection.classList.add('hidden');
     projectSection.classList.remove('hidden');
     renderProjectSidebar();
     renderProjectMain();
+  } else if(state.appMode === 'warehouse'){
+    warehouseSection.classList.remove('hidden');
+    renderYearPicker();
+    renderWhSidebar();
+    renderWhMain();
   } else {
-    projectSection.classList.add('hidden');
     budgetSection.classList.remove('hidden');
     renderYearPicker();
     renderSidebar();
     renderMain();
   }
+
+  // Each mode's main renderer also refreshes this bar, but several of them return early on their
+  // "nothing selected yet" welcome screen — which used to leave a stale selection bar floating over
+  // the new view after switching mode or department. Refreshing once more here covers every path.
+  renderSlipSelectionBar();
 
   const trashModal = document.getElementById('trashModal');
   if(trashModal && !trashModal.classList.contains('hidden')) renderTrashModal();
@@ -3944,6 +4334,9 @@ function renderModeSwitcher(){
   el.innerHTML = `
     <button class="${state.appMode==='budget'?'active':''}" onclick="switchAppMode('budget')">คุมงบทั่วไป</button>
     <button class="${state.appMode==='project'?'active':''}" onclick="switchAppMode('project')">คุมงบโครงการก่อสร้าง</button>
+    ${isWarehouseModeAllowed(state.activeDept)
+      ? `<button class="${state.appMode==='warehouse'?'active':''}" onclick="switchAppMode('warehouse')">คุมงบซื้อของ (WBS)</button>`
+      : ''}
   `;
 }
 
@@ -4049,11 +4442,12 @@ async function downloadBackup(){
   // subscriptions are now scoped by deptKey to cut down on Firestore reads — see
   // subscribeActiveDeptData). A backup has to cover every department regardless, so this does a
   // separate one-time unfiltered read straight from Firestore instead of using that local state.
-  let costCenters, constructionProjects;
+  let costCenters, constructionProjects, warehouseFiles;
   try{
-    [costCenters, constructionProjects] = await Promise.all([
+    [costCenters, constructionProjects, warehouseFiles] = await Promise.all([
       window.fb.getAllCostCentersOnce(),
       window.fb.getAllProjectsOnce(),
+      window.fb.getAllWarehouseFilesOnce(),
     ]);
   }catch(e){
     alert('ดึงข้อมูลสำหรับสำรองไม่สำเร็จ: ' + e.message);
@@ -4065,6 +4459,7 @@ async function downloadBackup(){
     orgSettings: state.orgSettings || {},
     costCenters,
     constructionProjects,
+    warehouseFiles,
   };
   const json = JSON.stringify(payload, null, 2);
   const blob = new Blob([json], {type: 'application/json'});
@@ -4099,7 +4494,15 @@ function renderTrashModal(){
   const fmtDate = (ts) => ts ? new Date(ts).toLocaleString('th-TH', {dateStyle:'medium', timeStyle:'short'}) : '';
 
   let rows = [];
-  if(state.appMode === 'project'){
+  if(state.appMode === 'warehouse'){
+    rows = trashedWhFiles().map(f => ({
+      id: f.id,
+      label: `${escapeHtml(f.wbs)} — ${escapeHtml(f.name)}`,
+      meta: `ปี ${f.year} · ลบเมื่อ ${fmtDate(f.deletedAt)}${f.deletedByName ? ' โดย '+escapeHtml(f.deletedByName) : ''}`,
+      restore: `restoreWhFile('${f.id}')`,
+      purge: `permanentlyDeleteWhFile('${f.id}', '${escapeHtml((f.wbs||'')+' — '+(f.name||'')).replace(/'/g,"\\'")}')`,
+    }));
+  } else if(state.appMode === 'project'){
     rows = trashedProjectsForDept().map(p => ({
       id: p.id,
       label: `${escapeHtml(p.wbs)} — ${escapeHtml(p.name)}`,
@@ -4141,7 +4544,20 @@ function renderTrashModal(){
 function subscribeActiveDeptData(){
   if(ccUnsub){ ccUnsub(); ccUnsub = null; }
   if(projectsUnsub){ projectsUnsub(); projectsUnsub = null; }
+  if(whUnsub){ whUnsub(); whUnsub = null; }
   if(!state.activeDept) return;
+  // Only the warehouse department has งบซื้อของ files, so no other department pays for the listener.
+  if(isWarehouseModeAllowed(state.activeDept)){
+    whUnsub = window.fb.subscribeWarehouseFiles(state.activeDept, (files)=>{
+      state.whFiles = files;
+      const active = files.find(f=>f.id===state.activeWhFileId);
+      if(state.activeWhFileId && (!active || active.deletedAt)) state.activeWhFileId = null;
+      autoSelectFirstWhFile();
+      render();
+    });
+  } else {
+    state.whFiles = []; state.activeWhFileId = null; state.whSlipSelection = [];
+  }
   ccUnsub = window.fb.subscribeCostCenters(state.activeDept, (ccs)=>{
     state.costCenters = ccs;
     const activeCc = ccs.find(c=>c.id===state.activeCcId);
@@ -4167,7 +4583,8 @@ function switchDept(key){
   state.activeDept = key;
   state.activeCcId = null; state.activeItemKey = null; state.slipSelection = []; state.itemSearchQuery = '';
   state.activeProjectId = null; state.activeWorkTypeKey = null; state.activeProjectCatKey = null; state.projectSlipSelection = [];
-  state.costCenters = []; state.projects = [];
+  state.activeWhFileId = null; state.whSlipSelection = []; state.activeWhEntries = [];
+  state.costCenters = []; state.projects = []; state.whFiles = [];
   subscribeActiveDeptData();
   render();
 }
@@ -4192,8 +4609,13 @@ function renderDeptWrap(){
 }
 
 function renderYearPicker(){
+  // Budget mode and the warehouse's งบซื้อของ mode each have their own <select> in the sidebar but
+  // share one state.activeYear, so both are filled from the same list whichever mode is showing.
+  const opts = state.years.map(y=>`<option value="${y}" ${y===state.activeYear?'selected':''}>ปีงบประมาณ ${y}</option>`).join('');
   const sel = document.getElementById('yearSelect');
-  sel.innerHTML = state.years.map(y=>`<option value="${y}" ${y===state.activeYear?'selected':''}>ปีงบประมาณ ${y}</option>`).join('');
+  if(sel) sel.innerHTML = opts;
+  const whSel = document.getElementById('whYearSelect');
+  if(whSel) whSel.innerHTML = opts;
 }
 
 function renderSidebar(){
@@ -4293,14 +4715,16 @@ function renderSlipSelectionBar(){
     document.body.appendChild(bar);
   }
   const isProject = state.appMode === 'project';
-  const n = isProject ? state.projectSlipSelection.length : state.slipSelection.length;
+  const isWh = state.appMode === 'warehouse';
+  const n = isWh ? state.whSlipSelection.length
+    : (isProject ? state.projectSlipSelection.length : state.slipSelection.length);
   if(n === 0){
     bar.classList.remove('show');
     bar.innerHTML = '';
     return;
   }
-  const clearFn = isProject ? 'clearProjectSlipSelection' : 'clearSlipSelection';
-  const printFn = isProject ? 'printCombinedProjectSlip' : 'printCombinedSlip';
+  const clearFn = isWh ? 'clearWhSlipSelection' : (isProject ? 'clearProjectSlipSelection' : 'clearSlipSelection');
+  const printFn = isWh ? 'printCombinedWhSlip' : (isProject ? 'printCombinedProjectSlip' : 'printCombinedSlip');
   bar.className = 'slip-bar show';
   bar.innerHTML = `
     <span>เลือกแล้ว ${n}/${MAX_SLIP_SELECTION} รายการ</span>
@@ -4571,6 +4995,143 @@ function renderProjectSidebar(){
       ${p.closed ? `<div class="mini-stamp" title="ปิดงานแล้ว"><span>ปิด<br>งาน</span></div>` : ''}
     </div>`;
   }).join('');
+}
+
+/* ============ คลังพัสดุ: งบซื้อของ — sidebar + main ============ */
+function renderWhSidebar(){
+  const list = document.getElementById('whFileList');
+  const newBtn = document.getElementById('newWhFileBtn');
+  const canManage = whCanManage();
+  newBtn.classList.toggle('hidden', !canManage);
+  const files = whFilesForYear();
+  if(!files.length){
+    list.innerHTML = `<div class="list-empty">ยังไม่มีแฟ้มงบซื้อของในปี ${state.activeYear}${canManage ? '<br>กด "+ แฟ้มงบซื้อของใหม่" เพื่อเริ่มต้น' : '<br>รอผู้ดูแลแผนกคลังพัสดุหรือแอดมินสร้างแฟ้ม'}</div>`;
+    return;
+  }
+  list.innerHTML = files.map(f=>{
+    const active = f.id===state.activeWhFileId;
+    const t = whTotals(f);
+    const pct = t.budget>0 ? (t.totalPaid/t.budget*100) : 0;
+    return `<div class="cc-item ${active?'active':''}" onclick="selectWhFile('${f.id}')" style="position:relative;">
+      <div class="code">${escapeHtml(f.wbs)}</div>
+      <div class="name">${escapeHtml(f.name)}</div>
+      <div class="cc-progress" title="ซื้อไปแล้ว ${pct.toFixed(0)}%"><div class="cc-progress-fill ${gaugeClass(pct)}" style="width:${Math.min(pct,100)}%"></div></div>
+      ${f.closed ? `<div class="mini-stamp" title="ปิดงานแล้ว"><span>ปิด<br>งาน</span></div>` : ''}
+    </div>`;
+  }).join('');
+}
+
+function renderWhMain(){
+  const main = document.getElementById('main');
+  const canManage = whCanManage();
+  const f = getWhFile(state.activeWhFileId);
+
+  if(!f || f.deletedAt || Number(f.year)!==Number(state.activeYear)){
+    main.innerHTML = `<div class="welcome">
+      <h1>คุมงบซื้อของ (WBS) — ผคพ. แผนกคลังพัสดุ</h1>
+      <p>คุมงบซื้อของตามหมายเลข WBS ของแผนกคลังพัสดุ — หนึ่งแฟ้มคือหนึ่งหมายเลขงาน ใช้งบได้เต็ม 100%
+      ${canManage ? 'กด "+ แฟ้มงบซื้อของใหม่" เพื่อสร้างแฟ้มในปีงบประมาณ '+state.activeYear : 'เลือกแฟ้มจากเมนูด้านซ้ายเพื่อดูรายการซื้อ'}</p>
+      ${canManage ? `<button class="btn btn-primary" onclick="openNewWhFileModal()">+ สร้างแฟ้มงบซื้อของ</button>` : ''}
+    </div>`;
+    return;
+  }
+
+  const t = whTotals(f);
+  const pct = t.budget>0 ? (t.totalPaid/t.budget*100) : 0;
+  const gClass = gaugeClass(pct);
+  const gaugeColorVar = gClass==='over' ? 'var(--rust)' : (gClass==='warn' ? 'var(--amber)' : 'var(--teal)');
+  const rows = whRows(f);
+
+  let rowsHtml;
+  if(!rows.length){
+    rowsHtml = `<div class="ledger-empty">ยังไม่มีรายการซื้อ เพิ่มรายการแรกด้านบน</div>`;
+  } else {
+    rowsHtml = `<table class="ledger">
+      <thead><tr>
+        <th style="width:34px;">รวม<br>พิมพ์</th>
+        <th>วันที่</th><th>รายการ</th>
+        <th style="text-align:right">จำนวนเงิน</th>
+        <th style="text-align:right">รวมซื้อ</th>
+        <th style="text-align:right">คงเหลือ</th>
+        <th></th>
+      </tr></thead>
+      <tbody>
+        ${rows.map(r=>{
+          const rowRemaining = t.budget - r.cumulative;
+          return `<tr>
+            <td style="text-align:center;"><input type="checkbox" title="เลือกรวมพิมพ์ใบตัดงบ" ${isWhEntrySelected(r.id)?'checked':''} onchange="toggleWhSlipSelection('${r.id}')"></td>
+            <td class="mono">${escapeHtml(r.date)}</td>
+            <td>${escapeHtml(r.desc)}${(r.addedByName || r.addedByEmail) ? `<div style="font-size:10.5px;color:var(--text-faint);margin-top:2px;">เพิ่มโดย ${escapeHtml(r.addedByName || r.addedByEmail)}</div>` : ''}</td>
+            <td class="num">${fmt(r.amount)}</td>
+            <td class="num">${fmt(r.cumulative)}</td>
+            <td class="num ${rowRemaining<0?'neg':''}">${fmt(rowRemaining)}</td>
+            <td style="white-space:nowrap;">
+              ${rowActionButtonsHtml(`downloadWhSlip('${r.id}')`, `deleteWhEntry('${r.id}')`, canDeleteWhEntry(r))}
+            </td>
+          </tr>`;
+        }).join('')}
+      </tbody>
+    </table>`;
+  }
+
+  main.innerHTML = `
+    ${f.closed ? `
+    <div class="stamp-overlay">
+      <div class="stamp">
+        <div class="rule"></div>
+        <div class="mid">ปิดงานแล้ว</div>
+        <div class="rule"></div>
+      </div>
+    </div>` : ''}
+    <div class="page-header">
+      <div>
+        <div class="code-tag mono">${escapeHtml(f.wbs)}</div>
+        <h1>${escapeHtml(f.name)}</h1>
+        <div class="eyebrow" style="margin-top:6px;color:var(--text-faint);">ปีงบประมาณ ${f.year}</div>
+      </div>
+      <div class="header-actions">
+        ${canManage ? `
+          <button class="btn btn-outline btn-sm" onclick="openEditWhFileModal()">แก้ไข</button>
+          ${f.closed
+            ? `<button class="btn btn-reopen btn-sm" onclick="toggleWhFileClosed()">↺ ยกเลิกปิดงาน</button>`
+            : `<button class="btn btn-danger-ghost btn-sm" onclick="toggleWhFileClosed()">🔒 ปิดงาน</button>`}
+          <button class="btn btn-danger-ghost btn-sm" onclick="deleteWhFile()">ลบแฟ้ม</button>
+        ` : `<span class="eyebrow" style="color:var(--text-faint);">ดูอย่างเดียว · เพิ่มรายการซื้อได้</span>`}
+      </div>
+    </div>
+
+    ${f.closed ? `<div class="closed-banner">🔒 แฟ้มงบซื้อของนี้ปิดงานแล้ว - ไม่สามารถเพิ่มรายการซื้อได้</div>` : ''}
+
+    <div class="stat-strip">
+      <div class="stat-box"><div class="label">งบที่ได้รับอนุมัติ (100%)</div><div class="value">${fmt(t.budget)}</div></div>
+      <div class="stat-box"><div class="label">ซื้อไปแล้ว</div><div class="value">${fmt(t.totalPaid)}</div></div>
+      <div class="stat-box remain"><div class="label">คงเหลือ</div><div class="value ${t.remaining<0?'neg':'pos'}">${fmt(t.remaining)}</div></div>
+    </div>
+
+    <div class="summary-card" style="margin-bottom:18px;">
+      <div class="radial-gauge" style="background:conic-gradient(${gaugeColorVar} 0% ${Math.min(pct,100)}%, var(--border-soft) ${Math.min(pct,100)}% 100%);">
+        <div class="radial-gauge-inner">
+          <span class="radial-gauge-pct">${Math.round(pct)}%</span>
+          <span class="radial-gauge-label">ใช้ไปแล้ว</span>
+        </div>
+      </div>
+      <div class="detail-summary-row">
+        <div class="summary-item"><div class="label">จำนวนรายการซื้อ</div><div class="val">${rows.length}</div></div>
+        <div class="summary-item"><div class="label">คงเหลือ</div><div class="val ${t.remaining<0?'neg':'pos'}">${fmt(t.remaining)}</div></div>
+      </div>
+    </div>
+
+    ${f.closed ? `<div style="font-size:12.5px;color:var(--text-faint);margin-bottom:14px;">ฟอร์มเพิ่มรายการถูกซ่อนไว้ — แฟ้มงบซื้อของนี้ปิดงานแล้ว</div>` : `
+    <div class="entry-form">
+      <div class="field"><label>วันที่</label><input type="date" id="whEntryDate" value="${todayStr()}"></div>
+      <div class="field desc"><label>ชื่อรายการ/รายการพัสดุที่ซื้อ</label><input type="text" id="whEntryDesc" placeholder="เช่น สายไฟ THW 25 ตร.มม. 200 เมตร" onkeydown="if(event.key==='Enter'){addWhEntry();}"></div>
+      <div class="field amt"><label>จำนวนเงิน (บาท)</label><input type="number" id="whEntryAmount" min="0" step="0.01" placeholder="0.00" onkeydown="if(event.key==='Enter'){addWhEntry();}"></div>
+      <button class="btn btn-primary" type="button" onclick="addWhEntry()">+ เพิ่มรายการ</button>
+    </div>`}
+
+    ${rowsHtml}
+  `;
+  renderSlipSelectionBar();
 }
 
 /* ============ WBS project mode: main content ============ */
@@ -4876,11 +5437,13 @@ function initAuthListener(){
     if(ccUnsub){ ccUnsub(); ccUnsub = null; }
     if(orgUnsub){ orgUnsub(); orgUnsub = null; }
     if(projectsUnsub){ projectsUnsub(); projectsUnsub = null; }
+    if(whUnsub){ whUnsub(); whUnsub = null; }
     if(!user){
       state.user = null; state.userRole = 'member';
       state.costCenters = []; state.activeCcId = null; state.activeItemKey = null; state.slipSelection = [];
       state.orgSettings = {};
       state.projects = []; state.activeProjectId = null; state.activeWorkTypeKey = null; state.activeProjectCatKey = null; state.projectSlipSelection = [];
+      state.whFiles = []; state.activeWhFileId = null; state.activeWhEntries = []; state.whSlipSelection = [];
       render();
       return;
     }
