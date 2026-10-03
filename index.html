@@ -333,6 +333,32 @@ body{
 #budgetModeSection, #warehouseModeSection{display:flex;flex-direction:column;gap:14px;}
 
 .list-eyebrow{color:#7C8A90;margin-bottom:8px;display:flex;justify-content:space-between;align-items:center;}
+.list-eyebrow .count{font-family:'JetBrains Mono';letter-spacing:0;font-size:11px;color:#6F7D84;}
+
+/* ===== ค้นหาแฟ้มงาน + กลุ่มแฟ้มที่ปิดงานแล้ว (โหมดคุมงบโครงการก่อสร้าง) ===== */
+.proj-search{display:flex;align-items:center;gap:8px;background:rgba(255,255,255,.055);border:1px solid rgba(255,255,255,.1);border-radius:8px;padding:0 10px;height:36px;}
+.proj-search svg{flex-shrink:0;}
+.proj-search input{flex:1;min-width:0;background:none;border:none;outline:none;color:#DCE3E6;font-family:'Noto Sans Thai',sans-serif;font-size:12.5px;}
+.proj-search input::placeholder{color:#6F7D84;}
+.proj-search .clear{background:none;border:none;color:#7C8A90;cursor:pointer;font-size:15px;line-height:1;padding:0 2px;}
+.proj-search .clear:hover{color:#DCE3E6;}
+.proj-hl{background:rgba(232,163,61,.3);border-radius:3px;}
+.closed-group{border-top:1px solid rgba(255,255,255,.08);padding-top:12px;margin-top:4px;}
+.closed-head{display:flex;align-items:center;gap:7px;width:100%;background:none;border:none;color:#7C8A90;font-family:'Noto Sans Thai',sans-serif;font-size:11.5px;font-weight:700;cursor:pointer;padding:3px 2px;text-align:left;}
+.closed-head:hover{color:#B7C2C6;}
+.closed-head .caret{transition:transform .15s;display:inline-block;font-size:9px;}
+.closed-head.open .caret{transform:rotate(90deg);}
+.closed-head .n{font-family:'JetBrains Mono';background:rgba(255,255,255,.08);border-radius:20px;padding:1px 7px;font-size:10.5px;}
+.closed-body{display:flex;flex-direction:column;gap:6px;margin-top:9px;}
+.cc-item.is-closed{opacity:.72;}
+.cc-item.is-closed .code{color:#9AA6AB;}
+/* เพิ่งปิดงานแต่ยังค้างในรายการหลัก — ไม่ทำให้จาง เพราะยังต้องหยิบใช้อยู่ */
+.cc-item.just-closed{background:rgba(193,70,47,.09);}
+.cc-item.just-closed:hover{background:rgba(193,70,47,.14);}
+.cc-item .jc-note{font-size:10px;color:#C98A7B;margin-top:5px;line-height:1.5;}
+/* เว้นที่ให้ตราปิดงานไม่ทับชื่องาน */
+.cc-item.is-closed .name, .cc-item.just-closed .name{padding-right:48px;}
+.cc-item .noyear{display:inline-block;font-size:9.5px;color:#8B9BA2;background:rgba(255,255,255,.08);border-radius:4px;padding:1px 5px;margin-top:5px;}
 /* รายการในแถบข้างก็เลื่อนได้เอง จึงต้องจองที่สกรอลบาร์ไว้เหมือนกัน ด้วยเหตุผลเดียวกับ .sidebar */
 .cc-list{display:flex;flex-direction:column;gap:6px;overflow-y:auto;flex:1;scrollbar-gutter:stable;scrollbar-width:thin;scrollbar-color:rgba(255,255,255,.18) transparent;}
 .cc-list::-webkit-scrollbar{width:8px;}
@@ -915,10 +941,28 @@ table.ledger .del-x:hover{color:var(--rust);}
     </div>
 
     <div id="projectModeSection" class="hidden">
+      <div class="year-picker">
+        <div class="yp-label">ปีงบประมาณ</div>
+        <div class="yp-ctl">
+          <select id="projYearSelect" onchange="setProjYear(this.value)"></select>
+          <button title="เพิ่มปีงบประมาณใหม่" onclick="promptAddYear()">+</button>
+        </div>
+      </div>
+      <div class="proj-search">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#6F7D84" stroke-width="2.4" stroke-linecap="round"><circle cx="11" cy="11" r="7"></circle><line x1="20" y1="20" x2="16.7" y2="16.7"></line></svg>
+        <input type="text" id="projSearchInput" placeholder="ค้นหาเลข WBS หรือชื่องาน" oninput="setProjQuery(this.value)">
+        <button class="clear hidden" id="projSearchClear" onclick="setProjQuery('')">✕</button>
+      </div>
       <button class="btn btn-primary btn-block" id="newProjectBtn" onclick="openNewProjectModal()">+ แฟ้มงานใหม่</button>
       <div>
-        <div class="eyebrow list-eyebrow"><span>แฟ้มงาน (WBS)</span></div>
+        <div class="eyebrow list-eyebrow"><span>แฟ้มงาน (WBS)</span><span class="count" id="projOpenCount"></span></div>
         <div class="cc-list" id="projectList"></div>
+      </div>
+      <div class="closed-group hidden" id="projClosedGroup">
+        <button class="closed-head" id="projClosedHead" onclick="toggleProjClosedGroup()">
+          <span class="caret">▶</span><span>ปิดงานแล้ว</span><span class="n" id="projClosedN">0</span>
+        </button>
+        <div class="closed-body hidden" id="projClosedList"></div>
       </div>
     </div>
 
@@ -1083,6 +1127,11 @@ table.ledger .del-x:hover{color:var(--rust);}
     <div class="field">
       <label>ชื่องาน</label>
       <input type="text" id="epName">
+    </div>
+    <div class="field">
+      <label>ปีงบประมาณ</label>
+      <select id="epYear"></select>
+      <div style="font-size:11px;color:var(--text-faint);margin-top:4px;line-height:1.6;">ใช้จัดกลุ่มแฟ้มในเมนูด้านซ้าย — ระบบเติมให้จากวันที่สร้างแฟ้ม แก้ได้ถ้างานคาบปีงบ</div>
     </div>
     <div class="modal-actions">
       <button class="btn btn-outline" onclick="closeModal('editProjectModal')">ยกเลิก</button>
@@ -1728,6 +1777,9 @@ let state = {
   transfers: [],           // ใบขอโอนงบ of the project currently open in the transfer modal (loaded on demand)
   trCur: null,             // the ใบขอโอนงบ being edited in that modal (null = showing the list)
   activeProjectId: null,
+  projYear: null,          // ตัวกรองปีงบของรายการแฟ้ม WBS: 'all' | number (null = ยังไม่ตั้ง → ใช้ activeYear)
+  projQuery: '',           // คำค้นหาแฟ้ม WBS (เลข WBS หรือชื่องาน)
+  projClosedOpen: false,   // กลุ่ม "ปิดงานแล้ว" ในแถบข้างกางอยู่ไหม
   activeWorkTypeKey: null,
   activeProjectCatKey: null,
   editingNetworkKey: null,
@@ -3884,6 +3936,85 @@ function printCombinedWhSlip(){
 function projectsForDept(){
   return state.projects.filter(p=>p.deptKey===state.activeDept && !p.deletedAt);
 }
+
+/* ===== ตัวกรองรายการแฟ้ม WBS: ปีงบ + ค้นหา + กลุ่มแฟ้มที่ปิดงานแล้ว =====
+   กรองตอนแสดงผลล้วนๆ ไม่แตะข้อมูล: ทุกแฟ้มยังโหลดมาครบเหมือนเดิม เลือก "ทุกปี" ก็เห็นครบทุกใบ */
+// ปีงบประมาณไทยของ timestamp หนึ่งๆ (ปีงบเริ่ม 1 ต.ค. — เดือน ต.ค. เป็นต้นไปนับเป็นปีถัดไป)
+function fiscalYearOf(ts){
+  if(!ts) return null;
+  const d = new Date(ts);
+  if(isNaN(d.getTime())) return null;
+  return d.getFullYear() + 543 + (d.getMonth() >= 9 ? 1 : 0);
+}
+// ปีของแฟ้ม: ใช้ค่าที่ตั้งไว้เองก่อน ถ้าไม่มีค่อยเดาจากวันที่สร้างแฟ้ม
+// null = ไม่รู้ปี (แฟ้มเก่าที่ไม่มีแม้แต่วันที่สร้าง) → ตั้งใจให้แสดงในทุกปี จะได้ไม่มีแฟ้มไหนหายไปจากสายตา
+function projectYearOf(p){
+  if(p.year != null && !isNaN(Number(p.year))) return Number(p.year);
+  return fiscalYearOf(p.createdAt);
+}
+const PROJ_RECENT_CLOSED_DAYS = 7;
+// แฟ้มที่เพิ่งปิดงานยังค้างอยู่ในรายการหลักตำแหน่งเดิมอีก 7 วัน เพราะปิดงานแล้วมักต้องกลับมาดู/
+// พิมพ์ใบตัดงบอีกสองสามวัน ถ้าหล่นลงกลุ่มล่างทันทีจะหาไม่เจอ (แฟ้มเก่าที่ไม่มีวันที่ปิดงาน = ลงกลุ่มเลย)
+function isProjectRecentlyClosed(p){
+  if(!p.closed || !p.closedAt) return false;
+  return (Date.now() - p.closedAt) < PROJ_RECENT_CLOSED_DAYS * 86400000;
+}
+function projYearFilter(){
+  return state.projYear == null ? state.activeYear : state.projYear;
+}
+// ปีที่มีให้เลือก = ปีของแฟ้มที่มีอยู่จริง + ปีงบที่กำลังใช้ + ปีที่เพิ่มไว้เอง (เรียงใหม่→เก่า)
+function projectYearOptions(){
+  const ys = new Set();
+  projectsForDept().forEach(p=>{ const y = projectYearOf(p); if(y != null) ys.add(y); });
+  (state.years || []).forEach(y=>ys.add(Number(y)));
+  ys.add(Number(state.activeYear));
+  return [...ys].filter(y=>!!y).sort((a,b)=>b-a);
+}
+function projectMatchesYear(p){
+  const f = projYearFilter();
+  if(f === 'all') return true;
+  const y = projectYearOf(p);
+  return y == null || y === Number(f);
+}
+function projectMatchesQuery(p){
+  const q = (state.projQuery||'').trim().toLowerCase();
+  if(!q) return true;
+  return String(p.wbs||'').toLowerCase().includes(q) || String(p.name||'').toLowerCase().includes(q);
+}
+function setProjYear(v){
+  state.projYear = (v === 'all') ? 'all' : Number(v);
+  render();
+}
+function setProjQuery(v){
+  state.projQuery = v;
+  const el = document.getElementById('projSearchInput');
+  if(el && el.value !== v) el.value = v;
+  render();
+  // render() เขียนทับ sidebar ทั้งก้อน ต้องคืนโฟกัส+ตำแหน่งเคอร์เซอร์ให้ช่องค้นหา ไม่งั้นพิมพ์ต่อไม่ได้
+  const after = document.getElementById('projSearchInput');
+  if(after && document.activeElement !== after && v){
+    after.focus();
+    after.setSelectionRange(after.value.length, after.value.length);
+  }
+}
+function toggleProjClosedGroup(){ state.projClosedOpen = !state.projClosedOpen; render(); }
+// วันที่แบบไทยสั้นๆ จาก timestamp (เช่น "2 ต.ค. 2569") — ใช้บอกวันที่ปิดงานในแถบข้าง
+const THAI_MONTHS_ABBR = ['ม.ค.','ก.พ.','มี.ค.','เม.ย.','พ.ค.','มิ.ย.','ก.ค.','ส.ค.','ก.ย.','ต.ค.','พ.ย.','ธ.ค.'];
+function thaiDateLabel(ts){
+  if(!ts) return '—';
+  const d = new Date(ts);
+  if(isNaN(d.getTime())) return '—';
+  return d.getDate() + ' ' + THAI_MONTHS_ABBR[d.getMonth()] + ' ' + (d.getFullYear() + 543);
+}
+// ไฮไลต์ส่วนที่ตรงกับคำค้นหา
+function projHighlight(text){
+  const q = (state.projQuery||'').trim();
+  const s = String(text ?? '');
+  if(!q) return escapeHtml(s);
+  const i = s.toLowerCase().indexOf(q.toLowerCase());
+  if(i < 0) return escapeHtml(s);
+  return escapeHtml(s.slice(0,i)) + '<span class="proj-hl">' + escapeHtml(s.slice(i, i+q.length)) + '</span>' + escapeHtml(s.slice(i+q.length));
+}
 // Soft-deleted WBS project files for the currently active department — shown in the trash view.
 function trashedProjectsForDept(){
   return state.projects.filter(p=>p.deptKey===state.activeDept && p.deletedAt);
@@ -4000,6 +4131,8 @@ async function submitNewProject(){
   if(!wbs || !name){ alert('กรุณากรอกหมายเลขงานและชื่องานให้ครบ'); return; }
   const project = {
     id: uid(), wbs, name, deptKey: state.activeDept,
+    // บันทึกปีงบไว้ตั้งแต่สร้าง เพื่อให้ตัวกรองปีในแถบข้างไม่ต้องเดาจากวันที่สร้าง (แก้ได้ทีหลังในหน้าแก้ไข)
+    year: Number(state.activeYear) || fiscalYearOf(Date.now()),
     createdBy: state.user ? state.user.uid : null,
     createdAt: Date.now(), departments: {}
   };
@@ -4022,6 +4155,11 @@ function openEditProjectModal(){
   if(!p || !canManageDept(p.deptKey)){ alert('คุณไม่มีสิทธิ์แก้ไขแฟ้มงานนี้'); return; }
   document.getElementById('epWbs').value = p.wbs;
   document.getElementById('epName').value = p.name;
+  // ปีที่เลือกไว้ = ปีที่ตั้งเอง หรือปีที่ระบบเดาจากวันที่สร้าง ถ้าไม่รู้เลยก็ใช้ปีงบปัจจุบัน
+  const cur = projectYearOf(p) ?? Number(state.activeYear);
+  const years = [...new Set([...projectYearOptions(), cur])].filter(Boolean).sort((a,b)=>b-a);
+  document.getElementById('epYear').innerHTML =
+    years.map(y=>`<option value="${y}" ${Number(y)===Number(cur)?'selected':''}>${y}</option>`).join('');
   openModal('editProjectModal');
 }
 function submitEditProject(){
@@ -4030,7 +4168,9 @@ function submitEditProject(){
   const wbs = document.getElementById('epWbs').value.trim();
   const name = document.getElementById('epName').value.trim();
   if(!wbs || !name){ alert('กรุณากรอกให้ครบ'); return; }
+  const yr = Number(document.getElementById('epYear').value);
   p.wbs = wbs; p.name = name;
+  if(yr) p.year = yr;   // ตั้งปีไว้ชัดเจน ระบบจะไม่เดาจากวันที่สร้างอีก
   closeModal('editProjectModal');
   saveProject(p); render();
 }
@@ -4655,6 +4795,7 @@ function switchDept(key){
   state.activeDept = key;
   state.activeCcId = null; state.activeItemKey = null; state.slipSelection = []; state.itemSearchQuery = '';
   state.activeProjectId = null; state.activeWorkTypeKey = null; state.activeProjectCatKey = null; state.projectSlipSelection = [];
+  state.projQuery = ''; state.projClosedOpen = false;
   state.activeWhFileId = null; state.whSlipSelection = []; state.activeWhEntries = [];
   state.costCenters = []; state.projects = []; state.whFiles = [];
   subscribeActiveDeptData();
@@ -5050,24 +5191,61 @@ function renderProjectSidebar(){
     list.innerHTML = `<div class="list-empty">โหมดคุมงบโครงการก่อสร้างใช้ได้เฉพาะแผนก<br>ผปบ. / ผกส. / ผมต. เท่านั้น</div>`;
     return;
   }
-  const projects = projectsForDept();
-  if(!projects.length){
-    list.innerHTML = `<div class="list-empty">ยังไม่มีแฟ้มงานของแผนกนี้${canManage ? '<br>กด "+ แฟ้มงานใหม่" เพื่อเริ่มต้น' : '<br>รอผู้ดูแลแผนกหรือแอดมินสร้างแฟ้มงาน'}</div>`;
-    return;
+  const all = projectsForDept();
+
+  // ตัวเลือกปี (มี "ทุกปี" เสมอ เพื่อให้กลับไปเห็นครบได้ตลอด)
+  const yf = projYearFilter();
+  const yearSel = document.getElementById('projYearSelect');
+  if(yearSel){
+    yearSel.innerHTML = `<option value="all" ${yf==='all'?'selected':''}>ทุกปี</option>`
+      + projectYearOptions().map(y=>`<option value="${y}" ${Number(y)===Number(yf)?'selected':''}>${y}</option>`).join('');
   }
-  list.innerHTML = projects.map(p=>{
+  const searchEl = document.getElementById('projSearchInput');
+  if(searchEl && searchEl.value !== (state.projQuery||'')) searchEl.value = state.projQuery||'';
+  const clearBtn = document.getElementById('projSearchClear');
+  if(clearBtn) clearBtn.classList.toggle('hidden', !(state.projQuery||'').trim());
+
+  const shown  = all.filter(p=> projectMatchesYear(p) && projectMatchesQuery(p));
+  const open   = shown.filter(p=> !p.closed || isProjectRecentlyClosed(p));
+  const closed = shown.filter(p=>  p.closed && !isProjectRecentlyClosed(p));
+
+  const itemHtml = (p, inOpenList)=>{
     const active = p.id===state.activeProjectId;
     const t = projTotalsCheap(p);
     const pct = t.amount100>0 ? (t.totalPaid/t.amount100*100) : 0;
-    const gClass = gaugeClass(pct);
-    const barWidth = Math.min(pct,100);
-    return `<div class="cc-item ${active?'active':''}" onclick="selectProject('${p.id}')" style="position:relative;">
-      <div class="code">${escapeHtml(p.wbs)}</div>
-      <div class="name">${escapeHtml(p.name)}</div>
-      <div class="cc-progress" title="ใช้ไปแล้ว ${pct.toFixed(0)}%"><div class="cc-progress-fill ${gClass}" style="width:${barWidth}%"></div></div>
+    const justClosed = inOpenList && p.closed;   // ปิดงานแล้วแต่ยังค้างในรายการหลัก
+    return `<div class="cc-item ${active?'active':''} ${p.closed&&!justClosed?'is-closed':''} ${justClosed?'just-closed':''}" onclick="selectProject('${p.id}')" style="position:relative;">
+      <div class="code">${projHighlight(p.wbs)}</div>
+      <div class="name">${projHighlight(p.name)}</div>
+      ${projectYearOf(p)==null ? `<div class="noyear" title="แฟ้มนี้ไม่มีข้อมูลปี จึงแสดงในทุกปีเพื่อไม่ให้หาไม่เจอ">ไม่ระบุปี · แสดงทุกปี</div>` : ''}
+      ${justClosed ? `<div class="jc-note">ปิดงานแล้วเมื่อวันที่ ${thaiDateLabel(p.closedAt)}</div>` : ''}
+      <div class="cc-progress" title="ใช้ไปแล้ว ${pct.toFixed(0)}%"><div class="cc-progress-fill ${gaugeClass(pct)}" style="width:${Math.min(pct,100)}%"></div></div>
       ${p.closed ? `<div class="mini-stamp" title="ปิดงานแล้ว"><span>ปิด<br>งาน</span></div>` : ''}
     </div>`;
-  }).join('');
+  };
+
+  const countEl = document.getElementById('projOpenCount');
+  if(countEl) countEl.textContent = open.length ? open.length : '';
+
+  if(!all.length){
+    list.innerHTML = `<div class="list-empty">ยังไม่มีแฟ้มงานของแผนกนี้${canManage ? '<br>กด "+ แฟ้มงานใหม่" เพื่อเริ่มต้น' : '<br>รอผู้ดูแลแผนกหรือแอดมินสร้างแฟ้มงาน'}</div>`;
+  } else if(!open.length){
+    list.innerHTML = (state.projQuery||'').trim()
+      ? `<div class="list-empty">ไม่พบแฟ้มงานที่ตรงกับ<br>"${escapeHtml(state.projQuery.trim())}"</div>`
+      : `<div class="list-empty">ไม่มีแฟ้มงานที่เปิดอยู่${yf==='all' ? '' : ' ในปี '+yf}${closed.length ? '<br>ดูได้ที่กลุ่ม "ปิดงานแล้ว" ด้านล่าง' : ''}</div>`;
+  } else {
+    list.innerHTML = open.map(p=>itemHtml(p, true)).join('');
+  }
+
+  const grp = document.getElementById('projClosedGroup');
+  if(grp){
+    grp.classList.toggle('hidden', closed.length === 0);
+    document.getElementById('projClosedN').textContent = closed.length;
+    document.getElementById('projClosedHead').classList.toggle('open', state.projClosedOpen);
+    const body = document.getElementById('projClosedList');
+    body.classList.toggle('hidden', !state.projClosedOpen);
+    body.innerHTML = closed.map(p=>itemHtml(p, false)).join('');
+  }
 }
 
 /* ============ คลังพัสดุ: งบซื้อของ — sidebar + main ============ */
