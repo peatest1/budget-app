@@ -4297,9 +4297,17 @@ function render(){
   // The warehouse mode's button only exists while the warehouse department is active, so leaving
   // that department (admins/reps can switch) has to drop the mode too, or the UI would be stuck
   // in a mode with no way back to it.
+  // Each mode's button only exists for the departments that mode applies to, so landing on a
+  // department where the current mode has no button would strand the user in a view they cannot
+  // leave (and cannot get back to). Either direction falls back to คุมงบทั่วไป, which every
+  // department has.
   if(state.appMode === 'warehouse' && !isWarehouseModeAllowed(state.activeDept)){
     state.appMode = 'budget';
     state.whSlipSelection = [];
+  }
+  if(state.appMode === 'project' && isWarehouseModeAllowed(state.activeDept)){
+    state.appMode = 'budget';
+    state.projectSlipSelection = [];
   }
   budgetSection.classList.add('hidden');
   projectSection.classList.add('hidden');
@@ -4333,10 +4341,10 @@ function renderModeSwitcher(){
   const el = document.getElementById('modeSwitchWrap');
   el.innerHTML = `
     <button class="${state.appMode==='budget'?'active':''}" onclick="switchAppMode('budget')">คุมงบทั่วไป</button>
-    <button class="${state.appMode==='project'?'active':''}" onclick="switchAppMode('project')">คุมงบโครงการก่อสร้าง</button>
     ${isWarehouseModeAllowed(state.activeDept)
+      // คลังพัสดุไม่มีงานโครงการก่อสร้าง จึงไม่แสดงปุ่มนั้นเลย — แสดงเฉพาะงบซื้อของของแผนกตัวเอง
       ? `<button class="${state.appMode==='warehouse'?'active':''}" onclick="switchAppMode('warehouse')">คุมงบซื้อของ (WBS)</button>`
-      : ''}
+      : `<button class="${state.appMode==='project'?'active':''}" onclick="switchAppMode('project')">คุมงบโครงการก่อสร้าง</button>`}
   `;
 }
 
