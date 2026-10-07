@@ -1584,21 +1584,37 @@ table.ledger .del-x:hover{color:var(--rust);}
       tx.set(ref, {...data, totalPaid: baseTotalPaid + (Number(entry.amount)||0), entryCount: baseEntryCount + 1});
       tx.set(doc(db, 'warehouseFiles', fileId, 'entries', entry.id), entry);
     }),
-    // Purchase lines are removed outright (no trash tier) — the ปิดงาน stamp is what freezes a
-    // finished file, and every delete is confirmed in the UI first.
-    deleteWarehouseEntryTx: (fileId, entryId) => runTransaction(db, async (tx) => {
+    // Purchase lines go to a 30-day trash like the other modes: the entry doc stays (stamped with
+    // deletedAt/By) while the file's totalPaid/entryCount are reduced in the same transaction;
+    // restoring adds them back. Only the final purge removes the doc.
+    softDeleteWarehouseEntryTx: (fileId, entryId, who) => runTransaction(db, async (tx) => {
       const ref = doc(db, 'warehouseFiles', fileId);
       const entryRef = doc(db, 'warehouseFiles', fileId, 'entries', entryId);
       const [snap, entrySnap] = await Promise.all([tx.get(ref), tx.get(entryRef)]);
       if(!snap.exists()) throw new Error('ไม่พบแฟ้มงบซื้อของนี้ในระบบ (อาจถูกลบไปแล้วโดยผู้อื่น)');
-      if(!entrySnap.exists()) return;
+      if(!entrySnap.exists() || entrySnap.data().deletedAt) return;
       const data = snap.data();
       const entryData = entrySnap.data();
       const baseTotalPaid = typeof data.totalPaid === 'number' ? data.totalPaid : 0;
       const baseEntryCount = typeof data.entryCount === 'number' ? data.entryCount : 0;
       tx.set(ref, {...data, totalPaid: baseTotalPaid - (Number(entryData.amount)||0), entryCount: Math.max(0, baseEntryCount - 1)});
-      tx.delete(entryRef);
+      tx.set(entryRef, {...entryData, deletedAt: Date.now(), deletedByUid: (who && who.uid) || null, deletedByName: (who && who.name) || null});
     }),
+    restoreWarehouseEntryTx: (fileId, entryId) => runTransaction(db, async (tx) => {
+      const ref = doc(db, 'warehouseFiles', fileId);
+      const entryRef = doc(db, 'warehouseFiles', fileId, 'entries', entryId);
+      const [snap, entrySnap] = await Promise.all([tx.get(ref), tx.get(entryRef)]);
+      if(!snap.exists()) throw new Error('ไม่พบแฟ้มงบซื้อของนี้ในระบบ');
+      if(!entrySnap.exists() || !entrySnap.data().deletedAt) return;
+      const data = snap.data();
+      const entryData = entrySnap.data();
+      const baseTotalPaid = typeof data.totalPaid === 'number' ? data.totalPaid : 0;
+      const baseEntryCount = typeof data.entryCount === 'number' ? data.entryCount : 0;
+      tx.set(ref, {...data, totalPaid: baseTotalPaid + (Number(entryData.amount)||0), entryCount: baseEntryCount + 1});
+      tx.set(entryRef, {...entryData, deletedAt: null, deletedByUid: null, deletedByName: null});
+    }),
+    // Final removal of an already-trashed entry (aggregate was reduced when it was trashed).
+    purgeWarehouseEntry: (fileId, entryId) => deleteDoc(doc(db, 'warehouseFiles', fileId, 'entries', entryId)),
     softDeleteWarehouseFile: (id, who) => setDoc(doc(db, 'warehouseFiles', id),
       {deletedAt: Date.now(), deletedByUid: (who && who.uid) || null, deletedByName: (who && who.name) || null}, {merge: true}),
     restoreWarehouseFile: (id) => setDoc(doc(db, 'warehouseFiles', id),
@@ -3176,6 +3192,7 @@ function syncActiveWhEntriesSubscription(){
     state.activeWhEntries = entries;
     whEntriesLoadedFor = targetId;
     render();
+    sweepExpiredWhTrash(targetId);
   });
 }
 function ccTotals(cc){
@@ -3274,6 +3291,31 @@ async function sweepExpiredTrash(){
   } finally {
     trashSweepInProgress = false;
   }
+}
+
+// Warehouse trash purge (30 days): expired trashed files (with their lines) and, for the file that
+// is open, expired trashed purchase lines. Managers only — same rule as the manual purge buttons.
+let whSweepBusy = false;
+async function sweepExpiredWhTrash(openFileId){
+  if(!state.user || whSweepBusy || !canManageDept(WAREHOUSE_DEPT)) return;
+  whSweepBusy = true;
+  try{
+    const cutoff = Date.now() - TRASH_RETENTION_MS;
+    for(const f of (state.whFiles||[])){
+      if(f.deptKey===WAREHOUSE_DEPT && f.deletedAt && f.deletedAt < cutoff){
+        try{
+          await window.fb.deleteAllWarehouseEntries(f.id);
+          await window.fb.deleteWarehouseFileDoc(f.id);
+        }catch(e){ console.error('sweepExpiredWhTrash: file', f.id, e); }
+      }
+    }
+    if(openFileId && openFileId === state.activeWhFileId){
+      for(const e of state.activeWhEntries.filter(x=>x.deletedAt && x.deletedAt < cutoff)){
+        try{ await window.fb.purgeWarehouseEntry(openFileId, e.id); }
+        catch(err){ console.error('sweepExpiredWhTrash: entry', e.id, err); }
+      }
+    }
+  } finally { whSweepBusy = false; }
 }
 
 /* ============ combined slip selection (choose up to 3 entries to print together) ============ */
@@ -3710,7 +3752,7 @@ function getWhFile(id){ return state.whFiles.find(f=>f.id===id); }
 function whAggregateTotalPaid(f){
   if(typeof f.totalPaid === 'number') return f.totalPaid;
   if(f.id === state.activeWhFileId && whEntriesLoadedFor === f.id){
-    return state.activeWhEntries.reduce((s,e)=> s + (Number(e.amount)||0), 0);
+    return state.activeWhEntries.filter(e=>!e.deletedAt).reduce((s,e)=> s + (Number(e.amount)||0), 0);
   }
   return 0;
 }
@@ -3873,12 +3915,35 @@ async function deleteWhEntry(entryId){
   const row = whRows(f).find(r=>r.id===entryId);
   if(!row) return;
   if(!canDeleteWhEntry(row)){ alert('ลบได้เฉพาะรายการที่คุณเพิ่มเอง หรือผู้ดูแลแผนก/แอดมิน'); return; }
-  if(!confirm(`ลบรายการ "${row.desc}" (${fmt(row.amount)} บาท)?\nรายการซื้อไม่มีถังขยะ — ลบแล้วกู้คืนไม่ได้`)) return;
+  if(!confirm(`ย้ายรายการ "${row.desc}" (${fmt(row.amount)} บาท) ไปถังขยะ?\nกู้คืนได้ภายใน 30 วัน (โดยผู้ดูแลแผนกหรือแอดมิน)`)) return;
   state.whSlipSelection = state.whSlipSelection.filter(id=>id!==entryId);
   try{
-    await window.fb.deleteWarehouseEntryTx(f.id, entryId);
+    await window.fb.softDeleteWarehouseEntryTx(f.id, entryId, {uid: state.user?.uid, name: state.user?.displayName || state.user?.email});
     flashSaved();
   }catch(e){ console.error(e); flashSaved(true); alert('ลบไม่สำเร็จ: '+e.message); }
+}
+// Trashed purchase lines of the file that is currently open (entries are only loaded per open file).
+function trashedWhEntries(){
+  const f = getWhFile(state.activeWhFileId);
+  if(!f || whEntriesLoadedFor !== f.id) return [];
+  return state.activeWhEntries.filter(e=>e.deletedAt).sort((a,b)=>(b.deletedAt||0)-(a.deletedAt||0));
+}
+async function restoreWhEntry(entryId){
+  const f = getWhFile(state.activeWhFileId);
+  if(!f || !whCanManage()) return;
+  try{ await window.fb.restoreWarehouseEntryTx(f.id, entryId); flashSaved(); }
+  catch(e){ console.error(e); flashSaved(true); alert('กู้คืนไม่สำเร็จ: '+e.message); }
+}
+async function permanentlyDeleteWhEntry(entryId, label){
+  const f = getWhFile(state.activeWhFileId);
+  if(!f || !whCanManage()) return;
+  if(label === undefined){
+    const e = state.activeWhEntries.find(x=>x.id===entryId);
+    label = e ? `${e.desc} (${fmt(e.amount)} บาท)` : 'รายการนี้';
+  }
+  if(!confirm(`ลบถาวร "${label}"?\nการลบถาวรกู้คืนไม่ได้`)) return;
+  try{ await window.fb.purgeWarehouseEntry(f.id, entryId); flashSaved(); }
+  catch(e){ console.error(e); flashSaved(true); alert('ลบไม่สำเร็จ: '+e.message); }
 }
 
 /* ---- ใบตัดงบ (shares buildProjectSlipBodyHtml with the construction WBS mode) ---- */
@@ -4707,13 +4772,21 @@ function renderTrashModal(){
 
   let rows = [];
   if(state.appMode === 'warehouse'){
-    rows = trashedWhFiles().map(f => ({
+    const wf = getWhFile(state.activeWhFileId);
+    const entryRows = trashedWhEntries().map(e => ({
+      id: e.id,
+      label: `🧾 ${escapeHtml(e.desc)} · ${fmt(e.amount)} บาท`,
+      meta: `รายการซื้อในแฟ้ม ${escapeHtml(wf ? wf.wbs : '')} · ลบเมื่อ ${fmtDate(e.deletedAt)}${e.deletedByName ? ' โดย '+escapeHtml(e.deletedByName) : ''}`,
+      restore: `restoreWhEntry('${e.id}')`,
+      purge: `permanentlyDeleteWhEntry('${e.id}', '${escapeHtml((e.desc||'')+' ('+fmt(e.amount)+' บาท)').replace(/'/g,"\\'")}')`,
+    }));
+    rows = entryRows.concat(trashedWhFiles().map(f => ({
       id: f.id,
       label: `${escapeHtml(f.wbs)} — ${escapeHtml(f.name)}`,
       meta: `ปี ${f.year} · ลบเมื่อ ${fmtDate(f.deletedAt)}${f.deletedByName ? ' โดย '+escapeHtml(f.deletedByName) : ''}`,
       restore: `restoreWhFile('${f.id}')`,
       purge: `permanentlyDeleteWhFile('${f.id}', '${escapeHtml((f.wbs||'')+' — '+(f.name||'')).replace(/'/g,"\\'")}')`,
-    }));
+    })));
   } else if(state.appMode === 'project'){
     rows = trashedProjectsForDept().map(p => ({
       id: p.id,
@@ -4762,6 +4835,7 @@ function subscribeActiveDeptData(){
   if(isWarehouseModeAllowed(state.activeDept)){
     whUnsub = window.fb.subscribeWarehouseFiles(state.activeDept, (files)=>{
       state.whFiles = files;
+      sweepExpiredWhTrash(null);
       const active = files.find(f=>f.id===state.activeWhFileId);
       if(state.activeWhFileId && (!active || active.deletedAt)) state.activeWhFileId = null;
       autoSelectFirstWhFile();
@@ -5384,6 +5458,7 @@ function renderWhMain(){
     </div>`}
 
     ${rowsHtml}
+    ${canManage ? buildEntryTrashSectionHtml(trashedWhEntries(), 'restoreWhEntry', 'permanentlyDeleteWhEntry', []) : ''}
   `;
   renderSlipSelectionBar();
 }
