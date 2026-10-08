@@ -5168,13 +5168,18 @@ function gaugeClass(pct){
 /* ============ ส่งออกเป็นไฟล์ Excel ============ */
 // The JSON backup is for restoring the system; this is for handing the numbers to someone else.
 // One sheet per cost center / แฟ้มงาน / แฟ้มงบซื้อของ of the department in the selected year, plus a
-// summary sheet up front. SheetJS is loaded on demand (and only once) so it costs nothing on a
-// normal page load, and falls back to a second CDN if the first one is unreachable.
-const XLSX_CDNS = [
-  'https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js',
-  'https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js',
+// summary sheet up front. Inside a sheet the rows are not one flat table: ประเภทงาน and หมวดงบ (or
+// รายการบัญชี in budget mode) become headings with their own sub-table and subtotal, because a
+// finance reader scans a column of คงเหลือ per หมวด, not a repeated label on every line.
+//
+// ExcelJS (not SheetJS) because the community build of SheetJS cannot write cell styling at all, and
+// the whole point here is the bold headings, fills and borders that make the grouping visible. It is
+// loaded on demand so a normal page load pays nothing, with a second CDN as fallback.
+const EXCELJS_CDNS = [
+  'https://cdnjs.cloudflare.com/ajax/libs/exceljs/4.4.0/exceljs.min.js',
+  'https://cdn.jsdelivr.net/npm/exceljs@4.4.0/dist/exceljs.min.js',
 ];
-let xlsxLoadingPromise = null;
+let excelLoadingPromise = null;
 function loadScriptOnce(src){
   return new Promise((resolve, reject)=>{
     const el = document.createElement('script');
@@ -5184,22 +5189,133 @@ function loadScriptOnce(src){
     document.head.appendChild(el);
   });
 }
-function loadXlsxLib(){
-  if(window.XLSX) return Promise.resolve(window.XLSX);
-  if(!xlsxLoadingPromise){
-    xlsxLoadingPromise = (async ()=>{
+function loadExcelLib(){
+  if(window.ExcelJS) return Promise.resolve(window.ExcelJS);
+  if(!excelLoadingPromise){
+    excelLoadingPromise = (async ()=>{
       let lastErr = null;
-      for(const url of XLSX_CDNS){
+      for(const url of EXCELJS_CDNS){
         try{
           await loadScriptOnce(url);
-          if(window.XLSX) return window.XLSX;
+          if(window.ExcelJS) return window.ExcelJS;
         }catch(e){ lastErr = e; }
       }
-      xlsxLoadingPromise = null; // let a later click retry
+      excelLoadingPromise = null; // let a later click retry
       throw lastErr || new Error('ไม่พบไลบรารีสร้างไฟล์ Excel');
     })();
   }
-  return xlsxLoadingPromise;
+  return excelLoadingPromise;
+}
+
+/* ---- เครื่องมือจัดรูปแบบเซลล์ ---- */
+const XL_MONEY = '#,##0.00';
+const XL = {
+  ink:'FF1F2A2E', band:'FF2F4F4F', cat:'FFE8EEEE', head:'FFF4F1E8',
+  sub:'FFFAF7F0', line:'FFBFCBCB', muted:'FF6B7A7A', hcol:'FF556464',
+};
+const XL_THIN = {style:'thin', color:{argb:XL.line}};
+function xlFill(cell, argb){ cell.fill = {type:'pattern', pattern:'solid', fgColor:{argb}}; }
+function xlBorder(cell, sides){ cell.border = Object.fromEntries(sides.map(s=>[s, XL_THIN])); }
+function xlBandRow(ws, r, cols, text, argbFill, argbText, size){
+  const cell = ws.getCell(r,1);
+  cell.value = text;
+  cell.font = {bold:true, size: size||12, color:{argb: argbText}};
+  cell.alignment = {vertical:'middle'};
+  xlFill(cell, argbFill);
+  ws.getRow(r).height = 21;
+  // every cell of the merged range needs the fill, or Excel paints only the first one
+  for(let i=2;i<=cols;i++) xlFill(ws.getCell(r,i), argbFill);
+  ws.mergeCells(r, 1, r, cols);
+}
+function xlTableHead(ws, r, labels, rightFrom, rightTo){
+  labels.forEach((t,i)=>{
+    const c = ws.getCell(r, i+1);
+    c.value = t;
+    c.font = {bold:true, size:10, color:{argb:XL.hcol}};
+    xlFill(c, XL.head); xlBorder(c, ['top','bottom','left','right']);
+    c.alignment = {horizontal: (i>=rightFrom && i<=rightTo) ? 'right' : 'left'};
+  });
+}
+// Printed in place of the column headers when a budget line has money allocated but nothing spent
+// yet — an empty table under a heading reads as a mistake, one quiet line does not.
+function xlEmptyGroupRow(ws, r, cols){
+  const c = ws.getCell(r,1);
+  c.value = '— ยังไม่มีรายการจ่าย —';
+  c.font = {size:10, italic:true, color:{argb:XL.muted}};
+  c.alignment = {horizontal:'center'};
+  ws.mergeCells(r, 1, r, cols);
+  xlBorder(c, ['bottom']);
+}
+function xlDataRow(ws, r, values, moneyFrom, moneyTo){
+  values.forEach((v,i)=>{
+    const c = ws.getCell(r, i+1);
+    c.value = v;
+    if(i>=moneyFrom && i<=moneyTo) c.numFmt = XL_MONEY;
+    c.font = {size:10};
+    xlBorder(c, ['bottom','left','right']);
+  });
+}
+// "รวม <ชื่อหมวด>" line: label merged across the first columns, then the figures in their own columns.
+// mergeTo must stop before the first figure column, or the merge swallows the label and the number
+// shows in its place (warehouse mode puts its first figure in column 3, not 5).
+function xlSubtotalRow(ws, r, cols, label, figures, mergeTo){
+  ws.getCell(r,1).value = label;
+  ws.getCell(r,1).font = {bold:true, size:10};
+  ws.mergeCells(r, 1, r, mergeTo || 4);
+  Object.entries(figures).forEach(([col, v])=>{
+    const c = ws.getCell(r, Number(col));
+    c.value = v; c.numFmt = XL_MONEY; c.font = {bold:true, size:10};
+  });
+  for(let i=1;i<=cols;i++){ xlFill(ws.getCell(r,i), XL.sub); xlBorder(ws.getCell(r,i), ['top','bottom']); }
+}
+// Title / subtitle / caption block at the top of every detail sheet.
+function xlSheetHeader(ws, cols, title, subtitle, caption){
+  let r = 1;
+  const t = ws.getCell(r,1);
+  t.value = title; t.font = {bold:true, size:16, color:{argb:XL.ink}};
+  ws.mergeCells(r,1,r,cols); r++;
+  const s = ws.getCell(r,1);
+  s.value = subtitle; s.font = {size:12, color:{argb:XL.ink}};
+  ws.mergeCells(r,1,r,cols); r++;
+  const c = ws.getCell(r,1);
+  c.value = caption; c.font = {size:10, color:{argb:XL.muted}};
+  ws.mergeCells(r,1,r,cols);
+  return r + 2;
+}
+// The งบ / ใช้ไป / คงเหลือ strip under the title.
+function xlTotalsBlock(ws, r, labels, values){
+  labels.forEach((t,i)=>{
+    const c = ws.getCell(r, i+1);
+    c.value = t; c.font = {bold:true, size:10};
+    xlFill(c, XL.head); xlBorder(c, ['top','left','right','bottom']);
+    c.alignment = {horizontal:'center'};
+  });
+  values.forEach((v,i)=>{
+    const c = ws.getCell(r+1, i+1);
+    c.value = v; c.numFmt = XL_MONEY; c.font = {bold:true, size:11};
+    xlBorder(c, ['left','right','bottom']);
+  });
+  return r + 3; // +1 ค่า, +1 เว้นบรรทัดก่อนขึ้นกลุ่มแรก
+}
+function xlSummarySheet(ExcelJS, wb, title, header, widths, rows, moneyFrom){
+  const ws = wb.addWorksheet('สรุปรวม');
+  ws.columns = widths.map(w=>({width:w}));
+  ws.getCell(1,1).value = title;
+  ws.getCell(1,1).font = {bold:true, size:14, color:{argb:XL.ink}};
+  ws.mergeCells(1,1,1,header.length);
+  header.forEach((t,i)=>{
+    const c = ws.getCell(3,i+1); c.value = t; c.font = {bold:true, size:10};
+    xlFill(c, XL.head); xlBorder(c, ['top','bottom','left','right']);
+    c.alignment = {horizontal:'center', wrapText:true};
+  });
+  rows.forEach((row, ri)=>{
+    row.forEach((v,i)=>{
+      const c = ws.getCell(4+ri, i+1); c.value = v; c.font = {size:10};
+      if(typeof v === 'number' && i >= moneyFrom) c.numFmt = XL_MONEY;
+      xlBorder(c, ['bottom','left','right']);
+    });
+  });
+  ws.views = [{state:'frozen', ySplit:3}];
 }
 
 // Excel rejects : \ / ? * [ ] in a sheet name and truncates past 31 characters, and two sheets can
@@ -5219,6 +5335,21 @@ function sortEntriesForExport(list){
   return [...list].filter(e=>!e.deletedAt)
     .sort((a,b)=> (a.date||'').localeCompare(b.date||'') || (a.createdAt||0)-(b.createdAt||0));
 }
+// A workbook that is missing one file's ledger but still looks complete is worse than no workbook at
+// all — it would be sent to finance as if it were the whole picture. So any failed fetch aborts.
+function abortIfIncomplete(failed){
+  if(!failed.length) return;
+  throw new Error('ดึงข้อมูลบางแฟ้มไม่สำเร็จ จึงยังไม่สร้างไฟล์ (กันตัวเลขขาด):\n· ' + failed.join('\n· '));
+}
+async function downloadWorkbook(wb, filename){
+  const buf = await wb.xlsx.writeBuffer();
+  const blob = new Blob([buf], {type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = filename;
+  document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(()=>URL.revokeObjectURL(url), 2000);
+}
 
 async function exportYearToExcel(){
   const btn = document.getElementById('exportXlsxBtn');
@@ -5227,7 +5358,7 @@ async function exportYearToExcel(){
   const done = ()=>{ if(btn){ btn.disabled = false; btn.innerHTML = restore; } };
   try{
     busy('⏳ กำลังโหลด...');
-    const XLSX = await loadXlsxLib();
+    const ExcelJS = await loadExcelLib();
     busy('⏳ กำลังรวบรวม...');
     const dept = deptByKey(state.activeDept);
     const deptLabel = dept ? dept.abbr+' '+dept.name : state.activeDept;
@@ -5239,12 +5370,12 @@ async function exportYearToExcel(){
       ? (projFilter === 'all' ? 'ทุกปี' : String(projFilter))
       : String(state.activeYear);
     let built;
-    if(state.appMode === 'project')      built = await buildProjectWorkbook(XLSX, deptLabel, yearLabel);
-    else if(state.appMode === 'warehouse') built = await buildWarehouseWorkbook(XLSX, deptLabel, yearLabel);
-    else                                  built = await buildBudgetWorkbook(XLSX, deptLabel, yearLabel);
+    if(state.appMode === 'project')        built = await buildProjectWorkbook(ExcelJS, deptLabel, yearLabel);
+    else if(state.appMode === 'warehouse') built = await buildWarehouseWorkbook(ExcelJS, deptLabel, yearLabel);
+    else                                   built = await buildBudgetWorkbook(ExcelJS, deptLabel, yearLabel);
     if(!built){ alert('ปีงบประมาณ '+yearLabel+' ของแผนกนี้ยังไม่มีข้อมูลให้ส่งออก'); done(); return; }
     busy('⏳ กำลังสร้างไฟล์...');
-    XLSX.writeFile(built.wb, built.filename);
+    await downloadWorkbook(built.wb, built.filename);
   }catch(e){
     console.error(e);
     alert('ส่งออกไม่สำเร็จ: ' + e.message + '\n\nถ้าขึ้นว่าโหลดไม่สำเร็จ แปลว่าเครือข่ายของที่ทำงานบล็อกแหล่งดาวน์โหลดไลบรารีไว้ ลองใหม่อีกครั้งหรือแจ้งฝ่ายไอที');
@@ -5252,138 +5383,214 @@ async function exportYearToExcel(){
   done();
 }
 
-function sheetFromRows(XLSX, wb, name, used, header, rows, widths){
-  const ws = XLSX.utils.aoa_to_sheet([header, ...rows]);
-  ws['!cols'] = widths.map(w=>({wch:w}));
-  XLSX.utils.book_append_sheet(wb, ws, safeSheetName(name, used));
-}
-// A workbook that is missing one file's ledger but still looks complete is worse than no workbook at
-// all — it would be sent to finance as if it were the whole picture. So any failed fetch aborts.
-function abortIfIncomplete(failed){
-  if(!failed.length) return;
-  throw new Error('ดึงข้อมูลบางแฟ้มไม่สำเร็จ จึงยังไม่สร้างไฟล์ (กันตัวเลขขาด):\n· ' + failed.join('\n· '));
-}
-
-async function buildBudgetWorkbook(XLSX, deptLabel, year){
+/* ---- โหมดคุมงบทั่วไป: ชีตละศูนย์ต้นทุน แบ่งกลุ่มตามรายการบัญชี ---- */
+async function buildBudgetWorkbook(ExcelJS, deptLabel, year){
   // `year` is a display label (a string) used only for the filename — ccsForYear compares with ===
   // against the numeric cc.year, so it must get state.activeYear itself, not the label.
   const ccs = ccsForYear(state.activeYear);
   if(!ccs.length) return null;
-  const wb = XLSX.utils.book_new();
-  const used = new Set();
+  const COLS = 9;
+  const WIDTHS = [13, 46, 14, 12, 14, 14, 15, 22, 26];
+  const wb = new ExcelJS.Workbook();
+  const used = new Set(['สรุปรวม']);
   const summary = [];
-  const detailSheets = [];
+  const sheets = [];
   const failed = [];
+
   for(const cc of ccs){
     let entries = [];
     try{ entries = await window.fb.getCcEntriesOnce(cc.id); }
     catch(e){ console.error('ดึงรายการจ่ายของศูนย์ต้นทุน', cc.code, 'ไม่สำเร็จ', e); failed.push(`${cc.code} — ${cc.name}`); continue; }
     const byItem = {};
     sortEntriesForExport(entries).forEach(e=>{ (byItem[e.itemCode] = byItem[e.itemCode] || []).push(e); });
-    const rows = [];
-    let paid = 0;
-    (cc.items||[]).filter(it=>!it.deletedAt).forEach(item=>{
-      let running = 0;
-      (byItem[item.code] || []).forEach(e=>{
-        const ledger = entryLedgerAmount(e);
-        running += ledger; paid += ledger;
-        rows.push([e.date||'', item.code||'', item.label||'', e.desc||'',
-          Number(e.amount)||0, Number(e.tax)||0, ledger, running,
-          e.addedByName || e.addedByEmail || '', entryEditNoteText(e)]);
-      });
-    });
+    const items = (cc.items||[]).filter(it=>!it.deletedAt).map(item=>({
+      code: item.code||'', label: item.label||'', budget: Number(item.budget)||0,
+      rows: byItem[item.code] || [],
+    // A budget line with neither money allocated nor anything spent is just noise in the report.
+    })).filter(it=> it.budget > 0 || it.rows.length);
     // Totals come from the rows written below, never from the cached aggregate, so the สรุปรวม sheet
     // and the detail sheet in the same workbook can never tell finance two different numbers.
-    const budget = ccTotals(cc).budget;
-    summary.push([cc.code||'', cc.name||'', budget, paid, budget - paid, budget ? paid/budget : 0]);
-    detailSheets.push({name: cc.code || cc.name, rows});
+    const budget = items.reduce((s,i)=> s + i.budget, 0);
+    const paid = items.reduce((s,i)=> s + i.rows.reduce((t,e)=> t + entryLedgerAmount(e), 0), 0);
+    summary.push([cc.code||'', cc.name||'', cc.year, budget, paid, budget - paid, budget ? paid/budget : 0]);
+    sheets.push({cc, items, budget, paid});
   }
   abortIfIncomplete(failed);
-  sheetFromRows(XLSX, wb, 'สรุปรวม', used,
-    ['รหัสศูนย์ต้นทุน','ชื่อศูนย์ต้นทุน','งบประมาณ','ใช้ไปแล้ว','คงเหลือ','% ที่ใช้ไป'],
-    summary, [18, 38, 15, 15, 15, 11]);
-  detailSheets.forEach(s=> sheetFromRows(XLSX, wb, s.name, used,
-    ['วันที่','รหัสบัญชี','รายการบัญชี','รายการ','จำนวนเงิน','ภาษี','ยอดตัดงบ','รวมสะสม','ผู้บันทึก','การแก้ไข'],
-    s.rows, [12, 16, 30, 40, 14, 12, 14, 14, 20, 30]));
+
+  xlSummarySheet(ExcelJS, wb, `คุมงบทั่วไป · ${deptLabel} · ปีงบประมาณ ${year}`,
+    ['รหัสศูนย์ต้นทุน','ชื่อศูนย์ต้นทุน','ปีงบ','งบประมาณ','ใช้ไปแล้ว','คงเหลือ','% ที่ใช้ไป'],
+    [20, 44, 9, 16, 16, 16, 12], summary, 3);
+
+  for(const s of sheets){
+    const ws = wb.addWorksheet(safeSheetName(s.cc.code || s.cc.name, used));
+    ws.columns = WIDTHS.map(w=>({width:w}));
+    let r = xlSheetHeader(ws, COLS, s.cc.code||'', s.cc.name||'', `ปีงบประมาณ ${s.cc.year}`);
+    const frozen = r + 1;
+    r = xlTotalsBlock(ws, r, ['งบประมาณทั้งปี','ใช้ไปแล้ว','คงเหลือ'], [s.budget, s.paid, s.budget - s.paid]);
+
+    s.items.forEach(item=>{
+      xlBandRow(ws, r, COLS,
+        `  ${item.code}   ·   ${item.label}   ·   งบประมาณ ${fmt(item.budget)}`,
+        XL.band, 'FFFFFFFF', 11);
+      r++;
+      let running = 0;
+      if(!item.rows.length){
+        xlEmptyGroupRow(ws, r, COLS); r++;
+      } else {
+      xlTableHead(ws, r, ['วันที่','รายการ','จำนวนเงิน','ภาษี','ยอดตัดงบ','รวมจ่าย','คงเหลือ','ผู้บันทึก','การแก้ไข'], 2, 6);
+      r++;
+      item.rows.forEach(e=>{
+        const ledger = entryLedgerAmount(e);
+        running += ledger;
+        xlDataRow(ws, r, [e.date||'', e.desc||'', Number(e.amount)||0, Number(e.tax)||0,
+          ledger, running, item.budget - running,
+          e.addedByName || e.addedByEmail || '', entryEditNoteText(e)], 2, 6);
+        r++;
+      });
+      }
+      xlSubtotalRow(ws, r, COLS, `รวม ${item.label}`, {5: running, 7: item.budget - running});
+      r += 2;
+    });
+    ws.views = [{state:'frozen', ySplit: frozen}];
+  }
   return {wb, filename: `คุมงบทั่วไป_${deptLabel}_${year}.xlsx`};
 }
 
-async function buildProjectWorkbook(XLSX, deptLabel, year){
+/* ---- โหมด WBS: ชีตละแฟ้มงาน แบ่งตามประเภทงาน แล้วแบ่งย่อยตามหมวดงบประมาณ ---- */
+async function buildProjectWorkbook(ExcelJS, deptLabel, year){
   const projects = projectsForDept().filter(p=>projectMatchesYear(p));
   if(!projects.length) return null;
-  const wb = XLSX.utils.book_new();
-  const used = new Set();
+  const COLS = 9;
+  const WIDTHS = [13, 46, 14, 12, 14, 14, 15, 22, 26];
+  const wb = new ExcelJS.Workbook();
+  const used = new Set(['สรุปรวม']);
   const summary = [];
-  const detailSheets = [];
+  const sheets = [];
   const failed = [];
   const wtName = (k)=> (WORK_TYPES.find(w=>w.key===k) || {}).name || k;
+
   for(const p of projects){
     let entries = [];
     try{ entries = await window.fb.getProjectEntriesOnce(p.id); }
     catch(e){ console.error('ดึงรายการจ่ายของแฟ้มงาน', p.wbs, 'ไม่สำเร็จ', e); failed.push(`${p.wbs} — ${p.name}`); continue; }
-    const rows = [];
     let amount100 = 0, paid = 0;
-    Object.entries(p.departments||{}).filter(([,wt])=>!wt.deletedAt).forEach(([wtKey, wt])=>{
-      Object.entries(wt.budgets||{}).forEach(([catKey, cat])=>{
+    const workTypes = Object.entries(p.departments||{}).filter(([,wt])=>!wt.deletedAt).map(([wtKey, wt])=>({
+      name: wtName(wtKey),
+      cats: Object.entries(wt.budgets||{}).map(([catKey, cat])=>{
+        const rows = sortEntriesForExport(entries.filter(e=>e.workTypeKey===wtKey && e.catKey===catKey));
         amount100 += Number(cat.amount100)||0;
-        let running = 0;
-        sortEntriesForExport(entries.filter(e=>e.workTypeKey===wtKey && e.catKey===catKey)).forEach(e=>{
-          const ledger = entryLedgerAmount(e);
-          running += ledger; paid += ledger;
-          rows.push([e.date||'', wtName(wtKey), cat.label||catKey, cat.code||'', e.desc||'',
-            Number(e.amount)||0, Number(e.tax)||0, ledger, running,
-            e.addedByName || e.addedByEmail || '', entryEditNoteText(e)]);
-        });
-      });
-    });
+        paid += rows.reduce((s,e)=> s + entryLedgerAmount(e), 0);
+        return {label: cat.label||catKey, code: cat.code||'', usable: (Number(cat.amount100)||0) * USABLE_RATIO, rows};
+      // A category with neither budget nor entries is just an empty table in the way of the reader.
+      }).filter(c=> c.usable > 0 || c.rows.length),
+    })).filter(wt=> wt.cats.length);
     // projTotals()/projCatTotals() read the ledger of whichever project is open on screen, so they
     // would report the open project's spending for every other file in the export. The totals here
     // are summed from this project's own fetched entries instead.
     const usable80 = amount100 * USABLE_RATIO;
     summary.push([p.wbs||'', p.name||'', projectYearOf(p) || '', amount100, usable80, paid,
       usable80 - paid, p.closed ? 'ปิดงานแล้ว' : 'กำลังดำเนินการ']);
-    detailSheets.push({name: p.wbs || p.name, rows});
+    sheets.push({p, workTypes, amount100, usable80, paid});
   }
   abortIfIncomplete(failed);
-  sheetFromRows(XLSX, wb, 'สรุปรวม', used,
-    ['หมายเลขงาน (WBS)','ชื่องาน','ปีงบประมาณ','งบ 100%','งบใช้ได้ 80%','ใช้ไปแล้ว','คงเหลือ','สถานะ'],
-    summary, [28, 40, 13, 15, 15, 15, 15, 16]);
-  detailSheets.forEach(s=> sheetFromRows(XLSX, wb, s.name, used,
-    ['วันที่','ประเภทงาน','หมวดงบประมาณ','รหัสบัญชี','รายการ','จำนวนเงิน','ภาษี','ยอดตัดงบ','รวมสะสม','ผู้บันทึก','การแก้ไข'],
-    s.rows, [12, 24, 22, 16, 38, 14, 12, 14, 14, 20, 30]));
+
+  xlSummarySheet(ExcelJS, wb, `คุมงบโครงการก่อสร้าง · ${deptLabel} · ปีงบประมาณ ${year}`,
+    ['หมายเลขงาน (WBS)','ชื่องาน','ปีงบ','งบ 100%','งบใช้ได้ 80%','ใช้ไปแล้ว','คงเหลือ','สถานะ'],
+    [30, 42, 9, 15, 15, 15, 15, 17], summary, 3);
+
+  for(const s of sheets){
+    const ws = wb.addWorksheet(safeSheetName(s.p.wbs || s.p.name, used));
+    ws.columns = WIDTHS.map(w=>({width:w}));
+    let r = xlSheetHeader(ws, COLS, s.p.wbs||'', s.p.name||'',
+      `ปีงบประมาณ ${projectYearOf(s.p) || '—'}  ·  ${s.p.closed ? 'ปิดงานแล้ว' : 'กำลังดำเนินการ'}`);
+    const frozen = r + 1;
+    r = xlTotalsBlock(ws, r, ['งบประมาณ 100%','งบใช้ได้ 80%','ใช้ไปแล้ว','คงเหลือ'],
+      [s.amount100, s.usable80, s.paid, s.usable80 - s.paid]);
+
+    s.workTypes.forEach(wt=>{
+      xlBandRow(ws, r, COLS, '  ' + wt.name, XL.band, 'FFFFFFFF', 12);
+      r++;
+      wt.cats.forEach(cat=>{
+        xlBandRow(ws, r, COLS,
+          `${cat.label}   ·   รหัสบัญชี ${cat.code || '—'}   ·   งบใช้ได้ 80% ${fmt(cat.usable)}`,
+          XL.cat, XL.ink, 11);
+        ws.getRow(r).height = 19;
+        r++;
+        let running = 0;
+        if(!cat.rows.length){
+          xlEmptyGroupRow(ws, r, COLS); r++;
+        } else {
+        xlTableHead(ws, r, ['วันที่','รายการ','จำนวนเงิน','ภาษี','ยอดตัดงบ','รวมสะสม','คงเหลือหมวด','ผู้บันทึก','การแก้ไข'], 2, 6);
+        r++;
+        cat.rows.forEach(e=>{
+          const ledger = entryLedgerAmount(e);
+          running += ledger;
+          xlDataRow(ws, r, [e.date||'', e.desc||'', Number(e.amount)||0, Number(e.tax)||0,
+            ledger, running, cat.usable - running,
+            e.addedByName || e.addedByEmail || '', entryEditNoteText(e)], 2, 6);
+          r++;
+        });
+        }
+        xlSubtotalRow(ws, r, COLS, `รวม ${cat.label}`, {5: running, 7: cat.usable - running});
+        r += 2;
+      });
+    });
+    ws.views = [{state:'frozen', ySplit: frozen}];
+  }
   return {wb, filename: `คุมงบโครงการ_${deptLabel}_${year}.xlsx`};
 }
 
-async function buildWarehouseWorkbook(XLSX, deptLabel, year){
+/* ---- โหมดคลังพัสดุ: ชีตละแฟ้มงบซื้อของ (งบก้อนเดียว ไม่มีหมวด) ---- */
+async function buildWarehouseWorkbook(ExcelJS, deptLabel, year){
   const files = whFilesForYear();
   if(!files.length) return null;
-  const wb = XLSX.utils.book_new();
-  const used = new Set();
+  const COLS = 7;
+  const WIDTHS = [13, 50, 15, 15, 15, 22, 26];
+  const wb = new ExcelJS.Workbook();
+  const used = new Set(['สรุปรวม']);
   const summary = [];
-  const detailSheets = [];
+  const sheets = [];
   const failed = [];
+
   for(const f of files){
     let entries = [];
     try{ entries = await window.fb.getWarehouseEntriesOnce(f.id); }
     catch(e){ console.error('ดึงรายการซื้อของแฟ้ม', f.wbs, 'ไม่สำเร็จ', e); failed.push(`${f.wbs} — ${f.name}`); continue; }
-    let running = 0;
+    const rows = sortEntriesForExport(entries);
     const budget = Number(f.budget)||0;
-    const rows = sortEntriesForExport(entries).map(e=>{
-      running += (Number(e.amount)||0);
-      return [e.date||'', e.desc||'', Number(e.amount)||0, running, budget - running,
-        e.addedByName || e.addedByEmail || '', entryEditNoteText(e)];
-    });
-    summary.push([f.wbs||'', f.name||'', budget, running, budget - running,
+    const paid = rows.reduce((s,e)=> s + (Number(e.amount)||0), 0);
+    summary.push([f.wbs||'', f.name||'', f.year, budget, paid, budget - paid,
       f.closed ? 'ปิดงานแล้ว' : 'กำลังดำเนินการ']);
-    detailSheets.push({name: f.wbs || f.name, rows});
+    sheets.push({f, rows, budget, paid});
   }
   abortIfIncomplete(failed);
-  sheetFromRows(XLSX, wb, 'สรุปรวม', used,
-    ['หมายเลขงาน (WBS)','ชื่องาน','งบประมาณ','ซื้อไปแล้ว','คงเหลือ','สถานะ'],
-    summary, [28, 40, 15, 15, 15, 16]);
-  detailSheets.forEach(s=> sheetFromRows(XLSX, wb, s.name, used,
-    ['วันที่','รายการ','จำนวนเงิน','รวมซื้อ','คงเหลือ','ผู้บันทึก','การแก้ไข'],
-    s.rows, [12, 44, 14, 14, 14, 20, 30]));
+
+  xlSummarySheet(ExcelJS, wb, `คุมงบซื้อของ (WBS) · ${deptLabel} · ปีงบประมาณ ${year}`,
+    ['หมายเลขงาน (WBS)','ชื่องาน','ปีงบ','งบประมาณ','ซื้อไปแล้ว','คงเหลือ','สถานะ'],
+    [30, 44, 9, 16, 16, 16, 17], summary, 3);
+
+  for(const s of sheets){
+    const ws = wb.addWorksheet(safeSheetName(s.f.wbs || s.f.name, used));
+    ws.columns = WIDTHS.map(w=>({width:w}));
+    let r = xlSheetHeader(ws, COLS, s.f.wbs||'', s.f.name||'',
+      `ปีงบประมาณ ${s.f.year}  ·  ${s.f.closed ? 'ปิดงานแล้ว' : 'กำลังดำเนินการ'}`);
+    const frozen = r + 1;
+    r = xlTotalsBlock(ws, r, ['งบที่ได้รับอนุมัติ','ซื้อไปแล้ว','คงเหลือ'], [s.budget, s.paid, s.budget - s.paid]);
+
+    xlBandRow(ws, r, COLS, `  รายการซื้อทั้งหมด (${s.rows.length} รายการ)`, XL.band, 'FFFFFFFF', 12);
+    r++;
+    xlTableHead(ws, r, ['วันที่','รายการ','จำนวนเงิน','รวมซื้อ','คงเหลือ','ผู้บันทึก','การแก้ไข'], 2, 4);
+    r++;
+    let running = 0;
+    s.rows.forEach(e=>{
+      running += (Number(e.amount)||0);
+      xlDataRow(ws, r, [e.date||'', e.desc||'', Number(e.amount)||0, running, s.budget - running,
+        e.addedByName || e.addedByEmail || '', entryEditNoteText(e)], 2, 4);
+      r++;
+    });
+    xlSubtotalRow(ws, r, COLS, 'รวมทั้งแฟ้ม', {3: s.paid, 5: s.budget - s.paid}, 2);
+    ws.views = [{state:'frozen', ySplit: frozen}];
+  }
   return {wb, filename: `งบซื้อของ_${deptLabel}_${year}.xlsx`};
 }
 
