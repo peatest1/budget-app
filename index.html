@@ -1104,6 +1104,39 @@ table.ledger .del-x:hover{color:var(--rust);}
   </div>
 </div>
 
+<!-- Edit a ledger entry that was already saved (shared by all three modes) -->
+<div class="modal-overlay hidden" id="editEntryModal">
+  <div class="modal">
+    <h2>แก้ไขรายการ</h2>
+    <p class="modal-desc" id="eeDesc"></p>
+    <div class="field">
+      <label>วันที่</label>
+      <input type="date" id="eeDate">
+    </div>
+    <div class="field">
+      <label id="eeDescLabel">รายการ</label>
+      <input type="text" id="eeName" placeholder="รายละเอียดรายการ">
+    </div>
+    <div class="field">
+      <label id="eeAmountLabel">จำนวนเงิน (บาท)</label>
+      <input type="number" id="eeAmount" min="0" step="0.01" placeholder="0.00">
+    </div>
+    <div class="field" id="eeTaxField">
+      <label>ภาษีมูลค่าเพิ่ม (ถ้ามี)</label>
+      <input type="number" id="eeTax" min="0" step="0.01" placeholder="0.00">
+    </div>
+    <label class="check-row" id="eeVatField" style="display:none;align-items:center;gap:8px;font-size:12.5px;margin-bottom:12px;cursor:pointer;">
+      <input type="checkbox" id="eeVatCreditable" style="width:auto;margin:0;">
+      <span>ภาษีมูลค่าเพิ่มขอคืนได้ (ไม่นับรวมเป็นยอดตัดงบ)</span>
+    </label>
+    <div id="eeHistory"></div>
+    <div class="modal-actions">
+      <button class="btn btn-outline" onclick="closeModal('editEntryModal')">ยกเลิก</button>
+      <button class="btn btn-primary" onclick="submitEditEntry()">บันทึกการแก้ไข</button>
+    </div>
+  </div>
+</div>
+
 <!-- Add work-type modal -->
 <div class="modal-overlay hidden" id="addWorkTypeModal">
   <div class="modal">
@@ -1240,6 +1273,38 @@ table.ledger .del-x:hover{color:var(--rust);}
     const amount = Number(e.amount)||0;
     if(e.vatCreditable === false) return amount + (Number(e.tax)||0);
     return amount;
+  }
+
+  // Applies an edit to a ledger entry and appends one record to its editLog, so a corrected amount
+  // can always be traced back to what it was before, who changed it and when. The log is capped at
+  // the 20 most recent edits — enough to answer "ใครแก้" without letting one entry grow unbounded.
+  // A warehouse file document written before the aggregate existed (or overwritten by a plain
+  // saveWarehouseFile) has no totalPaid. Starting from 0 in that case would wipe out every purchase
+  // already recorded the first time someone edits one line, so the caller passes the total it can
+  // see (whAggregateTotalPaid, which sums the open file's loaded entries) as the fallback.
+  function whBaseTotalPaid(data, fallbackPaid){
+    if(typeof data.totalPaid === 'number') return data.totalPaid;
+    return Number(fallbackPaid) || 0;
+  }
+  const EDITABLE_ENTRY_FIELDS = ['date','desc','amount','tax','vatCreditable'];
+  function buildEditedEntry(entryData, patch, who){
+    const from = {}, to = {};
+    EDITABLE_ENTRY_FIELDS.forEach(k=>{
+      if(!(k in patch)) return;
+      const before = entryData[k] === undefined ? null : entryData[k];
+      const after = patch[k] === undefined ? null : patch[k];
+      if(before !== after){ from[k] = before; to[k] = after; }
+    });
+    const log = [...(entryData.editLog || []), {
+      at: Date.now(), byUid: (who && who.uid) || null, byName: (who && who.name) || null, from, to,
+    }];
+    return {
+      ...entryData, ...patch,
+      editLog: log.slice(-20),
+      editedAt: Date.now(),
+      editedByUid: (who && who.uid) || null,
+      editedByName: (who && who.name) || null,
+    };
   }
 
   window.fb = {
@@ -1572,14 +1637,16 @@ table.ledger .del-x:hover{color:var(--rust);}
         console.error('subscribeWarehouseEntries error', err);
       });
     },
+    getCcEntriesOnce: async (ccId) =>
+      (await getDocs(collection(db, 'costCenters', ccId, 'entries'))).docs.map(d => d.data()),
     getWarehouseEntriesOnce: async (fileId) =>
       (await getDocs(collection(db, 'warehouseFiles', fileId, 'entries'))).docs.map(d => d.data()),
-    addWarehouseEntryTx: (fileId, entry) => runTransaction(db, async (tx) => {
+    addWarehouseEntryTx: (fileId, entry, fallbackPaid) => runTransaction(db, async (tx) => {
       const ref = doc(db, 'warehouseFiles', fileId);
       const snap = await tx.get(ref);
       if(!snap.exists()) throw new Error('ไม่พบแฟ้มงบซื้อของนี้ในระบบ (อาจถูกลบไปแล้วโดยผู้อื่น)');
       const data = snap.data();
-      const baseTotalPaid = typeof data.totalPaid === 'number' ? data.totalPaid : 0;
+      const baseTotalPaid = whBaseTotalPaid(data, fallbackPaid);
       const baseEntryCount = typeof data.entryCount === 'number' ? data.entryCount : 0;
       tx.set(ref, {...data, totalPaid: baseTotalPaid + (Number(entry.amount)||0), entryCount: baseEntryCount + 1});
       tx.set(doc(db, 'warehouseFiles', fileId, 'entries', entry.id), entry);
@@ -1587,7 +1654,7 @@ table.ledger .del-x:hover{color:var(--rust);}
     // Purchase lines go to a 30-day trash like the other modes: the entry doc stays (stamped with
     // deletedAt/By) while the file's totalPaid/entryCount are reduced in the same transaction;
     // restoring adds them back. Only the final purge removes the doc.
-    softDeleteWarehouseEntryTx: (fileId, entryId, who) => runTransaction(db, async (tx) => {
+    softDeleteWarehouseEntryTx: (fileId, entryId, who, fallbackPaid) => runTransaction(db, async (tx) => {
       const ref = doc(db, 'warehouseFiles', fileId);
       const entryRef = doc(db, 'warehouseFiles', fileId, 'entries', entryId);
       const [snap, entrySnap] = await Promise.all([tx.get(ref), tx.get(entryRef)]);
@@ -1595,12 +1662,12 @@ table.ledger .del-x:hover{color:var(--rust);}
       if(!entrySnap.exists() || entrySnap.data().deletedAt) return;
       const data = snap.data();
       const entryData = entrySnap.data();
-      const baseTotalPaid = typeof data.totalPaid === 'number' ? data.totalPaid : 0;
+      const baseTotalPaid = whBaseTotalPaid(data, fallbackPaid);
       const baseEntryCount = typeof data.entryCount === 'number' ? data.entryCount : 0;
       tx.set(ref, {...data, totalPaid: baseTotalPaid - (Number(entryData.amount)||0), entryCount: Math.max(0, baseEntryCount - 1)});
       tx.set(entryRef, {...entryData, deletedAt: Date.now(), deletedByUid: (who && who.uid) || null, deletedByName: (who && who.name) || null});
     }),
-    restoreWarehouseEntryTx: (fileId, entryId) => runTransaction(db, async (tx) => {
+    restoreWarehouseEntryTx: (fileId, entryId, fallbackPaid) => runTransaction(db, async (tx) => {
       const ref = doc(db, 'warehouseFiles', fileId);
       const entryRef = doc(db, 'warehouseFiles', fileId, 'entries', entryId);
       const [snap, entrySnap] = await Promise.all([tx.get(ref), tx.get(entryRef)]);
@@ -1608,13 +1675,79 @@ table.ledger .del-x:hover{color:var(--rust);}
       if(!entrySnap.exists() || !entrySnap.data().deletedAt) return;
       const data = snap.data();
       const entryData = entrySnap.data();
-      const baseTotalPaid = typeof data.totalPaid === 'number' ? data.totalPaid : 0;
+      const baseTotalPaid = whBaseTotalPaid(data, fallbackPaid);
       const baseEntryCount = typeof data.entryCount === 'number' ? data.entryCount : 0;
       tx.set(ref, {...data, totalPaid: baseTotalPaid + (Number(entryData.amount)||0), entryCount: baseEntryCount + 1});
       tx.set(entryRef, {...entryData, deletedAt: null, deletedByUid: null, deletedByName: null});
     }),
     // Final removal of an already-trashed entry (aggregate was reduced when it was trashed).
     purgeWarehouseEntry: (fileId, entryId) => deleteDoc(doc(db, 'warehouseFiles', fileId, 'entries', entryId)),
+
+    /* ---- แก้ไขรายการจ่ายที่บันทึกไปแล้ว (ทั้ง 3 โหมด) ----
+       ยอดรวมที่เก็บไว้บนเอกสารแม่ถูกปรับด้วย "ผลต่าง" ระหว่างยอดเดิมกับยอดใหม่ ในทรานแซกชันเดียว
+       กับการเขียนตัวรายการ จึงไม่มีทางที่ยอดรวมกับรายการจะเพี้ยนออกจากกัน แม้สองคนแก้พร้อมกัน */
+    editCostCenterEntryTx: (ccId, itemCode, entryId, patch, who) => runTransaction(db, async (tx) => {
+      const ref = doc(db, 'costCenters', ccId);
+      const entryRef = doc(db, 'costCenters', ccId, 'entries', entryId);
+      const [snap, entrySnap] = await Promise.all([tx.get(ref), tx.get(entryRef)]);
+      if(!snap.exists()) throw new Error('ไม่พบศูนย์ต้นทุนนี้ในระบบ (อาจถูกลบไปแล้วโดยผู้อื่น)');
+      const data = snap.data();
+      const items = [...(data.items || [])];
+      const idx = items.findIndex(i => i.code === itemCode);
+      if(idx === -1) throw new Error('ไม่พบรายการบัญชีนี้ในศูนย์ต้นทุน (อาจถูกลบไปแล้วโดยผู้อื่น)');
+      const item = items[idx];
+      const entryData = entrySnap.exists() ? entrySnap.data() : (item.entries||[]).find(e=>e.id===entryId);
+      if(!entryData) throw new Error('ไม่พบรายการจ่ายนี้ (อาจถูกลบไปแล้วโดยผู้อื่น)');
+      if(entryData.deletedAt) throw new Error('รายการนี้ถูกลบไปแล้ว แก้ไขไม่ได้ (กู้คืนก่อนจึงจะแก้ได้)');
+      const next = buildEditedEntry(entryData, patch, who);
+      const legacyActive = (item.entries || []).filter(e => !e.deletedAt);
+      const baseTotalPaid = typeof item.totalPaid === 'number' ? item.totalPaid
+        : legacyActive.reduce((s,e)=> s + entryLedgerAmount(e), 0);
+      const baseEntryCount = typeof item.entryCount === 'number' ? item.entryCount : legacyActive.length;
+      const delta = entryLedgerAmount(next) - entryLedgerAmount(entryData);
+      items[idx] = {...item, totalPaid: baseTotalPaid + delta, entryCount: baseEntryCount};
+      tx.set(ref, {...data, items});
+      tx.set(entryRef, {...next, itemCode});
+    }),
+    editProjectEntryTx: (projId, workTypeKey, catKey, entryId, patch, who) => runTransaction(db, async (tx) => {
+      const ref = doc(db, 'constructionProjects', projId);
+      const entryRef = doc(db, 'constructionProjects', projId, 'entries', entryId);
+      const [snap, entrySnap] = await Promise.all([tx.get(ref), tx.get(entryRef)]);
+      if(!snap.exists()) throw new Error('ไม่พบแฟ้มงานนี้ในระบบ (อาจถูกลบไปแล้วโดยผู้อื่น)');
+      const data = snap.data();
+      const departments = {...(data.departments || {})};
+      const wt = departments[workTypeKey];
+      const cat = wt && wt.budgets && wt.budgets[catKey];
+      if(!cat) throw new Error('ไม่พบประเภทงาน/หมวดงบประมาณนี้ (อาจถูกลบไปแล้วโดยผู้อื่น)');
+      const entryData = entrySnap.exists() ? entrySnap.data() : (cat.entries||[]).find(e=>e.id===entryId);
+      if(!entryData) throw new Error('ไม่พบรายการจ่ายนี้ (อาจถูกลบไปแล้วโดยผู้อื่น)');
+      if(entryData.deletedAt) throw new Error('รายการนี้ถูกลบไปแล้ว แก้ไขไม่ได้ (กู้คืนก่อนจึงจะแก้ได้)');
+      const next = buildEditedEntry(entryData, patch, who);
+      const legacyActive = (cat.entries || []).filter(e => !e.deletedAt);
+      const baseTotalPaid = typeof cat.totalPaid === 'number' ? cat.totalPaid
+        : legacyActive.reduce((s,e)=> s + entryLedgerAmount(e), 0);
+      const baseEntryCount = typeof cat.entryCount === 'number' ? cat.entryCount : legacyActive.length;
+      const delta = entryLedgerAmount(next) - entryLedgerAmount(entryData);
+      departments[workTypeKey] = {...wt, budgets: {...wt.budgets,
+        [catKey]: {...cat, totalPaid: baseTotalPaid + delta, entryCount: baseEntryCount}}};
+      tx.set(ref, {...data, departments});
+      tx.set(entryRef, {...next, workTypeKey, catKey});
+    }),
+    editWarehouseEntryTx: (fileId, entryId, patch, who, fallbackPaid) => runTransaction(db, async (tx) => {
+      const ref = doc(db, 'warehouseFiles', fileId);
+      const entryRef = doc(db, 'warehouseFiles', fileId, 'entries', entryId);
+      const [snap, entrySnap] = await Promise.all([tx.get(ref), tx.get(entryRef)]);
+      if(!snap.exists()) throw new Error('ไม่พบแฟ้มงบซื้อของนี้ในระบบ (อาจถูกลบไปแล้วโดยผู้อื่น)');
+      if(!entrySnap.exists()) throw new Error('ไม่พบรายการซื้อนี้ (อาจถูกลบไปแล้วโดยผู้อื่น)');
+      const entryData = entrySnap.data();
+      if(entryData.deletedAt) throw new Error('รายการนี้ถูกลบไปแล้ว แก้ไขไม่ได้ (กู้คืนก่อนจึงจะแก้ได้)');
+      const data = snap.data();
+      const next = buildEditedEntry(entryData, patch, who);
+      const baseTotalPaid = whBaseTotalPaid(data, fallbackPaid);
+      const delta = (Number(next.amount)||0) - (Number(entryData.amount)||0);
+      tx.set(ref, {...data, totalPaid: baseTotalPaid + delta});
+      tx.set(entryRef, next);
+    }),
     softDeleteWarehouseFile: (id, who) => setDoc(doc(db, 'warehouseFiles', id),
       {deletedAt: Date.now(), deletedByUid: (who && who.uid) || null, deletedByName: (who && who.name) || null}, {merge: true}),
     restoreWarehouseFile: (id) => setDoc(doc(db, 'warehouseFiles', id),
@@ -3905,7 +4038,7 @@ async function addWhEntry(){
   };
   descEl.value=''; amtEl.value='';
   try{
-    await window.fb.addWarehouseEntryTx(f.id, entry);
+    await window.fb.addWarehouseEntryTx(f.id, entry, whAggregateTotalPaid(f));
     flashSaved();
   }catch(e){ console.error(e); flashSaved(true); alert('บันทึกไม่สำเร็จ: '+e.message); }
 }
@@ -3918,7 +4051,7 @@ async function deleteWhEntry(entryId){
   if(!confirm(`ย้ายรายการ "${row.desc}" (${fmt(row.amount)} บาท) ไปถังขยะ?\nกู้คืนได้ภายใน 30 วัน (โดยผู้ดูแลแผนกหรือแอดมิน)`)) return;
   state.whSlipSelection = state.whSlipSelection.filter(id=>id!==entryId);
   try{
-    await window.fb.softDeleteWarehouseEntryTx(f.id, entryId, {uid: state.user?.uid, name: state.user?.displayName || state.user?.email});
+    await window.fb.softDeleteWarehouseEntryTx(f.id, entryId, {uid: state.user?.uid, name: state.user?.displayName || state.user?.email}, whAggregateTotalPaid(f));
     flashSaved();
   }catch(e){ console.error(e); flashSaved(true); alert('ลบไม่สำเร็จ: '+e.message); }
 }
@@ -3931,7 +4064,7 @@ function trashedWhEntries(){
 async function restoreWhEntry(entryId){
   const f = getWhFile(state.activeWhFileId);
   if(!f || !whCanManage()) return;
-  try{ await window.fb.restoreWarehouseEntryTx(f.id, entryId); flashSaved(); }
+  try{ await window.fb.restoreWarehouseEntryTx(f.id, entryId, whAggregateTotalPaid(f)); flashSaved(); }
   catch(e){ console.error(e); flashSaved(true); alert('กู้คืนไม่สำเร็จ: '+e.message); }
 }
 async function permanentlyDeleteWhEntry(entryId, label){
@@ -4125,7 +4258,7 @@ function trashedEntriesOfCat(cat, workTypeKey, catKey){
 function projTotals(project){
   let amount100=0, usable80=0, totalPaid=0;
   Object.entries(project.departments||{}).filter(([,dept])=>!dept.deletedAt).forEach(([workTypeKey, dept])=>{
-    Object.entries(dept.budgets).forEach(([catKey, cat])=>{
+    Object.entries(dept.budgets||{}).forEach(([catKey, cat])=>{
       const t = projCatTotals(cat, workTypeKey, catKey);
       amount100 += t.amount100; usable80 += t.usable80; totalPaid += t.totalPaid;
     });
@@ -4633,6 +4766,11 @@ function renderRoleBadge(){
   const trashBtn = canManageDept(state.activeDept)
     ? `<button onclick="openTrashModal()" style="background:none;border:1px solid rgba(255,255,255,.22);border-radius:6px;padding:3px 9px;font-size:11px;font-weight:600;color:#B7C2C6;cursor:pointer;font-family:'Noto Sans Thai',sans-serif;">🗑 ถังขยะ</button>`
     : '';
+  // Hands the year's numbers to someone outside the system (finance), unlike the .json backup,
+  // which only this app can read back.
+  const exportBtn = canManageDept(state.activeDept)
+    ? `<button id="exportXlsxBtn" onclick="exportYearToExcel()" title="ส่งออกข้อมูลของแผนกนี้ในปีงบประมาณที่เลือก เป็นไฟล์ Excel (.xlsx) แยกชีตละแฟ้ม" style="background:none;border:1px solid rgba(255,255,255,.22);border-radius:6px;padding:3px 9px;font-size:11px;font-weight:600;color:#B7C2C6;cursor:pointer;font-family:'Noto Sans Thai',sans-serif;">📊 ส่งออก Excel</button>`
+    : '';
   let backupBtn = '';
   if(isAdmin()){
     const overdue = isBackupOverdue();
@@ -4641,7 +4779,7 @@ function renderRoleBadge(){
     const title = overdue ? 'ยังไม่ได้สำรองข้อมูลเกิน 30 วันแล้ว — แนะนำให้ดาวน์โหลดสำรองไว้' : 'ดาวน์โหลดข้อมูลทั้งหมดเป็นไฟล์สำรอง (.json)';
     backupBtn = `<button onclick="downloadBackup()" title="${title}" style="background:none;border:1px solid ${backupBorder};border-radius:6px;padding:3px 9px;font-size:11px;font-weight:600;color:${backupColor};cursor:pointer;font-family:'Noto Sans Thai',sans-serif;">💾 สำรองข้อมูล${overdue ? ' ⚠' : ''}</button>`;
   }
-  el.innerHTML = `<div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">${badgeHtml}${trashBtn}${backupBtn}</div>`;
+  el.innerHTML = `<div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">${badgeHtml}${trashBtn}${exportBtn}${backupBtn}</div>`;
 }
 function renderAccountRow(){
   const el = document.getElementById('accountRow');
@@ -5027,12 +5165,358 @@ function gaugeClass(pct){
   return 'ok';
 }
 
-// Icon-button pair (print / delete) used at the end of every ledger row, budget mode and WBS mode alike.
-function rowActionButtonsHtml(printOnclick, deleteOnclick, canDelete){
+/* ============ ส่งออกเป็นไฟล์ Excel ============ */
+// The JSON backup is for restoring the system; this is for handing the numbers to someone else.
+// One sheet per cost center / แฟ้มงาน / แฟ้มงบซื้อของ of the department in the selected year, plus a
+// summary sheet up front. SheetJS is loaded on demand (and only once) so it costs nothing on a
+// normal page load, and falls back to a second CDN if the first one is unreachable.
+const XLSX_CDNS = [
+  'https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js',
+  'https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js',
+];
+let xlsxLoadingPromise = null;
+function loadScriptOnce(src){
+  return new Promise((resolve, reject)=>{
+    const el = document.createElement('script');
+    el.src = src;
+    el.onload = ()=> resolve();
+    el.onerror = ()=> { el.remove(); reject(new Error('โหลดไม่สำเร็จ: '+src)); };
+    document.head.appendChild(el);
+  });
+}
+function loadXlsxLib(){
+  if(window.XLSX) return Promise.resolve(window.XLSX);
+  if(!xlsxLoadingPromise){
+    xlsxLoadingPromise = (async ()=>{
+      let lastErr = null;
+      for(const url of XLSX_CDNS){
+        try{
+          await loadScriptOnce(url);
+          if(window.XLSX) return window.XLSX;
+        }catch(e){ lastErr = e; }
+      }
+      xlsxLoadingPromise = null; // let a later click retry
+      throw lastErr || new Error('ไม่พบไลบรารีสร้างไฟล์ Excel');
+    })();
+  }
+  return xlsxLoadingPromise;
+}
+
+// Excel rejects : \ / ? * [ ] in a sheet name and truncates past 31 characters, and two sheets can
+// never share a name — so names are cleaned and de-duplicated before the workbook is built.
+function safeSheetName(raw, used){
+  let name = String(raw || 'ไม่มีชื่อ').replace(/[:\\\/\?\*\[\]]/g, '-').trim().slice(0, 28) || 'ไม่มีชื่อ';
+  let out = name, n = 2;
+  while(used.has(out)){ out = name.slice(0, 27) + '~' + n; n++; }
+  used.add(out);
+  return out;
+}
+function entryEditNoteText(e){
+  if(!e || !e.editedAt) return '';
+  return `แก้ไข ${thaiStamp(e.editedAt)}${e.editedByName ? ' โดย '+e.editedByName : ''}`;
+}
+function sortEntriesForExport(list){
+  return [...list].filter(e=>!e.deletedAt)
+    .sort((a,b)=> (a.date||'').localeCompare(b.date||'') || (a.createdAt||0)-(b.createdAt||0));
+}
+
+async function exportYearToExcel(){
+  const btn = document.getElementById('exportXlsxBtn');
+  const restore = btn ? btn.innerHTML : null;
+  const busy = (t)=>{ if(btn){ btn.disabled = true; btn.innerHTML = t; } };
+  const done = ()=>{ if(btn){ btn.disabled = false; btn.innerHTML = restore; } };
+  try{
+    busy('⏳ กำลังโหลด...');
+    const XLSX = await loadXlsxLib();
+    busy('⏳ กำลังรวบรวม...');
+    const dept = deptByKey(state.activeDept);
+    const deptLabel = dept ? dept.abbr+' '+dept.name : state.activeDept;
+    // Project mode has its own year filter in the sidebar (state.projYear, which can be 'all') —
+    // the global year picker only drives budget and warehouse mode. Export what the user is actually
+    // looking at, and name the file after that same year so the two can never disagree.
+    const projFilter = projYearFilter();
+    const yearLabel = state.appMode === 'project'
+      ? (projFilter === 'all' ? 'ทุกปี' : String(projFilter))
+      : String(state.activeYear);
+    let built;
+    if(state.appMode === 'project')      built = await buildProjectWorkbook(XLSX, deptLabel, yearLabel);
+    else if(state.appMode === 'warehouse') built = await buildWarehouseWorkbook(XLSX, deptLabel, yearLabel);
+    else                                  built = await buildBudgetWorkbook(XLSX, deptLabel, yearLabel);
+    if(!built){ alert('ปีงบประมาณ '+yearLabel+' ของแผนกนี้ยังไม่มีข้อมูลให้ส่งออก'); done(); return; }
+    busy('⏳ กำลังสร้างไฟล์...');
+    XLSX.writeFile(built.wb, built.filename);
+  }catch(e){
+    console.error(e);
+    alert('ส่งออกไม่สำเร็จ: ' + e.message + '\n\nถ้าขึ้นว่าโหลดไม่สำเร็จ แปลว่าเครือข่ายของที่ทำงานบล็อกแหล่งดาวน์โหลดไลบรารีไว้ ลองใหม่อีกครั้งหรือแจ้งฝ่ายไอที');
+  }
+  done();
+}
+
+function sheetFromRows(XLSX, wb, name, used, header, rows, widths){
+  const ws = XLSX.utils.aoa_to_sheet([header, ...rows]);
+  ws['!cols'] = widths.map(w=>({wch:w}));
+  XLSX.utils.book_append_sheet(wb, ws, safeSheetName(name, used));
+}
+// A workbook that is missing one file's ledger but still looks complete is worse than no workbook at
+// all — it would be sent to finance as if it were the whole picture. So any failed fetch aborts.
+function abortIfIncomplete(failed){
+  if(!failed.length) return;
+  throw new Error('ดึงข้อมูลบางแฟ้มไม่สำเร็จ จึงยังไม่สร้างไฟล์ (กันตัวเลขขาด):\n· ' + failed.join('\n· '));
+}
+
+async function buildBudgetWorkbook(XLSX, deptLabel, year){
+  const ccs = ccsForYear(year);
+  if(!ccs.length) return null;
+  const wb = XLSX.utils.book_new();
+  const used = new Set();
+  const summary = [];
+  const detailSheets = [];
+  const failed = [];
+  for(const cc of ccs){
+    let entries = [];
+    try{ entries = await window.fb.getCcEntriesOnce(cc.id); }
+    catch(e){ console.error('ดึงรายการจ่ายของศูนย์ต้นทุน', cc.code, 'ไม่สำเร็จ', e); failed.push(`${cc.code} — ${cc.name}`); continue; }
+    const byItem = {};
+    sortEntriesForExport(entries).forEach(e=>{ (byItem[e.itemCode] = byItem[e.itemCode] || []).push(e); });
+    const rows = [];
+    let paid = 0;
+    (cc.items||[]).filter(it=>!it.deletedAt).forEach(item=>{
+      let running = 0;
+      (byItem[item.code] || []).forEach(e=>{
+        const ledger = entryLedgerAmount(e);
+        running += ledger; paid += ledger;
+        rows.push([e.date||'', item.code||'', item.label||'', e.desc||'',
+          Number(e.amount)||0, Number(e.tax)||0, ledger, running,
+          e.addedByName || e.addedByEmail || '', entryEditNoteText(e)]);
+      });
+    });
+    // Totals come from the rows written below, never from the cached aggregate, so the สรุปรวม sheet
+    // and the detail sheet in the same workbook can never tell finance two different numbers.
+    const budget = ccTotals(cc).budget;
+    summary.push([cc.code||'', cc.name||'', budget, paid, budget - paid, budget ? paid/budget : 0]);
+    detailSheets.push({name: cc.code || cc.name, rows});
+  }
+  abortIfIncomplete(failed);
+  sheetFromRows(XLSX, wb, 'สรุปรวม', used,
+    ['รหัสศูนย์ต้นทุน','ชื่อศูนย์ต้นทุน','งบประมาณ','ใช้ไปแล้ว','คงเหลือ','% ที่ใช้ไป'],
+    summary, [18, 38, 15, 15, 15, 11]);
+  detailSheets.forEach(s=> sheetFromRows(XLSX, wb, s.name, used,
+    ['วันที่','รหัสบัญชี','รายการบัญชี','รายการ','จำนวนเงิน','ภาษี','ยอดตัดงบ','รวมสะสม','ผู้บันทึก','การแก้ไข'],
+    s.rows, [12, 16, 30, 40, 14, 12, 14, 14, 20, 30]));
+  return {wb, filename: `คุมงบทั่วไป_${deptLabel}_${year}.xlsx`};
+}
+
+async function buildProjectWorkbook(XLSX, deptLabel, year){
+  const projects = projectsForDept().filter(p=>projectMatchesYear(p));
+  if(!projects.length) return null;
+  const wb = XLSX.utils.book_new();
+  const used = new Set();
+  const summary = [];
+  const detailSheets = [];
+  const failed = [];
+  const wtName = (k)=> (WORK_TYPES.find(w=>w.key===k) || {}).name || k;
+  for(const p of projects){
+    let entries = [];
+    try{ entries = await window.fb.getProjectEntriesOnce(p.id); }
+    catch(e){ console.error('ดึงรายการจ่ายของแฟ้มงาน', p.wbs, 'ไม่สำเร็จ', e); failed.push(`${p.wbs} — ${p.name}`); continue; }
+    const rows = [];
+    let amount100 = 0, paid = 0;
+    Object.entries(p.departments||{}).filter(([,wt])=>!wt.deletedAt).forEach(([wtKey, wt])=>{
+      Object.entries(wt.budgets||{}).forEach(([catKey, cat])=>{
+        amount100 += Number(cat.amount100)||0;
+        let running = 0;
+        sortEntriesForExport(entries.filter(e=>e.workTypeKey===wtKey && e.catKey===catKey)).forEach(e=>{
+          const ledger = entryLedgerAmount(e);
+          running += ledger; paid += ledger;
+          rows.push([e.date||'', wtName(wtKey), cat.label||catKey, cat.code||'', e.desc||'',
+            Number(e.amount)||0, Number(e.tax)||0, ledger, running,
+            e.addedByName || e.addedByEmail || '', entryEditNoteText(e)]);
+        });
+      });
+    });
+    // projTotals()/projCatTotals() read the ledger of whichever project is open on screen, so they
+    // would report the open project's spending for every other file in the export. The totals here
+    // are summed from this project's own fetched entries instead.
+    const usable80 = amount100 * USABLE_RATIO;
+    summary.push([p.wbs||'', p.name||'', projectYearOf(p) || '', amount100, usable80, paid,
+      usable80 - paid, p.closed ? 'ปิดงานแล้ว' : 'กำลังดำเนินการ']);
+    detailSheets.push({name: p.wbs || p.name, rows});
+  }
+  abortIfIncomplete(failed);
+  sheetFromRows(XLSX, wb, 'สรุปรวม', used,
+    ['หมายเลขงาน (WBS)','ชื่องาน','ปีงบประมาณ','งบ 100%','งบใช้ได้ 80%','ใช้ไปแล้ว','คงเหลือ','สถานะ'],
+    summary, [28, 40, 13, 15, 15, 15, 15, 16]);
+  detailSheets.forEach(s=> sheetFromRows(XLSX, wb, s.name, used,
+    ['วันที่','ประเภทงาน','หมวดงบประมาณ','รหัสบัญชี','รายการ','จำนวนเงิน','ภาษี','ยอดตัดงบ','รวมสะสม','ผู้บันทึก','การแก้ไข'],
+    s.rows, [12, 24, 22, 16, 38, 14, 12, 14, 14, 20, 30]));
+  return {wb, filename: `คุมงบโครงการ_${deptLabel}_${year}.xlsx`};
+}
+
+async function buildWarehouseWorkbook(XLSX, deptLabel, year){
+  const files = whFilesForYear();
+  if(!files.length) return null;
+  const wb = XLSX.utils.book_new();
+  const used = new Set();
+  const summary = [];
+  const detailSheets = [];
+  const failed = [];
+  for(const f of files){
+    let entries = [];
+    try{ entries = await window.fb.getWarehouseEntriesOnce(f.id); }
+    catch(e){ console.error('ดึงรายการซื้อของแฟ้ม', f.wbs, 'ไม่สำเร็จ', e); failed.push(`${f.wbs} — ${f.name}`); continue; }
+    let running = 0;
+    const budget = Number(f.budget)||0;
+    const rows = sortEntriesForExport(entries).map(e=>{
+      running += (Number(e.amount)||0);
+      return [e.date||'', e.desc||'', Number(e.amount)||0, running, budget - running,
+        e.addedByName || e.addedByEmail || '', entryEditNoteText(e)];
+    });
+    summary.push([f.wbs||'', f.name||'', budget, running, budget - running,
+      f.closed ? 'ปิดงานแล้ว' : 'กำลังดำเนินการ']);
+    detailSheets.push({name: f.wbs || f.name, rows});
+  }
+  abortIfIncomplete(failed);
+  sheetFromRows(XLSX, wb, 'สรุปรวม', used,
+    ['หมายเลขงาน (WBS)','ชื่องาน','งบประมาณ','ซื้อไปแล้ว','คงเหลือ','สถานะ'],
+    summary, [28, 40, 15, 15, 15, 16]);
+  detailSheets.forEach(s=> sheetFromRows(XLSX, wb, s.name, used,
+    ['วันที่','รายการ','จำนวนเงิน','รวมซื้อ','คงเหลือ','ผู้บันทึก','การแก้ไข'],
+    s.rows, [12, 44, 14, 14, 14, 20, 30]));
+  return {wb, filename: `งบซื้อของ_${deptLabel}_${year}.xlsx`};
+}
+
+/* ============ แก้ไขรายการจ่ายที่บันทึกไปแล้ว (ใช้ร่วมกันทั้ง 3 โหมด) ============ */
+// Correcting a typo used to mean deleting the row and re-entering it, which left a delete in the
+// history and renumbered every ใบตัดงบ printed after it. Editing in place keeps the row (and its
+// slip) where it is and records what changed in the entry's own editLog.
+let editingEntryCtx = null;
+
+function thaiStamp(ts){
+  return ts ? new Date(ts).toLocaleString('th-TH', {dateStyle:'medium', timeStyle:'short'}) : '';
+}
+// The "แก้ไขล่าสุด ..." line under a ledger row's description, with the full change list as a tooltip.
+function entryEditNoteHtml(e){
+  if(!e || !e.editedAt) return '';
+  const label = (k) => ({date:'วันที่', desc:'รายการ', amount:'จำนวนเงิน', tax:'ภาษี', vatCreditable:'ภาษีขอคืนได้'})[k] || k;
+  const val = (k, v) => {
+    if(v === null || v === undefined || v === '') return '(ว่าง)';
+    if(k === 'vatCreditable') return v ? 'ใช่' : 'ไม่ใช่';
+    if(k === 'amount' || k === 'tax') return fmt(v);
+    return String(v);
+  };
+  const lines = (e.editLog || []).map(l => {
+    const keys = Object.keys(l.to || {});
+    const changes = keys.length
+      ? keys.map(k=>`${label(k)}: ${val(k, (l.from||{})[k])} → ${val(k, l.to[k])}`).join(', ')
+      : 'ไม่มีการเปลี่ยนแปลง';
+    return `${thaiStamp(l.at)}${l.byName ? ' · '+l.byName : ''} — ${changes}`;
+  });
+  const tip = escapeHtml(lines.join('\n')) || 'แก้ไขแล้ว';
+  return `<div style="font-size:10.5px;color:var(--text-faint);margin-top:2px;" title="${tip}">
+    ✎ แก้ไขล่าสุด ${escapeHtml(thaiStamp(e.editedAt))}${e.editedByName ? ' โดย '+escapeHtml(e.editedByName) : ''}</div>`;
+}
+
+function openEditEntry(itemCode, entryId){
+  const cc = getCc(state.activeCcId);
+  if(!cc) return;
+  const item = (cc.items||[]).find(i=>i.code===itemCode);
+  const entry = findActiveCcEntry(cc, itemCode, entryId);
+  if(!item || !entry) return;
+  if(!canDeleteEntry(entry)){ alert('แก้ไขได้เฉพาะรายการที่คุณเพิ่มเอง หรือผู้ดูแลแผนก/แอดมิน'); return; }
+  showEditEntryModal({mode:'budget', ccId: cc.id, itemCode, entryId}, entry, {
+    desc: `${item.code ? item.code+' — ' : ''}${item.label}`,
+    showTax: true, showVat: itemHasVatCreditToggle(item),
+  });
+}
+function openEditProjectEntry(workTypeKey, catKey, entryId){
+  const p = getProject(state.activeProjectId);
+  if(!p) return;
+  if(p.closed){ alert('แฟ้มงานนี้ปิดงานแล้ว — แก้ไขรายการจ่ายไม่ได้ จนกว่าจะยกเลิกปิดงาน'); return; }
+  const entry = findActiveProjectEntry(p, workTypeKey, catKey, entryId);
+  if(!entry) return;
+  if(!canDeleteEntry(entry)){ alert('แก้ไขได้เฉพาะรายการที่คุณเพิ่มเอง หรือผู้ดูแลแผนก/แอดมิน'); return; }
+  const cat = p.departments[workTypeKey] && p.departments[workTypeKey].budgets[catKey];
+  showEditEntryModal({mode:'project', projId: p.id, workTypeKey, catKey, entryId}, entry, {
+    desc: `${p.wbs||''} · ${cat ? cat.label : ''}`,
+    showTax: true, showVat: projectCatHasVatCreditToggle(catKey),
+  });
+}
+function openEditWhEntry(entryId){
+  const f = getWhFile(state.activeWhFileId);
+  if(!f) return;
+  if(f.closed){ alert('แฟ้มงบซื้อของนี้ปิดงานแล้ว — แก้ไขรายการไม่ได้ จนกว่าจะยกเลิกปิดงาน'); return; }
+  const entry = state.activeWhEntries.find(e=>e.id===entryId && !e.deletedAt);
+  if(!entry) return;
+  if(!canDeleteWhEntry(entry)){ alert('แก้ไขได้เฉพาะรายการที่คุณเพิ่มเอง หรือผู้ดูแลแผนก/แอดมิน'); return; }
+  showEditEntryModal({mode:'warehouse', fileId: f.id, entryId}, entry, {
+    desc: `${f.wbs} — ${f.name}`,
+    showTax: false, showVat: false,
+    nameLabel: 'ชื่อรายการ/รายการพัสดุที่ซื้อ',
+  });
+}
+
+function showEditEntryModal(ctx, entry, opts){
+  editingEntryCtx = {...ctx, showTax: !!opts.showTax, showVat: !!opts.showVat};
+  document.getElementById('eeDesc').textContent = opts.desc || '';
+  document.getElementById('eeDescLabel').textContent = opts.nameLabel || 'รายการ';
+  document.getElementById('eeDate').value = entry.date || todayStr();
+  document.getElementById('eeName').value = entry.desc || '';
+  document.getElementById('eeAmount').value = Number(entry.amount) || 0;
+  document.getElementById('eeTax').value = Number(entry.tax) || 0;
+  document.getElementById('eeTaxField').classList.toggle('hidden', !opts.showTax);
+  const vatField = document.getElementById('eeVatField');
+  vatField.style.display = opts.showVat ? 'flex' : 'none';
+  document.getElementById('eeVatCreditable').checked = entry.vatCreditable !== false;
+  // Past edits of this same row, so the person correcting it can see it has been corrected before.
+  const hist = document.getElementById('eeHistory');
+  const note = entryEditNoteHtml(entry);
+  hist.innerHTML = note
+    ? `<div style="margin:-4px 0 14px;padding:9px 11px;background:var(--border-soft);border-radius:var(--radius);">${note}</div>`
+    : '';
+  openModal('editEntryModal');
+  setTimeout(()=>document.getElementById('eeAmount').focus(), 50);
+}
+
+async function submitEditEntry(){
+  const ctx = editingEntryCtx;
+  if(!ctx) return;
+  const date = document.getElementById('eeDate').value || todayStr();
+  const desc = document.getElementById('eeName').value.trim();
+  const amount = Number(document.getElementById('eeAmount').value);
+  if(!desc){ alert('กรุณากรอกชื่อรายการ'); return; }
+  if(!(amount > 0)){ alert('กรุณากรอกจำนวนเงินให้ถูกต้อง'); return; }
+  const patch = {date, desc, amount};
+  if(ctx.showTax) patch.tax = Number(document.getElementById('eeTax').value) || 0;
+  if(ctx.showVat) patch.vatCreditable = !!document.getElementById('eeVatCreditable').checked;
+  const who = {uid: state.user?.uid, name: state.user?.displayName || state.user?.email};
+  closeModal('editEntryModal');
+  try{
+    if(ctx.mode === 'budget'){
+      await window.fb.editCostCenterEntryTx(ctx.ccId, ctx.itemCode, ctx.entryId, patch, who);
+    } else if(ctx.mode === 'project'){
+      await window.fb.editProjectEntryTx(ctx.projId, ctx.workTypeKey, ctx.catKey, ctx.entryId, patch, who);
+    } else {
+      await window.fb.editWarehouseEntryTx(ctx.fileId, ctx.entryId, patch, who, whAggregateTotalPaid(getWhFile(ctx.fileId) || {}));
+    }
+    flashSaved(false);
+  }catch(e){
+    console.error(e); flashSaved(true);
+    alert('แก้ไขรายการไม่สำเร็จ: ' + e.message);
+  }
+  // Only clear if nobody opened a different row while this write was in flight — otherwise the
+  // second edit would find a null context and silently save nothing.
+  if(editingEntryCtx === ctx) editingEntryCtx = null;
+}
+
+// Icon-button trio (print / edit / delete) used at the end of every ledger row, in all three modes.
+function rowActionButtonsHtml(printOnclick, deleteOnclick, canDelete, editOnclick, canEdit){
   return `<div class="row-actions">
     <button class="icon-action-btn" onclick="${printOnclick}" title="เปิดใบตัดงบเพื่อพิมพ์ / บันทึกเป็น PDF">
       <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="var(--teal)" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 6 2 18 2 18 9"></polyline><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"></path><rect x="6" y="14" width="12" height="8"></rect></svg>
     </button>
+    ${(editOnclick && canEdit) ? `<button class="icon-action-btn" onclick="${editOnclick}" title="แก้ไขรายการ">
+      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="var(--text-faint)" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"></path><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z"></path></svg>
+    </button>` : ''}
     ${canDelete ? `<button class="icon-action-btn danger" onclick="${deleteOnclick}" title="ลบรายการ">
       <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="var(--text-faint)" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
     </button>` : ''}
@@ -5153,12 +5637,12 @@ function renderItemDetail(cc, item){
           return `<tr>
             <td style="text-align:center;"><input type="checkbox" title="เลือกรวมพิมพ์ใบตัดงบ" ${checked?'checked':''} onchange="toggleSlipSelection('${escapeHtml(item.code)}','${r.id}')"></td>
             <td class="mono">${escapeHtml(r.date)}</td>
-            <td>${escapeHtml(r.desc)}${(r.addedByName || r.addedByEmail) ? `<div style="font-size:10.5px;color:var(--text-faint);margin-top:2px;">เพิ่มโดย ${escapeHtml(r.addedByName || r.addedByEmail)}</div>` : ''}${vatBadge}</td>
+            <td>${escapeHtml(r.desc)}${(r.addedByName || r.addedByEmail) ? `<div style="font-size:10.5px;color:var(--text-faint);margin-top:2px;">เพิ่มโดย ${escapeHtml(r.addedByName || r.addedByEmail)}</div>` : ''}${entryEditNoteHtml(r)}${vatBadge}</td>
             <td class="num">${fmt(paidThisTime)}</td>
             <td class="num">${fmt(r.cumulative)}</td>
             <td class="num ${rowRemaining<0?'neg':''}">${fmt(rowRemaining)}</td>
             <td style="white-space:nowrap;">
-              ${rowActionButtonsHtml(`downloadWithdrawalSlip('${escapeHtml(item.code)}','${r.id}')`, `deleteEntry('${escapeHtml(item.code)}','${r.id}')`, canDelete)}
+              ${rowActionButtonsHtml(`downloadWithdrawalSlip('${escapeHtml(item.code)}','${r.id}')`, `deleteEntry('${escapeHtml(item.code)}','${r.id}')`, canDelete, `openEditEntry('${escapeHtml(item.code)}','${r.id}')`, canDelete)}
             </td>
           </tr>`;
         }).join('')}
@@ -5387,12 +5871,12 @@ function renderWhMain(){
           return `<tr>
             <td style="text-align:center;"><input type="checkbox" title="เลือกรวมพิมพ์ใบตัดงบ" ${isWhEntrySelected(r.id)?'checked':''} onchange="toggleWhSlipSelection('${r.id}')"></td>
             <td class="mono">${escapeHtml(r.date)}</td>
-            <td>${escapeHtml(r.desc)}${(r.addedByName || r.addedByEmail) ? `<div style="font-size:10.5px;color:var(--text-faint);margin-top:2px;">เพิ่มโดย ${escapeHtml(r.addedByName || r.addedByEmail)}</div>` : ''}</td>
+            <td>${escapeHtml(r.desc)}${(r.addedByName || r.addedByEmail) ? `<div style="font-size:10.5px;color:var(--text-faint);margin-top:2px;">เพิ่มโดย ${escapeHtml(r.addedByName || r.addedByEmail)}</div>` : ''}${entryEditNoteHtml(r)}</td>
             <td class="num">${fmt(r.amount)}</td>
             <td class="num">${fmt(r.cumulative)}</td>
             <td class="num ${rowRemaining<0?'neg':''}">${fmt(rowRemaining)}</td>
             <td style="white-space:nowrap;">
-              ${rowActionButtonsHtml(`downloadWhSlip('${r.id}')`, `deleteWhEntry('${r.id}')`, canDeleteWhEntry(r))}
+              ${rowActionButtonsHtml(`downloadWhSlip('${r.id}')`, `deleteWhEntry('${r.id}')`, canDeleteWhEntry(r), `openEditWhEntry('${r.id}')`, !f.closed && canDeleteWhEntry(r))}
             </td>
           </tr>`;
         }).join('')}
@@ -5681,12 +6165,12 @@ function renderProjectCatDetail(p, workTypeKey, wtName, networkNo, catKey, cat, 
           return `<tr>
             <td style="text-align:center;"><input type="checkbox" title="เลือกรวมพิมพ์ใบตัดงบ (เลือกข้ามแฟ้มงานได้)" ${checked?'checked':''} onchange="toggleProjectSlipSelection('${p.id}','${workTypeKey}','${catKey}','${r.id}')"></td>
             <td class="mono">${escapeHtml(r.date)}</td>
-            <td>${escapeHtml(r.desc)}${(r.addedByName || r.addedByEmail) ? `<div style="font-size:10.5px;color:var(--text-faint);margin-top:2px;">เพิ่มโดย ${escapeHtml(r.addedByName || r.addedByEmail)}</div>` : ''}${vatBadge}</td>
+            <td>${escapeHtml(r.desc)}${(r.addedByName || r.addedByEmail) ? `<div style="font-size:10.5px;color:var(--text-faint);margin-top:2px;">เพิ่มโดย ${escapeHtml(r.addedByName || r.addedByEmail)}</div>` : ''}${entryEditNoteHtml(r)}${vatBadge}</td>
             <td class="num">${fmt(paidThisTime)}</td>
             <td class="num">${fmt(r.cumulative)}</td>
             <td class="num ${rowRemaining<0?'neg':''}">${fmt(rowRemaining)}</td>
             <td style="white-space:nowrap;">
-              ${rowActionButtonsHtml(`downloadProjectWithdrawalSlip('${workTypeKey}','${catKey}','${r.id}')`, `deleteProjectEntry('${workTypeKey}','${catKey}','${r.id}')`, canDelete)}
+              ${rowActionButtonsHtml(`downloadProjectWithdrawalSlip('${workTypeKey}','${catKey}','${r.id}')`, `deleteProjectEntry('${workTypeKey}','${catKey}','${r.id}')`, canDelete, `openEditProjectEntry('${workTypeKey}','${catKey}','${r.id}')`, !p.closed && canDelete)}
             </td>
           </tr>`;
         }).join('')}
