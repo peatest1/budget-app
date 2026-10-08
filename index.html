@@ -4769,7 +4769,9 @@ function renderRoleBadge(){
   // Hands the year's numbers to someone outside the system (finance), unlike the .json backup,
   // which only this app can read back.
   const exportBtn = canManageDept(state.activeDept)
-    ? `<button id="exportXlsxBtn" onclick="exportYearToExcel()" title="ส่งออกข้อมูลของแผนกนี้ในปีงบประมาณที่เลือก เป็นไฟล์ Excel (.xlsx) แยกชีตละแฟ้ม" style="background:none;border:1px solid rgba(255,255,255,.22);border-radius:6px;padding:3px 9px;font-size:11px;font-weight:600;color:#B7C2C6;cursor:pointer;font-family:'Noto Sans Thai',sans-serif;">📊 ส่งออก Excel</button>`
+    // render() runs on every Firestore snapshot, so this must redraw the in-progress state too —
+    // otherwise a colleague saving anything mid-export makes the button look idle again.
+    ? `<button id="exportXlsxBtn" onclick="exportYearToExcel()" ${exportInFlight ? 'disabled' : ''} title="ส่งออกข้อมูลของแผนกนี้ในปีงบประมาณที่เลือก เป็นไฟล์ Excel (.xlsx) แยกชีตละแฟ้ม" style="background:none;border:1px solid rgba(255,255,255,.22);border-radius:6px;padding:3px 9px;font-size:11px;font-weight:600;color:#B7C2C6;cursor:pointer;font-family:'Noto Sans Thai',sans-serif;">${exportInFlight ? '⏳ กำลังส่งออก...' : '📊 ส่งออก Excel'}</button>`
     : '';
   let backupBtn = '';
   if(isAdmin()){
@@ -5243,8 +5245,29 @@ function xlEmptyGroupRow(ws, r, cols){
   c.value = '— ยังไม่มีรายการจ่าย —';
   c.font = {size:10, italic:true, color:{argb:XL.muted}};
   c.alignment = {horizontal:'center'};
+  // border before merge — ExcelJS copies the master cell's style onto the slaves at merge time
+  for(let i=1;i<=cols;i++) xlBorder(ws.getCell(r,i), ['bottom']);
   ws.mergeCells(r, 1, r, cols);
-  xlBorder(c, ['bottom']);
+}
+// Spending whose budget line / หมวดงบ was moved to the trash stops counting toward ใช้ไปแล้ว — the
+// app excludes it too — but it must not vanish from a report going to finance without a word. It is
+// printed as its own group at the end of the sheet, with its own subtotal, outside the main total.
+function xlOrphanGroup(ws, r, cols, rows, head, moneyTo){
+  if(!rows.length) return r;
+  xlBandRow(ws, r, cols, '  รายการที่รายการบัญชี/หมวดงบถูกลบไปแล้ว (ไม่นับรวมในยอดใช้ไปแล้ว)', XL.muted, 'FFFFFFFF', 11);
+  r++;
+  xlTableHead(ws, r, head, 2, moneyTo);
+  r++;
+  let total = 0;
+  rows.forEach(e=>{
+    const ledger = entryLedgerAmount(e);
+    total += ledger;
+    xlDataRow(ws, r, [e.date||'', e.desc||'', Number(e.amount)||0, Number(e.tax)||0, ledger, '', '',
+      e.addedByName || e.addedByEmail || '', entryEditNoteText(e)], 2, moneyTo);
+    r++;
+  });
+  xlSubtotalRow(ws, r, cols, 'รวมรายการที่ไม่มีหมวดรองรับ', {5: total}, 2);
+  return r + 2;
 }
 function xlDataRow(ws, r, values, moneyFrom, moneyTo){
   values.forEach((v,i)=>{
@@ -5297,7 +5320,7 @@ function xlTotalsBlock(ws, r, labels, values){
   });
   return r + 3; // +1 ค่า, +1 เว้นบรรทัดก่อนขึ้นกลุ่มแรก
 }
-function xlSummarySheet(ExcelJS, wb, title, header, widths, rows, moneyFrom){
+function xlSummarySheet(ExcelJS, wb, title, header, widths, rows, moneyFrom, pctCol){
   const ws = wb.addWorksheet('สรุปรวม');
   ws.columns = widths.map(w=>({width:w}));
   ws.getCell(1,1).value = title;
@@ -5311,7 +5334,10 @@ function xlSummarySheet(ExcelJS, wb, title, header, widths, rows, moneyFrom){
   rows.forEach((row, ri)=>{
     row.forEach((v,i)=>{
       const c = ws.getCell(4+ri, i+1); c.value = v; c.font = {size:10};
-      if(typeof v === 'number' && i >= moneyFrom) c.numFmt = XL_MONEY;
+      // pctCol holds a ratio (0.0263), not an amount — money format would render it as "0.03"
+      // under a heading that says "% ที่ใช้ไป".
+      if(typeof v === 'number' && i === pctCol) c.numFmt = '0.0%';
+      else if(typeof v === 'number' && i >= moneyFrom) c.numFmt = XL_MONEY;
       xlBorder(c, ['bottom','left','right']);
     });
   });
@@ -5351,11 +5377,16 @@ async function downloadWorkbook(wb, filename){
   setTimeout(()=>URL.revokeObjectURL(url), 2000);
 }
 
+// render() rebuilds the toolbar on every Firestore snapshot, so the button element is re-created
+// mid-export whenever a colleague saves anything. Look it up fresh each time instead of holding a
+// detached node, and refuse a second run while one is still fetching.
+let exportInFlight = false;
 async function exportYearToExcel(){
-  const btn = document.getElementById('exportXlsxBtn');
-  const restore = btn ? btn.innerHTML : null;
-  const busy = (t)=>{ if(btn){ btn.disabled = true; btn.innerHTML = t; } };
-  const done = ()=>{ if(btn){ btn.disabled = false; btn.innerHTML = restore; } };
+  if(exportInFlight) return;
+  exportInFlight = true;
+  const label = '📊 ส่งออก Excel';
+  const busy = (t)=>{ const b = document.getElementById('exportXlsxBtn'); if(b){ b.disabled = true; b.innerHTML = t; } };
+  const done = ()=>{ exportInFlight = false; const b = document.getElementById('exportXlsxBtn'); if(b){ b.disabled = false; b.innerHTML = label; } };
   try{
     busy('⏳ กำลังโหลด...');
     const ExcelJS = await loadExcelLib();
@@ -5401,9 +5432,13 @@ async function buildBudgetWorkbook(ExcelJS, deptLabel, year){
     let entries = [];
     try{ entries = await window.fb.getCcEntriesOnce(cc.id); }
     catch(e){ console.error('ดึงรายการจ่ายของศูนย์ต้นทุน', cc.code, 'ไม่สำเร็จ', e); failed.push(`${cc.code} — ${cc.name}`); continue; }
+    const sorted = sortEntriesForExport(entries);
     const byItem = {};
-    sortEntriesForExport(entries).forEach(e=>{ (byItem[e.itemCode] = byItem[e.itemCode] || []).push(e); });
-    const items = (cc.items||[]).filter(it=>!it.deletedAt).map(item=>({
+    sorted.forEach(e=>{ (byItem[e.itemCode] = byItem[e.itemCode] || []).push(e); });
+    const liveItems = (cc.items||[]).filter(it=>!it.deletedAt);
+    const liveCodes = new Set(liveItems.map(it=>it.code));
+    const orphans = sorted.filter(e=> !liveCodes.has(e.itemCode));
+    const items = liveItems.map(item=>({
       code: item.code||'', label: item.label||'', budget: Number(item.budget)||0,
       rows: byItem[item.code] || [],
     // A budget line with neither money allocated nor anything spent is just noise in the report.
@@ -5413,13 +5448,13 @@ async function buildBudgetWorkbook(ExcelJS, deptLabel, year){
     const budget = items.reduce((s,i)=> s + i.budget, 0);
     const paid = items.reduce((s,i)=> s + i.rows.reduce((t,e)=> t + entryLedgerAmount(e), 0), 0);
     summary.push([cc.code||'', cc.name||'', cc.year, budget, paid, budget - paid, budget ? paid/budget : 0]);
-    sheets.push({cc, items, budget, paid});
+    sheets.push({cc, items, budget, paid, orphans});
   }
   abortIfIncomplete(failed);
 
   xlSummarySheet(ExcelJS, wb, `คุมงบทั่วไป · ${deptLabel} · ปีงบประมาณ ${year}`,
     ['รหัสศูนย์ต้นทุน','ชื่อศูนย์ต้นทุน','ปีงบ','งบประมาณ','ใช้ไปแล้ว','คงเหลือ','% ที่ใช้ไป'],
-    [20, 44, 9, 16, 16, 16, 12], summary, 3);
+    [20, 44, 9, 16, 16, 16, 12], summary, 3, 6);
 
   for(const s of sheets){
     const ws = wb.addWorksheet(safeSheetName(s.cc.code || s.cc.name, used));
@@ -5448,9 +5483,11 @@ async function buildBudgetWorkbook(ExcelJS, deptLabel, year){
         r++;
       });
       }
-      xlSubtotalRow(ws, r, COLS, `รวม ${item.label}`, {5: running, 7: item.budget - running});
+      xlSubtotalRow(ws, r, COLS, `รวม ${item.label}`, {5: running, 7: item.budget - running}, 2);
       r += 2;
     });
+    r = xlOrphanGroup(ws, r, COLS, s.orphans,
+      ['วันที่','รายการ','จำนวนเงิน','ภาษี','ยอดตัดงบ','','','ผู้บันทึก','การแก้ไข'], 4);
     ws.views = [{state:'frozen', ySplit: frozen}];
   }
   return {wb, filename: `คุมงบทั่วไป_${deptLabel}_${year}.xlsx`};
@@ -5474,6 +5511,11 @@ async function buildProjectWorkbook(ExcelJS, deptLabel, year){
     try{ entries = await window.fb.getProjectEntriesOnce(p.id); }
     catch(e){ console.error('ดึงรายการจ่ายของแฟ้มงาน', p.wbs, 'ไม่สำเร็จ', e); failed.push(`${p.wbs} — ${p.name}`); continue; }
     let amount100 = 0, paid = 0;
+    const liveKeys = new Set();
+    Object.entries(p.departments||{}).filter(([,wt])=>!wt.deletedAt).forEach(([wtKey, wt])=>{
+      Object.keys(wt.budgets||{}).forEach(catKey=> liveKeys.add(wtKey+'|'+catKey));
+    });
+    const orphans = sortEntriesForExport(entries).filter(e=> !liveKeys.has(e.workTypeKey+'|'+e.catKey));
     const workTypes = Object.entries(p.departments||{}).filter(([,wt])=>!wt.deletedAt).map(([wtKey, wt])=>({
       name: wtName(wtKey),
       cats: Object.entries(wt.budgets||{}).map(([catKey, cat])=>{
@@ -5490,7 +5532,7 @@ async function buildProjectWorkbook(ExcelJS, deptLabel, year){
     const usable80 = amount100 * USABLE_RATIO;
     summary.push([p.wbs||'', p.name||'', projectYearOf(p) || '', amount100, usable80, paid,
       usable80 - paid, p.closed ? 'ปิดงานแล้ว' : 'กำลังดำเนินการ']);
-    sheets.push({p, workTypes, amount100, usable80, paid});
+    sheets.push({p, workTypes, amount100, usable80, paid, orphans});
   }
   abortIfIncomplete(failed);
 
@@ -5531,10 +5573,12 @@ async function buildProjectWorkbook(ExcelJS, deptLabel, year){
           r++;
         });
         }
-        xlSubtotalRow(ws, r, COLS, `รวม ${cat.label}`, {5: running, 7: cat.usable - running});
+        xlSubtotalRow(ws, r, COLS, `รวม ${cat.label}`, {5: running, 7: cat.usable - running}, 2);
         r += 2;
       });
     });
+    r = xlOrphanGroup(ws, r, COLS, s.orphans,
+      ['วันที่','รายการ','จำนวนเงิน','ภาษี','ยอดตัดงบ','','','ผู้บันทึก','การแก้ไข'], 4);
     ws.views = [{state:'frozen', ySplit: frozen}];
   }
   return {wb, filename: `คุมงบโครงการ_${deptLabel}_${year}.xlsx`};
@@ -5579,15 +5623,19 @@ async function buildWarehouseWorkbook(ExcelJS, deptLabel, year){
 
     xlBandRow(ws, r, COLS, `  รายการซื้อทั้งหมด (${s.rows.length} รายการ)`, XL.band, 'FFFFFFFF', 12);
     r++;
+    let running = 0;
+    if(!s.rows.length){
+      xlEmptyGroupRow(ws, r, COLS); r++;
+    } else {
     xlTableHead(ws, r, ['วันที่','รายการ','จำนวนเงิน','รวมซื้อ','คงเหลือ','ผู้บันทึก','การแก้ไข'], 2, 4);
     r++;
-    let running = 0;
     s.rows.forEach(e=>{
       running += (Number(e.amount)||0);
       xlDataRow(ws, r, [e.date||'', e.desc||'', Number(e.amount)||0, running, s.budget - running,
         e.addedByName || e.addedByEmail || '', entryEditNoteText(e)], 2, 4);
       r++;
     });
+    }
     xlSubtotalRow(ws, r, COLS, 'รวมทั้งแฟ้ม', {3: s.paid, 5: s.budget - s.paid}, 2);
     ws.views = [{state:'frozen', ySplit: frozen}];
   }
