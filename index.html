@@ -5265,7 +5265,9 @@ function abortIfIncomplete(failed){
 }
 
 async function buildBudgetWorkbook(XLSX, deptLabel, year){
-  const ccs = ccsForYear(year);
+  // `year` is a display label (a string) used only for the filename — ccsForYear compares with ===
+  // against the numeric cc.year, so it must get state.activeYear itself, not the label.
+  const ccs = ccsForYear(state.activeYear);
   if(!ccs.length) return null;
   const wb = XLSX.utils.book_new();
   const used = new Set();
