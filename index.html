@@ -157,6 +157,10 @@ body{
   color:#fff;
 }
 #authScreen .auth-box .field input::placeholder{color:#7C8B91;}
+/* The dropdown list itself is drawn by the operating system on a light background, but the options
+   inherit the white text this dark auth screen gives the select — so every line is white on white
+   until it happens to be highlighted. Same fix as .dept-switcher and .year-picker already carry. */
+#authScreen .auth-box .field select option{color:#1C2B33;background:#fff;}
 #authScreen .role-pick label{border-color:rgba(255,255,255,.16);color:#C7D1D4;background:rgba(255,255,255,.04);}
 #authScreen .role-pick label.checked{border-color:var(--amber);background:rgba(232,163,61,.14);color:#fff;}
 #authScreen .role-hint{color:#7C8B91;}
