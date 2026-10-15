@@ -1133,10 +1133,46 @@ table.ledger .del-x:hover{color:var(--rust);}
       <input type="checkbox" id="eeVatCreditable" style="width:auto;margin:0;">
       <span>ภาษีมูลค่าเพิ่มขอคืนได้ (ไม่นับรวมเป็นยอดตัดงบ)</span>
     </label>
+    <div id="eeSplitNote" style="display:none;font-size:12px;color:var(--teal);background:rgba(42,122,122,.09);border-radius:7px;padding:9px 11px;margin:-4px 0 12px;"></div>
     <div id="eeHistory"></div>
     <div class="modal-actions">
       <button class="btn btn-outline" onclick="closeModal('editEntryModal')">ยกเลิก</button>
       <button class="btn btn-primary" onclick="submitEditEntry()">บันทึกการแก้ไข</button>
+    </div>
+  </div>
+</div>
+
+<!-- One bill, several budget lines (เช่น ค่าโทรศัพท์ = ค่าใช้บริการ + ค่าบำรุงรักษาคู่สาย) -->
+<div class="modal-overlay hidden" id="splitEntryModal">
+  <div class="modal" style="max-width:720px;">
+    <h2>บันทึกรายการแยกหลายบัญชี</h2>
+    <p class="modal-desc" id="seDesc"></p>
+    <div style="display:flex;gap:12px;flex-wrap:wrap;">
+      <div class="field" style="width:160px;">
+        <label>วันที่</label>
+        <input type="date" id="seDate">
+      </div>
+      <div class="field" style="flex:1;min-width:240px;">
+        <label>ชื่อรายการ (ใช้ร่วมกันทุกบัญชี)</label>
+        <input type="text" id="seName" placeholder="เช่น ค่าโทรศัพท์ 073-231066 เดือน ต.ค.69">
+      </div>
+    </div>
+    <div class="eyebrow" style="margin:14px 0 8px;color:var(--text-faint);">แยกตัดงบเข้าบัญชี</div>
+    <div id="seLines"></div>
+    <button class="btn btn-outline btn-sm" id="seAddLineBtn" onclick="addSplitLine()" style="margin-top:8px;">+ เพิ่มบัญชี</button>
+    <div style="display:flex;justify-content:flex-end;gap:22px;margin-top:16px;padding-top:12px;border-top:1px solid var(--border-soft);">
+      <div style="text-align:right;">
+        <div style="font-size:11.5px;color:var(--text-muted);">รวมยอดตัดงบ</div>
+        <div id="seTotalLedger" style="font-family:'JetBrains Mono';font-size:19px;font-weight:700;">0.00</div>
+      </div>
+      <div style="text-align:right;">
+        <div style="font-size:11.5px;color:var(--text-muted);">รวมเงินที่เบิก (รวมภาษี)</div>
+        <div id="seTotalGross" style="font-family:'JetBrains Mono';font-size:19px;font-weight:700;">0.00</div>
+      </div>
+    </div>
+    <div class="modal-actions">
+      <button class="btn btn-outline" onclick="closeModal('splitEntryModal')">ยกเลิก</button>
+      <button class="btn btn-primary" onclick="submitSplitEntry()">บันทึกทั้งชุด</button>
     </div>
   </div>
 </div>
@@ -1371,6 +1407,110 @@ table.ledger .del-x:hover{color:var(--rust);}
       items[idx] = {...item, totalPaid: baseTotalPaid + delta, entryCount: baseEntryCount + 1};
       tx.set(ref, {...data, items});
       tx.set(doc(db, 'costCenters', ccId, 'entries', entry.id), {...entry, itemCode});
+    }),
+    // One bill that cuts several budget lines at once (เช่น ค่าโทรศัพท์ = ค่าใช้บริการ + ค่าบำรุงรักษา
+    // คู่สาย). Every line is still a normal entry under its own รายการบัญชี — so budgets, trash and the
+    // Excel export need no special case — but all of them are written in ONE transaction, so a set can
+    // never end up half-saved with the cost centre's totals out of step.
+    addSplitCcEntriesTx: (ccId, lines) => runTransaction(db, async (tx) => {
+      const ref = doc(db, 'costCenters', ccId);
+      const snap = await tx.get(ref);
+      if(!snap.exists()) throw new Error('ไม่พบศูนย์ต้นทุนนี้ในระบบ (อาจถูกลบไปแล้วโดยผู้อื่น)');
+      const data = snap.data();
+      const items = [...(data.items || [])];
+      lines.forEach(({itemCode, entry})=>{
+        const idx = items.findIndex(i => i.code === itemCode);
+        if(idx === -1) throw new Error('ไม่พบรายการบัญชี '+itemCode+' ในศูนย์ต้นทุน (อาจถูกลบไปแล้วโดยผู้อื่น)');
+        const item = items[idx];
+        const legacyActive = (item.entries || []).filter(e => !e.deletedAt);
+        const baseTotalPaid = typeof item.totalPaid === 'number' ? item.totalPaid
+          : legacyActive.reduce((s,e)=> s + entryLedgerAmount(e), 0);
+        const baseEntryCount = typeof item.entryCount === 'number' ? item.entryCount : legacyActive.length;
+        items[idx] = {...item, totalPaid: baseTotalPaid + entryLedgerAmount(entry), entryCount: baseEntryCount + 1};
+      });
+      tx.set(ref, {...data, items});
+      lines.forEach(({itemCode, entry})=>{
+        tx.set(doc(db, 'costCenters', ccId, 'entries', entry.id), {...entry, itemCode});
+      });
+    }),
+    // ลบทั้งชุดในทรานแซกชันเดียว ไม่งั้นถ้าพลาดกลางคัน จะเหลือชุดที่ลบไปครึ่งเดียว แล้วใบตัดงบ
+    // ที่พิมพ์จากบรรทัดที่เหลือจะบอกยอดผิด
+    softDeleteSplitCcEntriesTx: (ccId, targets, who) => runTransaction(db, async (tx) => {
+      const ref = doc(db, 'costCenters', ccId);
+      const entryRefs = targets.map(t => doc(db, 'costCenters', ccId, 'entries', t.entryId));
+      const [snap, ...entrySnaps] = await Promise.all([tx.get(ref), ...entryRefs.map(r=>tx.get(r))]);
+      if(!snap.exists()) throw new Error('ไม่พบศูนย์ต้นทุนนี้ในระบบ (อาจถูกลบไปแล้วโดยผู้อื่น)');
+      const data = snap.data();
+      const items = [...(data.items || [])];
+      const writes = [];
+      targets.forEach((t, i)=>{
+        const entrySnap = entrySnaps[i];
+        // เงียบไม่ได้ ถ้าบอกผู้ใช้ว่าลบทั้งชุดแล้วลบได้แค่บางบรรทัด อีกบรรทัดจะค้างเป็นรายการจ่ายจริง
+        if(!entrySnap.exists()) throw new Error('ไม่พบรายการจ่ายบางบรรทัดในชุดนี้ (อาจถูกลบไปแล้วโดยผู้อื่น) จึงยังลบทั้งชุดไม่ได้');
+        const entryData = entrySnap.data();
+        if(entryData.deletedAt) return;                 // ลบไปแล้ว อย่าหักยอดซ้ำ
+        const idx = items.findIndex(it => it.code === t.itemCode);
+        if(idx === -1) throw new Error('รายการบัญชี '+t.itemCode+' ถูกลบไปแล้ว จึงลบทั้งชุดไม่ได้');
+        const item = items[idx];
+        const legacyActive = (item.entries || []).filter(e => !e.deletedAt);
+        const baseTotalPaid = typeof item.totalPaid === 'number' ? item.totalPaid
+          : legacyActive.reduce((sum,e)=> sum + entryLedgerAmount(e), 0);
+        const baseEntryCount = typeof item.entryCount === 'number' ? item.entryCount : legacyActive.length;
+        items[idx] = {...item,
+          totalPaid: baseTotalPaid - entryLedgerAmount(entryData),
+          entryCount: Math.max(0, baseEntryCount - 1)};
+        writes.push({ref: entryRefs[i], data: {...entryData, itemCode: t.itemCode,
+          deletedAt: Date.now(), deletedByUid: (who && who.uid) || null, deletedByName: (who && who.name) || null}});
+      });
+      tx.set(ref, {...data, items});
+      writes.forEach(w=> tx.set(w.ref, w.data));
+    }),
+    // กู้คืนทั้งชุดพร้อมกัน คู่กับ softDeleteSplitCcEntriesTx
+    restoreSplitCcEntriesTx: (ccId, targets) => runTransaction(db, async (tx) => {
+      const ref = doc(db, 'costCenters', ccId);
+      const entryRefs = targets.map(t => doc(db, 'costCenters', ccId, 'entries', t.entryId));
+      const [snap, ...entrySnaps] = await Promise.all([tx.get(ref), ...entryRefs.map(r=>tx.get(r))]);
+      if(!snap.exists()) throw new Error('ไม่พบศูนย์ต้นทุนนี้ในระบบ (อาจถูกลบไปแล้วโดยผู้อื่น)');
+      const data = snap.data();
+      const items = [...(data.items || [])];
+      const writes = [];
+      const missing = [];
+      targets.forEach((t, i)=>{
+        const entrySnap = entrySnaps[i];
+        if(!entrySnap.exists()) return;
+        const entryData = entrySnap.data();
+        if(!entryData.deletedAt) return;                // กู้ไปแล้ว อย่าบวกยอดซ้ำ
+        const idx = items.findIndex(it => it.code === t.itemCode);
+        // บัญชีถูกลบไปแล้ว กู้บรรทัดนี้ไม่ได้ แต่ต้องไม่ล็อกบรรทัดที่เหลือไว้ในถังขยะด้วย
+        if(idx === -1){ missing.push(t.itemCode); return; }
+        const item = items[idx];
+        const legacyActive = (item.entries || []).filter(e => !e.deletedAt);
+        const baseTotalPaid = typeof item.totalPaid === 'number' ? item.totalPaid
+          : legacyActive.reduce((sum,e)=> sum + entryLedgerAmount(e), 0);
+        const baseEntryCount = typeof item.entryCount === 'number' ? item.entryCount : legacyActive.length;
+        items[idx] = {...item,
+          totalPaid: baseTotalPaid + entryLedgerAmount(entryData),
+          entryCount: baseEntryCount + 1};
+        writes.push({ref: entryRefs[i], data: {...entryData, itemCode: t.itemCode,
+          deletedAt: null, deletedByUid: null, deletedByName: null}});
+      });
+      tx.set(ref, {...data, items});
+      writes.forEach(w=> tx.set(w.ref, w.data));
+      return {missing};
+    }),
+    // ===== ลบถาวรทั้งชุด ในทรานแซกชันเดียว =====
+    // ยอดรวมถูกหักไปตั้งแต่ตอนย้ายลงถังขยะ การลบถาวรจึงไม่แตะยอด แต่ต้องยืนยันก่อนว่าทุกบรรทัด
+    // ยังอยู่ในถังขยะจริง ไม่งั้นถ้ามีคนอื่นกู้คืนไปแล้ว จะลบรายการที่ยังนับอยู่ในยอดรวมทิ้งไป
+    // แล้วยอดจะค้างสูงเกินจริงอย่างถาวร
+    purgeSplitCcEntriesTx: (ccId, targets) => runTransaction(db, async (tx) => {
+      const entryRefs = targets.map(t => doc(db, 'costCenters', ccId, 'entries', t.entryId));
+      const snaps = await Promise.all(entryRefs.map(r => tx.get(r)));
+      snaps.forEach((sn, i)=>{
+        if(sn.exists() && !sn.data().deletedAt){
+          throw new Error('มีบรรทัดในชุดนี้ถูกกู้คืนไปแล้วโดยผู้อื่น จึงยังลบถาวรไม่ได้ — ปิดหน้าต่างแล้วลองใหม่อีกครั้ง');
+        }
+      });
+      snaps.forEach((sn, i)=>{ if(sn.exists()) tx.delete(entryRefs[i]); });
     }),
     // Soft delete: marks the entry with deletedAt in the subcollection (never removes it, so it can
     // still be restored from the "รายการจ่ายที่ถูกลบ" trash section) and decrements the item's
@@ -1690,9 +1830,14 @@ table.ledger .del-x:hover{color:var(--rust);}
     /* ---- แก้ไขรายการจ่ายที่บันทึกไปแล้ว (ทั้ง 3 โหมด) ----
        ยอดรวมที่เก็บไว้บนเอกสารแม่ถูกปรับด้วย "ผลต่าง" ระหว่างยอดเดิมกับยอดใหม่ ในทรานแซกชันเดียว
        กับการเขียนตัวรายการ จึงไม่มีทางที่ยอดรวมกับรายการจะเพี้ยนออกจากกัน แม้สองคนแก้พร้อมกัน */
-    editCostCenterEntryTx: (ccId, itemCode, entryId, patch, who) => runTransaction(db, async (tx) => {
+    // mateIds = บรรทัดอื่นของบิลเดียวกัน (รายการแยกบัญชี) — วันที่กับชื่อรายการเป็นของบิล ไม่ใช่ของ
+    // บัญชีใดบัญชีหนึ่ง จึงแก้ให้ทุกบรรทัดในทรานแซกชันเดียวกัน จะได้ไม่มีทางที่ครึ่งหนึ่งเปลี่ยน
+    // อีกครึ่งไม่เปลี่ยน และบรรทัดที่ตามไปแก้ก็เก็บประวัติการแก้ไว้เหมือนกัน
+    editCostCenterEntryTx: (ccId, itemCode, entryId, patch, who, mateIds) => runTransaction(db, async (tx) => {
       const ref = doc(db, 'costCenters', ccId);
       const entryRef = doc(db, 'costCenters', ccId, 'entries', entryId);
+      const mateRefs = (mateIds || []).map(id => doc(db, 'costCenters', ccId, 'entries', id));
+      const mateSnaps = await Promise.all(mateRefs.map(r => tx.get(r)));
       const [snap, entrySnap] = await Promise.all([tx.get(ref), tx.get(entryRef)]);
       if(!snap.exists()) throw new Error('ไม่พบศูนย์ต้นทุนนี้ในระบบ (อาจถูกลบไปแล้วโดยผู้อื่น)');
       const data = snap.data();
@@ -1712,6 +1857,15 @@ table.ledger .del-x:hover{color:var(--rust);}
       items[idx] = {...item, totalPaid: baseTotalPaid + delta, entryCount: baseEntryCount};
       tx.set(ref, {...data, items});
       tx.set(entryRef, {...next, itemCode});
+      const header = {};
+      if('date' in patch) header.date = patch.date;
+      if('desc' in patch) header.desc = patch.desc;
+      if(Object.keys(header).length){
+        mateSnaps.forEach((sn, i)=>{
+          if(!sn.exists() || sn.data().deletedAt) return;
+          tx.set(mateRefs[i], buildEditedEntry(sn.data(), header, who));
+        });
+      }
     }),
     editProjectEntryTx: (projId, workTypeKey, catKey, entryId, patch, who) => runTransaction(db, async (tx) => {
       const ref = doc(db, 'constructionProjects', projId);
@@ -2071,7 +2225,7 @@ function fitLabelHtml(text){
 }
 
 /* ============ withdrawal / budget-deduction slip PDF ============ */
-function buildSlipBodyHtml(cc, entries, payerName, payerCode, payerPosition, docDateStr){
+function buildSlipBodyHtml(cc, entries, payerName, payerCode, payerPosition, docDateStr, opts){
   // entries: array (length 1-3) of {item, row, rowRemaining}
   const dateParts = thaiDateParts(docDateStr);
   const officeName = state.orgSettings.officeName || '';
@@ -2082,7 +2236,20 @@ function buildSlipBodyHtml(cc, entries, payerName, payerCode, payerPosition, doc
   const entryNoTax = (e)=> entryLedgerAmount(e.row);
   const slot = (i) => entries[i] || null;
 
-  const itemRows = entries.map((e,i)=>{
+  // A split entry is ONE bill (same phone number, same month) that happens to cut several budget
+  // lines, so the itemised table at the top shows it as a single line — the split only shows up in
+  // the per-account columns of the cost-centre table below.
+  const mergeTop = !!(opts && opts.mergeItemRows) && entries.length > 1;
+  const mergedAmount = entries.reduce((sum,e)=> sum + (Number(e.row.amount)||0), 0);
+  const mergedTax = entries.reduce((sum,e)=> sum + (Number(e.row.tax)||0), 0);
+  const itemRows = mergeTop ? `
+        <tr>
+          <td class="ctr">${numEn(1)}</td>
+          <td class="hl">${escapeHtml(entries[0].row.desc)}</td>
+          <td class="num hl">${numEn(fmt2(mergedAmount))}</td>
+          <td class="num hl">${mergedTax ? numEn(fmt2(mergedTax)) : '-'}</td>
+          <td class="num hl">${numEn(fmt2(mergedAmount + mergedTax))}</td>
+        </tr>` : entries.map((e,i)=>{
     const tax = Number(e.row.tax)||0;
     const rowTotal = (Number(e.row.amount)||0) + tax;
     return `
@@ -2094,7 +2261,7 @@ function buildSlipBodyHtml(cc, entries, payerName, payerCode, payerPosition, doc
           <td class="num hl">${numEn(fmt2(rowTotal))}</td>
         </tr>`;
   }).join('');
-  const blankItemRowCount = Math.max(0, 5 - entries.length);
+  const blankItemRowCount = Math.max(0, 5 - (mergeTop ? 1 : entries.length));
   const blankItemRows = Array.from({length:blankItemRowCount}).map(()=>`<tr><td>&nbsp;</td><td></td><td></td><td></td><td></td></tr>`).join('');
 
   const s0 = slot(0), s1 = slot(1), s2 = slot(2);
@@ -2632,8 +2799,33 @@ function downloadWithdrawalSlip(itemCode, entryId){
   const payerName = row.addedByName || row.addedByEmail || '';
   const payerCode = row.addedByCode || '';
   const payerPosition = row.addedByPosition || '';
-  const docTitle = `ใบตัดงบ_${item.code}_${row.date}`;
+  // Printing any line of a split set prints the whole bill — otherwise the slip would show one
+  // account's share and claim it is the total. No need to tick the rows by hand.
+  const mates = entrySplitMates(row);
+  if(mates.length > 1){
+    const setEntries = [];
+    for(const m of mates){
+      const mItem = (cc.items||[]).find(i=>i.code===m.itemCode);
+      if(!mItem) continue;
+      const mt = itemTotals(mItem);
+      const mRow = mt.rows.find(r=>r.id===m.id);
+      if(!mRow) continue;
+      setEntries.push({item: mItem, row: mRow, rowRemaining: mt.budget - mRow.cumulative});
+    }
+    if(setEntries.length !== mates.length){
+      alert('รายการนี้เป็นบิลที่ตัดงบ '+mates.length+' บัญชี แต่หาข้อมูลได้ไม่ครบ ('+setEntries.length+' บัญชี)\n\n'
+        + 'ถ้าพิมพ์ตอนนี้ ยอด "รวมเงินที่เบิก" ในใบจะน้อยกว่าบิลจริง จึงยังไม่พิมพ์ให้\n'
+        + 'กรุณาตรวจว่ารายการบัญชีของบรรทัดอื่นยังอยู่ในศูนย์ต้นทุนนี้');
+      return;
+    }
+    if(setEntries.length > 1){
+      const setHtml = buildSlipBodyHtml(cc, setEntries, payerName, payerCode, payerPosition, row.date, {mergeItemRows:true});
+      openSlipPrintWindow(setHtml, `ใบตัดงบ_แยกบัญชี_${row.date}`);
+      return;
+    }
+  }
 
+  const docTitle = `ใบตัดงบ_${item.code}_${row.date}`;
   const bodyHtml = buildSlipBodyHtml(cc, [{item, row, rowRemaining}], payerName, payerCode, payerPosition, row.date);
   openSlipPrintWindow(bodyHtml, docTitle);
 }
@@ -2661,9 +2853,15 @@ function printCombinedSlip(){
   const payerCode = state.user ? (state.user.employeeCode || '') : '';
   const payerPosition = state.user ? (state.user.position || '') : '';
   const docDateStr = todayStr();
-  const docTitle = `ใบตัดงบรวม_${docDateStr}`;
+  // ติ๊กครบทั้งชุดของบิลเดียวกัน = บิลใบเดียว ตารางบนจึงรวมเป็นบรรทัดเดียว เหมือนกดพิมพ์จากแถวนั้นตรงๆ
+  const splitIds = entries.map(e=> e.row.splitId).filter(Boolean);
+  const allOneSet = entries.length > 1 && splitIds.length === entries.length
+    && new Set(splitIds).size === 1
+    && entrySplitMates(entries[0].row).length === entries.length;
+  const docTitle = allOneSet ? `ใบตัดงบ_แยกบัญชี_${entries[0].row.date}` : `ใบตัดงบรวม_${docDateStr}`;
 
-  const bodyHtml = buildSlipBodyHtml(cc, entries, payerName, payerCode, payerPosition, docDateStr);
+  const bodyHtml = buildSlipBodyHtml(cc, entries, payerName, payerCode, payerPosition,
+    allOneSet ? entries[0].row.date : docDateStr, allOneSet ? {mergeItemRows:true} : undefined);
   openSlipPrintWindow(bodyHtml, docTitle);
   clearSlipSelection();
 }
@@ -3248,9 +3446,39 @@ function itemEntriesSource(itemCode){
 }
 // Account code that gets the "เครดิตภาษีซื้อได้" per-entry checkbox (ค่าเชื้อเพลิงยานพาหนะ only,
 // per the user's request — every other item keeps the normal always-exclude-tax behavior).
-const VAT_CREDIT_TOGGLE_ITEM_CODE = '53039010';
+// รายการบัญชีที่มีช่อง "เครดิตภาษีซื้อได้" ให้ติ๊ก — ค่าเชื้อเพลิง และคู่บัญชีค่าโทรศัพท์
+const VAT_CREDIT_TOGGLE_ITEM_CODES = ['53039010', '53032010', '53032020'];
+const VAT_CREDIT_TOGGLE_ITEM_CODE = VAT_CREDIT_TOGGLE_ITEM_CODES[0]; // ชื่อเดิม เผื่อมีที่อื่นอ้างถึง
 function itemHasVatCreditToggle(item){
-  return !!item && item.code === VAT_CREDIT_TOGGLE_ITEM_CODE;
+  return !!item && VAT_CREDIT_TOGGLE_ITEM_CODES.includes(item.code);
+}
+/* ============ รายการแยกบัญชี (หนึ่งรายการ ตัดงบหลายบัญชี) ============
+   บิลค่าโทรศัพท์ใบเดียวตัดงบสองบัญชี (ค่าใช้บริการ + ค่าบำรุงรักษาคู่สาย) เดิมต้องบันทึกสองครั้ง
+   แล้วติ๊กรวมพิมพ์เอง ตอนนี้กรอกครั้งเดียวแล้วระบบลงให้ทุกบัญชี
+   เบื้องหลังยังเก็บเป็นรายการของแต่ละบัญชีเหมือนเดิม (งบกับคงเหลือของแต่ละบัญชีจึงยังถูกต้อง
+   และถังขยะ/ส่งออก Excel ใช้ของเดิมได้หมด) แต่ผูกกันด้วย splitId */
+const MAX_SPLIT_LINES = 3;   // ใบตัดงบมีคอลัมน์บัญชีได้ 3 ช่อง
+function entrySplitMates(entry){
+  if(!entry || !entry.splitId) return [];
+  return state.activeCcEntries
+    .filter(e=> e.splitId === entry.splitId && !e.deletedAt)
+    .sort((a,b)=> (a.splitSeq||0)-(b.splitSeq||0));
+}
+// เหมือน entrySplitMates แต่รวมบรรทัดที่อยู่ในถังขยะด้วย ใช้ตอนกู้คืน/ลบถาวร
+function entrySplitGroup(entry){
+  if(!entry || !entry.splitId) return [];
+  return state.activeCcEntries
+    .filter(e=> e.splitId === entry.splitId)
+    .sort((a,b)=> (a.splitSeq||0)-(b.splitSeq||0));
+}
+function splitMateLabel(entry){
+  const cc = getCc(state.activeCcId);
+  const mates = entrySplitMates(entry).filter(e=> e.id !== entry.id);
+  if(!cc || !mates.length) return '';
+  return mates.map(m=>{
+    const it = (cc.items||[]).find(i=>i.code===m.itemCode);
+    return `${it ? it.label : m.itemCode} ${fmt(entryLedgerAmount(m))}`;
+  }).join(' · ');
 }
 // Normally VAT is tracked on the entry and shown on the printed withdrawal slip, but excluded
 // from the ledger's running/remaining totals. For entries on VAT_CREDIT_TOGGLE_ITEM_CODE, a
@@ -3795,8 +4023,25 @@ function deleteEntry(itemCode, entryId){
   const isLast = idx === t.rows.length - 1;
   const laterCount = t.rows.length - 1 - idx;
 
+  // ลบบรรทัดเดียวของบิลที่ตัดงบหลายบัญชีจะทำให้ใบตัดงบที่เหลือบอกยอดไม่ครบ จึงลบทั้งชุดเสมอ
+  const mates = entrySplitMates(entry);
+  const isSplit = mates.length > 1;
+
   let msg = 'ยืนยันลบรายการนี้?';
-  if(!isLast){
+  if(isSplit){
+    const lines = mates.map(m=>{
+      const it = (cc.items||[]).find(i=>i.code===m.itemCode);
+      return `   · ${it ? it.label : m.itemCode}  ${fmt(entryLedgerAmount(m))}`;
+    }).join('\n');
+    msg = `รายการนี้เป็นบิลเดียวที่ตัดงบ ${mates.length} บัญชี การลบจะลบทั้งชุด\n\n${lines}\n\n`;
+    if(!isLast){
+      msg += `⚠️ และยังมีรายการที่บันทึกไว้หลังจากนี้อีก การลบจะทำให้ยอด "รวมจ่าย" กับ "คงเหลือ" `
+           + `ของรายการเหล่านั้นเปลี่ยนไปทันที ทั้งในบัญชีนี้และบัญชีอื่นในชุด ถ้าเคยพิมพ์ใบตัดงบไปแล้ว `
+           + `ตัวเลขในกระดาษจะไม่ตรงกับในระบบอีกต่อไป\n\n`;
+    }
+    msg += 'ย้ายทั้งชุดไปถังขยะ?';
+  }
+  if(!isSplit && !isLast){
     msg = `⚠️ รายการนี้ไม่ใช่รายการล่าสุด ยังมีอีก ${laterCount} รายการที่บันทึกไว้หลังจากนี้\n\n`
         + `การลบจะทำให้ยอด "รวมจ่าย" และ "คงเหลือ" ของทุกรายการที่อยู่หลังจากนี้เปลี่ยนไปทันที `
         + `และถ้าเคยพิมพ์ใบตัดงบของรายการเหล่านั้นไปแล้ว ตัวเลขในกระดาษที่พิมพ์ไปจะไม่ตรงกับในระบบอีกต่อไป\n\n`
@@ -3804,6 +4049,23 @@ function deleteEntry(itemCode, entryId){
   }
   if(!confirm(msg)) return;
   const who = {uid: state.user?.uid, name: state.user?.displayName || state.user?.email};
+
+  if(isSplit){
+    const targets = mates.map(m=>({itemCode: m.itemCode, entryId: m.id}));
+    const prev = mates.map(m=>({m, deletedAt:m.deletedAt, uid:m.deletedByUid, name:m.deletedByName}));
+    mates.forEach(m=>{ m.deletedAt = Date.now(); m.deletedByUid = who.uid||null; m.deletedByName = who.name||null; });
+    render();
+    window.fb.softDeleteSplitCcEntriesTx(cc.id, targets, who).then(()=>{
+      flashSaved(false);
+    }).catch(e=>{
+      console.error(e);
+      prev.forEach(p=>{ p.m.deletedAt = p.deletedAt; p.m.deletedByUid = p.uid; p.m.deletedByName = p.name; });
+      render();
+      alert('ลบรายการไม่สำเร็จ: ' + e.message);
+    });
+    return;
+  }
+
   const prevDeletedAt = entry.deletedAt, prevDeletedByUid = entry.deletedByUid, prevDeletedByName = entry.deletedByName;
   entry.deletedAt = Date.now();
   entry.deletedByUid = who.uid || null;
@@ -3823,6 +4085,31 @@ function restoreEntry(itemCode, entryId){
   if(!cc || !canManageDept(cc.deptKey)){ alert('คุณไม่มีสิทธิ์กู้คืนรายการนี้'); return; }
   const entry = findActiveCcEntry(cc, itemCode, entryId);
   if(!entry) return;
+
+  // บิลที่ตัดงบหลายบัญชีถูกลบทั้งชุด จึงต้องกู้คืนทั้งชุดด้วย ไม่งั้นจะได้ชุดที่ไม่ครบ
+  // แล้วใบตัดงบที่พิมพ์จากบรรทัดที่กู้มาจะบอกยอดขาด
+  const group = entrySplitGroup(entry);
+  if(group.length > 1){
+    const targets = group.map(m=>({itemCode: m.itemCode, entryId: m.id}));
+    const prev = group.map(m=>({m, deletedAt:m.deletedAt, uid:m.deletedByUid, name:m.deletedByName}));
+    group.forEach(m=>{ m.deletedAt = null; m.deletedByUid = null; m.deletedByName = null; });
+    render();
+    window.fb.restoreSplitCcEntriesTx(cc.id, targets).then((res)=>{
+      flashSaved(false);
+      if(res && res.missing && res.missing.length){
+        alert('กู้คืนแล้ว แต่มี '+res.missing.length+' บรรทัดที่กู้ไม่ได้ เพราะรายการบัญชี '
+          + res.missing.join(', ') + ' ถูกลบออกจากศูนย์ต้นทุนไปแล้ว\n\n'
+          + 'ใบตัดงบของชุดนี้จะมียอดไม่ครบ ถ้าต้องการใช้ ให้เพิ่มรายการบัญชีนั้นกลับเข้ามาก่อนแล้วกู้คืนใหม่');
+      }
+    }).catch(e=>{
+      console.error(e);
+      prev.forEach(x=>{ x.m.deletedAt = x.deletedAt; x.m.deletedByUid = x.uid; x.m.deletedByName = x.name; });
+      render();
+      alert('กู้คืนรายการไม่สำเร็จ: ' + e.message);
+    });
+    return;
+  }
+
   const prevDeletedAt = entry.deletedAt, prevDeletedByUid = entry.deletedByUid, prevDeletedByName = entry.deletedByName;
   entry.deletedAt = null; entry.deletedByUid = null; entry.deletedByName = null;
   render();
@@ -3838,6 +4125,24 @@ function restoreEntry(itemCode, entryId){
 function permanentlyDeleteEntry(itemCode, entryId){
   const cc = getCc(state.activeCcId);
   if(!cc || !canManageDept(cc.deptKey)){ alert('คุณไม่มีสิทธิ์ลบรายการนี้'); return; }
+
+  const purgeTarget = (ccEntriesActiveHere(cc)
+      ? state.activeCcEntries
+      : (((cc.items||[]).find(i=>i.code===itemCode)||{}).entries||[])
+    ).find(e=>e.id===entryId);
+  const purgeGroup = entrySplitGroup(purgeTarget);
+  if(purgeGroup.length > 1){
+    if(!confirm(`รายการนี้เป็นบิลเดียวที่ตัดงบ ${purgeGroup.length} บัญชี การลบถาวรจะลบทั้งชุด\n\nกู้คืนไม่ได้อีกต่อไป ยืนยันหรือไม่?`)) return;
+    // ยอดถูกหักไปตั้งแต่ตอนย้ายลงถังขยะแล้ว การลบถาวรจึงไม่แตะยอดรวมอีก
+    // ลบทีเดียวทั้งชุดในทรานแซกชันเดียว และไม่แตะ state เอง ปล่อยให้ snapshot เป็นคนลบออกจากจอ
+    // ถ้าพลาดกลางคัน รายการจะยังอยู่ครบ ไม่หายไปจากหน้าจอทั้งที่ยังลบไม่สำเร็จ
+    const targets = purgeGroup.map(m=>({itemCode: m.itemCode, entryId: m.id}));
+    window.fb.purgeSplitCcEntriesTx(cc.id, targets)
+      .then(()=>{ flashSaved(false); })
+      .catch(e=>{ console.error(e); flashSaved(true); alert('ลบถาวรไม่สำเร็จ: ' + e.message); });
+    return;
+  }
+
   if(!confirm('ลบถาวรรายการจ่ายนี้?\n\nกู้คืนไม่ได้อีกต่อไป')) return;
   let removed, removedIdx;
   if(ccEntriesActiveHere(cc)){
@@ -5122,11 +5427,12 @@ function renderMain(){
       html += `<div class="empty-state"><p>ยังไม่มีรายการงบประมาณในศูนย์ต้นทุนนี้</p>
         ${canManage ? `<button class="btn btn-primary btn-sm" onclick="openAddItemModal()">+ เพิ่มรายการงบประมาณ</button>` : `<span style="font-size:12.5px;color:var(--text-faint);">รอผู้ดูแลแผนกหรือแอดมินเพิ่มรายการ</span>`}</div>`;
     } else {
-      html += `<div style="margin-bottom:14px;">
-        <div style="display:flex;align-items:center;gap:8px;height:38px;padding:0 12px;border-radius:8px;border:1px solid var(--border);background:var(--card);max-width:320px;">
+      html += `<div style="margin-bottom:14px;display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
+        <div style="display:flex;align-items:center;gap:8px;height:38px;padding:0 12px;border-radius:8px;border:1px solid var(--border);background:var(--card);max-width:320px;flex:1;min-width:220px;">
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--text-faint)" stroke-width="2.2" stroke-linecap="round" style="flex-shrink:0;"><circle cx="11" cy="11" r="7"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
           <input type="text" id="itemSearchInput" placeholder="ค้นหารายการบัญชี (รหัสหรือชื่อ)" value="${escapeHtml(state.itemSearchQuery||'')}" oninput="onItemSearchInput(this.value)" style="border:none;outline:none;background:transparent;font-family:inherit;font-size:13px;width:100%;color:var(--text);">
         </div>
+        <button class="btn btn-outline btn-sm" onclick="openSplitEntryModal()" title="บิลใบเดียวที่ต้องตัดงบหลายบัญชี เช่น ค่าโทรศัพท์ (ค่าใช้บริการ + ค่าบำรุงรักษาคู่สาย)" style="height:38px;white-space:nowrap;">⇄ รายการแยกบัญชี</button>
       </div>`;
       html += `<div id="itemListContainer">${buildItemListInnerHtml(cc)}</div>`;
     }
@@ -5646,6 +5952,169 @@ async function buildWarehouseWorkbook(ExcelJS, deptLabel, year){
   return {wb, filename: `งบซื้อของ_${deptLabel}_${year}.xlsx`};
 }
 
+// ป้ายใต้ชื่อรายการ บอกว่าบรรทัดนี้เป็นส่วนหนึ่งของบิลที่ตัดงบหลายบัญชี พร้อมบอกว่าอีกบัญชีคืออะไร
+function splitBadgeHtml(entry){
+  if(!entry || !entry.splitId) return '';
+  const n = entrySplitMates(entry).length;
+  // บรรทัดคู่อาจถูกลบถาวรหรือบัญชีถูกถอดออกไปแล้ว บอกตามจริงดีกว่าโชว์ "ชุด 2 บัญชี" ลอยๆ
+  if(n < 2){
+    return `<div style="font-size:10.5px;color:var(--amber-ink, #9A6B1F);margin-top:3px;">
+      <span style="border:1px solid currentColor;border-radius:999px;padding:0 6px;font-weight:600;">⇄ ชุดแยกบัญชี — ไม่พบบรรทัดคู่</span></div>`;
+  }
+  const mates = splitMateLabel(entry);
+  return `<div style="font-size:10.5px;color:var(--teal);margin-top:3px;display:flex;align-items:center;gap:5px;flex-wrap:wrap;">
+    <span style="border:1px solid var(--teal);border-radius:999px;padding:0 6px;font-weight:600;">⇄ ชุด ${n} บัญชี</span>
+    ${mates ? `<span style="color:var(--text-faint);">คู่กับ ${escapeHtml(mates)}</span>` : ''}</div>`;
+}
+
+/* ============ ฟอร์มรายการแยกบัญชี ============ */
+let splitLineCount = 0;
+function splitSelectableItems(){
+  const cc = getCc(state.activeCcId);
+  return (cc ? (cc.items||[]) : []).filter(it=>!it.deletedAt);
+}
+function splitLineHtml(idx, presetCode){
+  const opts = splitSelectableItems().map(it=>
+    `<option value="${escapeHtml(it.code)}" ${it.code===presetCode?'selected':''}>${escapeHtml(it.code)} — ${escapeHtml(it.label)}</option>`).join('');
+  return `<div class="se-line" data-idx="${idx}" style="display:flex;gap:8px;align-items:flex-end;flex-wrap:wrap;margin-bottom:10px;padding:10px;border:1px solid var(--border-soft);border-radius:8px;">
+    <div class="field" style="flex:1;min-width:230px;">
+      <label>รายการบัญชี</label>
+      <select id="seItem${idx}" onchange="onSplitLineChange(${idx})" style="width:100%;">
+        <option value="">— เลือกรายการบัญชี —</option>${opts}
+      </select>
+    </div>
+    <div class="field" style="width:130px;">
+      <label>จำนวนเงิน</label>
+      <input type="number" id="seAmount${idx}" min="0" step="0.01" placeholder="0.00" style="width:100%;" oninput="recalcSplitTotals()">
+    </div>
+    <div class="field" style="width:120px;">
+      <label>ภาษี (ถ้ามี)</label>
+      <input type="number" id="seTax${idx}" min="0" step="0.01" placeholder="0.00" style="width:100%;" oninput="recalcSplitTotals()">
+    </div>
+    <label class="se-vat" id="seVatWrap${idx}" style="display:none;align-items:center;gap:6px;font-size:12px;height:36px;cursor:pointer;white-space:nowrap;">
+      <input type="checkbox" id="seVat${idx}" checked style="width:auto;margin:0;" onchange="recalcSplitTotals()">
+      <span>เครดิตภาษีซื้อได้</span>
+    </label>
+    <button class="btn btn-danger-ghost btn-sm" onclick="removeSplitLine(${idx})" title="เอาบัญชีนี้ออก" style="height:36px;">✕</button>
+  </div>`;
+}
+function onSplitLineChange(idx){
+  const code = document.getElementById('seItem'+idx).value;
+  const item = splitSelectableItems().find(it=>it.code===code);
+  const wrap = document.getElementById('seVatWrap'+idx);
+  // ช่องเครดิตภาษีซื้อโผล่เฉพาะบัญชีที่ใช้ได้ (ค่าเชื้อเพลิง + คู่บัญชีค่าโทรศัพท์)
+  if(wrap) wrap.style.display = itemHasVatCreditToggle(item) ? 'flex' : 'none';
+  recalcSplitTotals();
+}
+function splitLineValues(){
+  const out = [];
+  document.querySelectorAll('#seLines .se-line').forEach(el=>{
+    const idx = el.getAttribute('data-idx');
+    const code = document.getElementById('seItem'+idx).value;
+    const amount = Number(document.getElementById('seAmount'+idx).value) || 0;
+    const tax = Number(document.getElementById('seTax'+idx).value) || 0;
+    const item = splitSelectableItems().find(it=>it.code===code);
+    const vatEl = document.getElementById('seVat'+idx);
+    const line = {idx, itemCode: code, amount, tax};
+    if(itemHasVatCreditToggle(item)) line.vatCreditable = vatEl ? !!vatEl.checked : true;
+    out.push(line);
+  });
+  return out;
+}
+function recalcSplitTotals(){
+  const lines = splitLineValues();
+  const ledger = lines.reduce((s,l)=> s + entryLedgerAmount(l), 0);
+  const gross = lines.reduce((s,l)=> s + l.amount + l.tax, 0);
+  document.getElementById('seTotalLedger').textContent = fmt(ledger);
+  document.getElementById('seTotalGross').textContent = fmt(gross);
+}
+function renderSplitLines(presets){
+  const wrap = document.getElementById('seLines');
+  wrap.innerHTML = (presets||[]).map((code,i)=> splitLineHtml(i, code)).join('');
+  splitLineCount = (presets||[]).length;
+  (presets||[]).forEach((c,i)=> onSplitLineChange(i));
+  syncSplitAddBtn();
+}
+function currentSplitLineCount(){
+  return document.querySelectorAll('#seLines .se-line').length;
+}
+function syncSplitAddBtn(){
+  // ปุ่มต้องดูจำนวนบรรทัดที่มีอยู่จริง ไม่ใช่จำนวนที่เคยสร้าง ไม่งั้นลบบรรทัดแล้วจะเพิ่มกลับไม่ได้
+  document.getElementById('seAddLineBtn').classList.toggle('hidden', currentSplitLineCount() >= MAX_SPLIT_LINES);
+}
+function addSplitLine(){
+  if(currentSplitLineCount() >= MAX_SPLIT_LINES) return;
+  const idx = splitLineCount++;   // ใช้เป็น id ที่ไม่ซ้ำเท่านั้น
+  document.getElementById('seLines').insertAdjacentHTML('beforeend', splitLineHtml(idx, ''));
+  onSplitLineChange(idx);
+  syncSplitAddBtn();
+}
+function removeSplitLine(idx){
+  const el = document.querySelector(`#seLines .se-line[data-idx="${idx}"]`);
+  if(!el) return;
+  if(document.querySelectorAll('#seLines .se-line').length <= 2){
+    alert('ต้องมีอย่างน้อย 2 บัญชี ถ้าต้องการบัญชีเดียวให้ใช้ฟอร์มเพิ่มรายการตามปกติ');
+    return;
+  }
+  el.remove();
+  syncSplitAddBtn();
+  recalcSplitTotals();
+}
+// ค่าโทรศัพท์เป็นเคสที่เจอทุกเดือน จึงตั้งคู่บัญชีไว้ให้เลยถ้าศูนย์ต้นทุนนี้มีทั้งสองบัญชี
+const PHONE_SPLIT_PRESET = ['53032010', '53032020'];
+function openSplitEntryModal(){
+  const cc = getCc(state.activeCcId);
+  if(!cc) return;
+  const codes = splitSelectableItems().map(i=>i.code);
+  if(codes.length < 2){ alert('ศูนย์ต้นทุนนี้มีรายการบัญชีไม่ถึง 2 รายการ จึงยังแยกบัญชีไม่ได้'); return; }
+  document.getElementById('seDesc').textContent = `${cc.code} — ${cc.name} · ปีงบประมาณ ${cc.year}`;
+  document.getElementById('seDate').value = todayStr();
+  document.getElementById('seName').value = '';
+  const presets = PHONE_SPLIT_PRESET.every(c=>codes.includes(c)) ? [...PHONE_SPLIT_PRESET] : ['',''];
+  renderSplitLines(presets);
+  recalcSplitTotals();
+  openModal('splitEntryModal');
+  setTimeout(()=>document.getElementById('seName').focus(), 50);
+}
+async function submitSplitEntry(){
+  const cc = getCc(state.activeCcId);
+  if(!cc) return;
+  const date = document.getElementById('seDate').value || todayStr();
+  const desc = document.getElementById('seName').value.trim();
+  if(!desc){ alert('กรุณากรอกชื่อรายการ'); return; }
+  const lines = splitLineValues();
+  if(lines.length < 2){ alert('ต้องมีอย่างน้อย 2 บัญชี'); return; }
+  if(lines.some(l=>!l.itemCode)){ alert('กรุณาเลือกรายการบัญชีให้ครบทุกบรรทัด'); return; }
+  const codes = lines.map(l=>l.itemCode);
+  if(new Set(codes).size !== codes.length){ alert('เลือกรายการบัญชีซ้ำกัน กรุณาเลือกบัญชีที่ต่างกันในแต่ละบรรทัด'); return; }
+  if(lines.some(l=>!(l.amount > 0))){ alert('กรุณากรอกจำนวนเงินของทุกบัญชีให้มากกว่า 0'); return; }
+
+  const splitId = uid();
+  const who = {
+    addedBy: state.user ? state.user.uid : null,
+    addedByName: state.user ? (state.user.displayName || state.user.email) : null,
+    addedByEmail: state.user ? state.user.email : null,
+    addedByPosition: state.user ? (state.user.position || '') : '',
+    addedByCode: state.user ? (state.user.employeeCode || '') : '',
+  };
+  const payload = lines.map((l, i)=>{
+    const entry = {
+      id: uid(), date, desc, amount: l.amount, tax: l.tax, createdAt: Date.now() + i,
+      splitId, splitSeq: i, splitCount: lines.length, ...who,
+    };
+    if('vatCreditable' in l) entry.vatCreditable = l.vatCreditable;
+    return {itemCode: l.itemCode, entry};
+  });
+  closeModal('splitEntryModal');
+  try{
+    await window.fb.addSplitCcEntriesTx(cc.id, payload);
+    flashSaved(false);
+  }catch(e){
+    console.error(e); flashSaved(true);
+    alert('บันทึกไม่สำเร็จ: ' + e.message);
+  }
+}
+
 /* ============ แก้ไขรายการจ่ายที่บันทึกไปแล้ว (ใช้ร่วมกันทั้ง 3 โหมด) ============ */
 // Correcting a typo used to mean deleting the row and re-entering it, which left a delete in the
 // history and renumbered every ใบตัดงบ printed after it. Editing in place keeps the row (and its
@@ -5684,9 +6153,14 @@ function openEditEntry(itemCode, entryId){
   const entry = findActiveCcEntry(cc, itemCode, entryId);
   if(!item || !entry) return;
   if(!canDeleteEntry(entry)){ alert('แก้ไขได้เฉพาะรายการที่คุณเพิ่มเอง หรือผู้ดูแลแผนก/แอดมิน'); return; }
-  showEditEntryModal({mode:'budget', ccId: cc.id, itemCode, entryId}, entry, {
+  const mates = entrySplitMates(entry);
+  showEditEntryModal({mode:'budget', ccId: cc.id, itemCode, entryId,
+    splitMateIds: mates.length > 1 ? mates.filter(m=>m.id!==entryId).map(m=>m.id) : null}, entry, {
     desc: `${item.code ? item.code+' — ' : ''}${item.label}`,
     showTax: true, showVat: itemHasVatCreditToggle(item),
+    note: mates.length > 1
+      ? `รายการนี้เป็นส่วนหนึ่งของบิลที่ตัดงบ ${mates.length} บัญชี — วันที่และชื่อรายการจะเปลี่ยนทั้งชุด ส่วนจำนวนเงินกับภาษีเปลี่ยนเฉพาะบัญชี ${item.label}`
+      : '',
   });
 }
 function openEditProjectEntry(workTypeKey, catKey, entryId){
@@ -5718,6 +6192,11 @@ function openEditWhEntry(entryId){
 
 function showEditEntryModal(ctx, entry, opts){
   editingEntryCtx = {...ctx, showTax: !!opts.showTax, showVat: !!opts.showVat};
+  const noteEl = document.getElementById('eeSplitNote');
+  if(noteEl){
+    noteEl.textContent = opts.note || '';
+    noteEl.style.display = opts.note ? 'block' : 'none';
+  }
   document.getElementById('eeDesc').textContent = opts.desc || '';
   document.getElementById('eeDescLabel').textContent = opts.nameLabel || 'รายการ';
   document.getElementById('eeDate').value = entry.date || todayStr();
@@ -5753,7 +6232,8 @@ async function submitEditEntry(){
   closeModal('editEntryModal');
   try{
     if(ctx.mode === 'budget'){
-      await window.fb.editCostCenterEntryTx(ctx.ccId, ctx.itemCode, ctx.entryId, patch, who);
+      // splitMateIds = บรรทัดอื่นของบิลเดียวกัน แก้วันที่/ชื่อรายการให้ด้วยในทรานแซกชันเดียว
+      await window.fb.editCostCenterEntryTx(ctx.ccId, ctx.itemCode, ctx.entryId, patch, who, ctx.splitMateIds);
     } else if(ctx.mode === 'project'){
       await window.fb.editProjectEntryTx(ctx.projId, ctx.workTypeKey, ctx.catKey, ctx.entryId, patch, who);
     } else {
@@ -5898,7 +6378,7 @@ function renderItemDetail(cc, item){
           return `<tr>
             <td style="text-align:center;"><input type="checkbox" title="เลือกรวมพิมพ์ใบตัดงบ" ${checked?'checked':''} onchange="toggleSlipSelection('${escapeHtml(item.code)}','${r.id}')"></td>
             <td class="mono">${escapeHtml(r.date)}</td>
-            <td>${escapeHtml(r.desc)}${(r.addedByName || r.addedByEmail) ? `<div style="font-size:10.5px;color:var(--text-faint);margin-top:2px;">เพิ่มโดย ${escapeHtml(r.addedByName || r.addedByEmail)}</div>` : ''}${entryEditNoteHtml(r)}${vatBadge}</td>
+            <td>${escapeHtml(r.desc)}${splitBadgeHtml(r)}${(r.addedByName || r.addedByEmail) ? `<div style="font-size:10.5px;color:var(--text-faint);margin-top:2px;">เพิ่มโดย ${escapeHtml(r.addedByName || r.addedByEmail)}</div>` : ''}${entryEditNoteHtml(r)}${vatBadge}</td>
             <td class="num">${fmt(paidThisTime)}</td>
             <td class="num">${fmt(r.cumulative)}</td>
             <td class="num ${rowRemaining<0?'neg':''}">${fmt(rowRemaining)}</td>
