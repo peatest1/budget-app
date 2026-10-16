@@ -2675,7 +2675,7 @@ function buildSlipBodyHtml(cc, entries, payerName, payerCode, payerPosition, doc
       </tr>
     </table>`;
 
-  return `${w.length ? '<div class="slip-compact">' : ''}
+  return `${w.length ? '<div class="slip-two-budget">' : ''}
     <table class="hdr">
       <tr>
         <td class="seal-cell">
@@ -3116,15 +3116,18 @@ function wrapSlipDocument(bodyHtml, docTitle){
      detail font-size and wrap to a second line — shrink just these cells so each one stays on
      a single line, matching every other cell's row height. */
   .wbs-code{ font-size:10.5px !important; white-space:nowrap; letter-spacing:-0.1px; }
-  /* ใบที่ตัดงบสองก้อนมีตารางเพิ่มมาอีกหนึ่ง และ table ห้ามแบ่งหน้า ถ้าไม่บีบระยะ ตารางล่างจะ
-     กระโดดไปหน้า 2 ทั้งที่หน้าแรกยังว่างอยู่ครึ่งหน้า — บีบเฉพาะใบแบบนี้ ใบอื่นคงเดิม */
-  .slip-compact{ font-size:15px; }
-  .slip-compact table{ margin-bottom:4px; }
-  .slip-compact td, .slip-compact th{ padding:2.5px 6px; }
-  .slip-compact .hdr-title{ font-size:16px; margin-bottom:2px; }
-  .slip-compact .section-label{ font-size:13px; margin-bottom:3px; }
-  .slip-compact .note{ font-size:12px; line-height:1.5; }
-  .slip-compact .sig-block{ font-size:12px; }
+  /* ใบที่ตัดงบสองก้อนมีตารางเติมข้อมูลครบสองตาราง (ใบงบเดียวมีตารางเปล่าหนึ่งใบ) และ table
+     ห้ามแบ่งหน้า ถ้าไม่ลดระยะเลย ตารางล่างจะกระโดดไปหน้า 2 ทั้งที่หน้าแรกยังว่าง
+     เคยลดขนาดตัวอักษรลงด้วย ซึ่งทำให้ใบดูเล็กและเหลือที่ว่างท้ายหน้าเยอะกว่าใบงบเดียว
+     ตอนนี้จึง "คงขนาดตัวอักษรเท่าใบปกติทุกประการ" แล้วไปลดเฉพาะระยะห่างในแถวกับระหว่างตาราง
+     ผลคือสูง ~267 มม. จากพื้นที่ 275 มม. — เต็มหน้าใกล้เคียงใบงบเดียว (~276 มม.) แต่ยังเหลือ
+     ระยะเผื่อ ~8 มม. กันฟอนต์เพี้ยนข้ามเครื่องแล้วตกไปหน้า 2 และยังอยู่หน้าเดียวแม้ใส่ครบ
+     3 หมายเลขงาน (ตารางล่างเป็นคอลัมน์ จึงไม่สูงขึ้นตามจำนวนหมายเลขงาน) */
+  .slip-two-budget table{ margin-bottom:0; }
+  .slip-two-budget td, .slip-two-budget th{ padding:3.5px 7px; }
+  .slip-two-budget .section-label{ margin-bottom:4px; }
+  .slip-two-budget .detail + .detail{ margin-top:6px; }
+  .slip-two-budget .note-sig-row{ margin-top:10px; }
   .note-sig-row{
     display:flex; justify-content:space-between; align-items:flex-start;
     margin-top:18px; gap:20px; flex-wrap:wrap;
