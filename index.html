@@ -781,6 +781,26 @@ table.ledger .del-x:hover{color:var(--rust);}
 .bs-total-words{flex:1;font-size:13px;color:var(--text);}
 .bs-total-num{font-family:'JetBrains Mono';font-size:21px;font-weight:700;letter-spacing:-.4px;}
 .bs-mismatch{margin-top:9px;font-size:12.5px;font-weight:600;color:var(--rust);}
+/* สองคอลัมน์: ฝั่งซ้ายกรอก ฝั่งขวาคือกระดาษที่จะได้จริง
+   กระดาษอยู่ใน iframe เพราะสไตล์ของใบตัดงบใช้ตัวเลือกกว้างมาก (body, table, td, th)
+   ถ้าเอามาใส่ในหน้าแอปตรงๆ จะไปทับตารางและพื้นหลังของทั้งแอป */
+.bs-cols{display:flex;gap:18px;align-items:flex-start;}
+.bs-col-form{flex:1 1 560px;min-width:0;}
+.bs-col-prev{flex:0 0 430px;min-width:0;position:sticky;top:0;}
+.bs-prev-head{display:flex;align-items:baseline;justify-content:space-between;gap:10px;flex-wrap:wrap;margin-bottom:7px;}
+.bs-prev-head .t{font-size:12.5px;font-weight:700;color:var(--text);}
+.bs-prev-head .n{font-size:11px;color:var(--text-faint);}
+.bs-paper-box{background:#8E9A9E;border-radius:9px;padding:11px;}
+/* กระดาษ A4 ขนาดจริง 210×297 มม. แล้วย่อลงด้วย transform ความคมชัดจึงไม่เสีย */
+.bs-paper{width:794px;height:1123px;border:0;background:#fff;display:block;
+  transform-origin:top left;box-shadow:0 2px 10px rgba(0,0,0,.28);}
+@media (max-width:1180px){
+  .bs-cols{flex-direction:column;}
+  .bs-col-prev{flex:1 1 auto;width:100%;position:static;}
+  .bs-paper-box{display:flex;justify-content:center;}
+}
+/* จอมือถือ ตัวอย่างกระดาษเล็กจนอ่านไม่ออกและกินที่ ตัดทิ้งไปเลย เหลือแต่ฟอร์มกรอก */
+@media (max-width:760px){ .bs-col-prev{display:none;} }
 .xs-row{display:flex;gap:8px;align-items:flex-end;flex-wrap:nowrap;}
 /* .modal .field มี margin-bottom 14px ซึ่งทำให้ปุ่มเอาออกหล่นต่ำกว่าช่องอื่น */
 .xs-row > .field{margin-bottom:0;}
@@ -1274,9 +1294,11 @@ table.ledger .del-x:hover{color:var(--rust);}
      จัดหน้าต่างให้หน้าตาเหมือนใบจริง (หัวใบ / ตารางรายการ / ตารางล่าง) แทนที่จะเรียงเป็นรายการ
      ช่องกรอก เพราะคนกรอกมีใบกระดาษอยู่ตรงหน้า จะได้มองปราดเดียวรู้ว่าช่องไหนคือช่องไหน -->
 <div class="modal-overlay hidden" id="blankSlipModal">
-  <div class="modal" style="max-width:980px;">
+  <div class="modal bs-modal" style="max-width:1340px;">
     <h2>ใบตัดงบเปล่า</h2>
     <p class="modal-desc">กรอกเองทุกช่อง แล้วกดพิมพ์ — ไม่ตัดงบของศูนย์ต้นทุนหรือแฟ้มงานใดๆ และไม่เก็บบันทึกไว้ในระบบ</p>
+    <div class="bs-cols">
+    <div class="bs-col-form">
 
     <div class="bs-sheet">
       <div class="bs-sec-name">หัวใบ</div>
@@ -1380,6 +1402,15 @@ table.ledger .del-x:hover{color:var(--rust);}
       </div>
     </div>
 
+    </div>
+    <div class="bs-col-prev">
+      <div class="bs-prev-head">
+        <span class="t">ใบที่จะได้</span>
+        <span class="n">ขนาดจริง A4 · อัปเดตตามที่กรอก</span>
+      </div>
+      <div class="bs-paper-box"><iframe class="bs-paper" id="bsPaper" title="ตัวอย่างใบตัดงบ"></iframe></div>
+    </div>
+    </div>
     <div class="modal-actions">
       <button class="btn btn-outline" onclick="closeModal('blankSlipModal')">ปิด</button>
       <button class="btn btn-primary" onclick="printBlankSlip()">พิมพ์ใบ</button>
@@ -3195,7 +3226,9 @@ async function printCombinedProjectSlip(){
   openSlipPrintWindow(bodyHtml, docTitle);
 }
 
-function wrapSlipDocument(bodyHtml, docTitle){
+// opts.preview = true : ใช้สำหรับกรอบตัวอย่างบนหน้าจอ — เหมือนเอกสารที่พิมพ์จริงทุกอย่าง
+// ยกเว้นไม่ติดสคริปต์สั่งพิมพ์ ไม่งั้นแค่เปิดตัวอย่างก็จะเด้งหน้าต่างพิมพ์ขึ้นมาเอง
+function wrapSlipDocument(bodyHtml, docTitle, opts){
   return `<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -3289,10 +3322,20 @@ function wrapSlipDocument(bodyHtml, docTitle){
      ระยะเผื่อ ~8 มม. กันฟอนต์เพี้ยนข้ามเครื่องแล้วตกไปหน้า 2 และยังอยู่หน้าเดียวแม้ใส่ครบ
      3 หมายเลขงาน (ตารางล่างเป็นคอลัมน์ จึงไม่สูงขึ้นตามจำนวนหมายเลขงาน) */
   .slip-two-budget table{ margin-bottom:0; }
+  /* ยกเว้นกล่องหัวใบ ต้องมีช่องว่างคั่นก่อนขึ้นตารางรายการเสมอ ตามฟอร์มกระดาษจริง
+     ถ้าชิดกัน เส้นล่างของกล่องหัวใบกับเส้นบนของตารางจะกลายเป็นเส้นหนาเส้นเดียว */
+  .slip-two-budget .hdr{ margin-bottom:7px; }
   .slip-two-budget td, .slip-two-budget th{ padding:3.5px 7px; }
   .slip-two-budget .section-label{ margin-bottom:4px; }
   .slip-two-budget .detail + .detail{ margin-top:6px; }
-  .slip-two-budget .note-sig-row{ margin-top:10px; }
+    .slip-two-budget .note-sig-row{ margin-top:10px; }
+  /* ใบเปล่ามีที่เหลือท้ายหน้ามากกว่าใบบิลร่วม (ประมาณ 16 มม.) จึงคืนความสูงแถวของตารางรายการ
+     ให้เท่าใบปกติของระบบ ไม่งั้นแถวว่างสี่ห้าแถวจะเรียงชิดกันจนเส้นดูเป็นแถบดำหนา */
+  .slip-blank .items td, .slip-blank .items th{ padding:5px 7px; }
+  /* คืนความสูงแถวแล้วใบยาวขึ้น จึงเก็บคืนจากระยะระหว่างบล็อก ซึ่งไม่กระทบความถี่ของเส้นตาราง */
+  .slip-blank .section-label{ margin-bottom:2px; }
+  .slip-blank .detail + .detail{ margin-top:4px; }
+  .slip-blank .note-sig-row{ margin-top:4px; }
   .note-sig-row{
     display:flex; justify-content:space-between; align-items:flex-start;
     margin-top:18px; gap:20px; flex-wrap:wrap;
@@ -3309,7 +3352,7 @@ function wrapSlipDocument(bodyHtml, docTitle){
 </head>
 <body>
 ${bodyHtml}
-<sc` + `ript>
+${(opts && opts.preview) ? '' : `<sc` + `ript>
   window.onload = function(){
     function doPrint(){ window.print(); }
     // Explicitly request BOTH weights actually used on this page (regular body text + the
@@ -3332,7 +3375,7 @@ ${bodyHtml}
       setTimeout(doPrint, 50);
     });
   };
-</sc` + `ript>
+</scr` + `ipt>`}
 </body>
 </html>`;
 }
@@ -6918,10 +6961,11 @@ function openBlankSlipModal(){
    'bsWName0','bsWName1','bsWName2','bsWWbs0','bsWWbs1','bsWWbs2','bsWAct0','bsWAct1','bsWAct2',
    'bsWNet0','bsWNet1','bsWNet2','bsWAmt0','bsWAmt1','bsWAmt2','bsWLeft0','bsWLeft1','bsWLeft2']
     .forEach(id=>{ const el = document.getElementById(id); if(el) el.value = ''; });
+  openModal('blankSlipModal');
+  openBlankPaper();                       // ต้องเปิดหน้าต่างก่อน กล่องจึงมีความกว้างให้คำนวณย่อ
   syncBlankSlipTables();
   recalcBlankSlip();
-  openModal('blankSlipModal');
-  setTimeout(()=>document.getElementById('bsDesc0').focus(), 50);
+  setTimeout(()=>{ document.getElementById('bsDesc0').focus(); fitBlankPaper(); }, 50);
 }
 // ยอด "รวมเงินที่เบิก" ของตารางบน = รวมภาษีด้วย เหมือนใบกำกับ
 function blankSlipTotal(){
@@ -6990,6 +7034,49 @@ function syncBlankAutoFields(){
   }
 }
 function onBlankTableToggle(){ syncBlankSlipTables(); }
+/* ---- กรอบตัวอย่างกระดาษ ----
+   โหลดเอกสารใบตัดงบเข้า iframe ครั้งเดียวตอนเปิดหน้าต่าง (ฟอนต์จึงโหลดรอบเดียว ไม่กระพริบ)
+   แล้วทุกครั้งที่พิมพ์ ก็เปลี่ยนแค่เนื้อในของเอกสารนั้น */
+let bsPaperReady = false, bsPaperPending = null, bsPaperRaf = 0;
+function openBlankPaper(){
+  const f = document.getElementById('bsPaper');
+  if(!f) return;
+  bsPaperReady = false;
+  f.onload = ()=>{
+    bsPaperReady = true;
+    if(bsPaperPending !== null){ writeBlankPaper(bsPaperPending); bsPaperPending = null; }
+  };
+  f.srcdoc = wrapSlipDocument('<div id="slipBody"></div>', 'ตัวอย่างใบตัดงบ', {preview:true});
+  fitBlankPaper();
+}
+function writeBlankPaper(html){
+  const f = document.getElementById('bsPaper');
+  if(!f) return;
+  try{
+    const doc = f.contentDocument;
+    const host = doc && doc.getElementById('slipBody');
+    if(host) host.innerHTML = html;
+  }catch(e){ /* เข้าไม่ถึงเอกสารข้างใน ก็แค่ไม่มีตัวอย่าง ฟอร์มกับการพิมพ์ยังทำงานปกติ */ }
+}
+function paintBlankPaper(){
+  const html = buildBlankSlipBodyHtml(blankSlipData());
+  if(!bsPaperReady){ bsPaperPending = html; return; }
+  // รวบการวาดไว้เฟรมเดียว ไม่ต้องวาดใหม่ทุกตัวอักษรที่พิมพ์
+  if(bsPaperRaf) cancelAnimationFrame(bsPaperRaf);
+  bsPaperRaf = requestAnimationFrame(()=>{ bsPaperRaf = 0; writeBlankPaper(html); });
+}
+// ย่อกระดาษ A4 ให้พอดีความกว้างของคอลัมน์ (ย่อทั้งใบ ไม่ใช่ลดขนาดตัวอักษร)
+function fitBlankPaper(){
+  const box = document.querySelector('.bs-paper-box');
+  const f = document.getElementById('bsPaper');
+  if(!box || !f) return;
+  f.style.transform = 'none';
+  const scale = Math.min(1, (box.clientWidth - 22) / 794);
+  f.style.transform = 'scale(' + scale + ')';
+  box.style.height = Math.round(1123 * scale) + 22 + 'px';   // +22 = ระยะขอบในกล่อง (กล่องคิดความสูงแบบ border-box)
+}
+window.addEventListener('resize', ()=>{ if(!document.getElementById('blankSlipModal').classList.contains('hidden')) fitBlankPaper(); });
+
 function syncBlankSlipTables(){
   document.getElementById('bsCcFields').classList.toggle('hidden', !document.getElementById('bsUseCcTable').checked);
   document.getElementById('bsWbsFields').classList.toggle('hidden', !document.getElementById('bsUseWbsTable').checked);
@@ -7045,6 +7132,7 @@ function recalcBlankSlip(){
     warn.classList.toggle('hidden', !off);
     if(off) warn.textContent = `ตารางล่างรวมได้ ${fmt(lower)} แต่ยอดตัดงบของบิลนี้คือ ${fmt(ledger)} (ยอดก่อนภาษี) — ตรวจอีกครั้งก่อนพิมพ์`;
   }
+  paintBlankPaper();
 }
 function buildBlankSlipBodyHtml(d){
   const dp = thaiDateParts(d.date);
@@ -7181,7 +7269,7 @@ function buildBlankSlipBodyHtml(d){
   // ใบนี้พิมพ์ตารางล่างครบทั้งสองใบเสมอ (ใบไหนไม่ได้กรอกก็เป็นช่องเปล่าไว้เขียนมือ) ความสูงจึง
   // เท่ากับใบบิลร่วม จึงใช้ระยะบรรทัดชุดเดียวกัน — ขนาดตัวอักษรเท่าใบอื่นทุกประการ บีบแค่ระยะ
   // เพื่อให้จบในหน้าเดียวแน่นอน ไม่ว่าจะกรอกมากแค่ไหน
-  return `${'<div class="slip-two-budget">'}
+  return `${'<div class="slip-two-budget slip-blank">'}
     <table class="hdr">
       <tr>
         <td class="seal-cell">
