@@ -775,7 +775,7 @@ table.ledger .del-x:hover{color:var(--rust);}
 .bs-items input{width:100%;font-family:'JetBrains Mono';font-size:14px;padding:7px 9px;
   border:1px solid var(--border);border-radius:7px;}
 .bs-items .bs-sum{font-family:'JetBrains Mono';font-size:14px;text-align:right;padding-right:10px;color:var(--text-muted);}
-.bs-cols .bs-rowname{text-align:left;font-size:12.5px;color:var(--text-muted);padding-left:6px;}
+.bs-cols .bs-rowname{text-align:left;font-size:12.5px;color:var(--text-muted);padding-left:6px;width:150px;}
 .bs-total-row{display:flex;align-items:baseline;gap:12px;margin-top:12px;padding-top:11px;border-top:1px solid var(--border);}
 .bs-total-label{font-size:13px;color:var(--text-muted);}
 .bs-total-words{flex:1;font-size:13px;color:var(--text);}
@@ -1340,7 +1340,6 @@ table.ledger .del-x:hover{color:var(--rust);}
       <div id="bsCcFields" class="bs-fill hidden">
         <div class="bs-grid"><div class="field" style="flex:0 0 190px;"><label>รหัสศูนย์ต้นทุน (ช่องซ้าย)</label><input type="text" id="bsCcRowLabel" oninput="recalcBlankSlip()"></div></div>
         <table class="bs-items bs-cols">
-          <thead><tr><th style="width:150px;">ช่อง</th><th>คอลัมน์ 1</th><th>คอลัมน์ 2</th><th>คอลัมน์ 3</th></tr></thead>
           <tbody>
             <tr><td class="bs-rowname">ชื่อ-รหัสบัญชี</td>
               <td><input type="text" id="bsCcName0" oninput="recalcBlankSlip()"></td>
@@ -1371,7 +1370,6 @@ table.ledger .del-x:hover{color:var(--rust);}
       </div>
       <div id="bsWbsFields" class="bs-fill hidden">
         <table class="bs-items bs-cols">
-          <thead><tr><th style="width:150px;">ช่อง</th><th>คอลัมน์ 1</th><th>คอลัมน์ 2</th><th>คอลัมน์ 3</th></tr></thead>
           <tbody>
             <tr><td class="bs-rowname">ชื่อ-รหัสบัญชี</td>
               <td><input type="text" id="bsWName0" oninput="recalcBlankSlip()"></td>
@@ -3349,6 +3347,11 @@ function wrapSlipDocument(bodyHtml, docTitle, opts){
     body{ padding:0; margin:0; }
   }
 </style>
+${(opts && opts.preview) ? `<sty` + `le>
+  /* @page margin มีผลเฉพาะตอนพิมพ์ บนจอจึงต้องใส่ขอบกระดาษเองให้เท่ากัน (11 มม. รอบด้าน)
+     ไม่งั้นตัวอย่างจะดูชิดขอบ และความกว้างเนื้อในก็จะไม่ตรงกับใบที่พิมพ์ออกมาจริง */
+  body{ padding:11mm; box-sizing:border-box; }
+</sty` + `le>` : ''}
 </head>
 <body>
 ${bodyHtml}
