@@ -363,6 +363,19 @@ body{
 /* เว้นที่ให้ตราปิดงานไม่ทับชื่องาน */
 .cc-item.is-closed .name, .cc-item.just-closed .name{padding-right:48px;}
 .cc-item .noyear{display:inline-block;font-size:9.5px;color:#8B9BA2;background:rgba(255,255,255,.08);border-radius:4px;padding:1px 5px;margin-top:5px;}
+/* เครื่องมือท้ายแถบข้าง — แยกตัวออกจากรายการของแต่ละโหมดด้วยเส้นคั่นและสีที่จางลง
+   เพราะมันไม่ได้เกี่ยวกับศูนย์ต้นทุน/แฟ้มงานที่เลือกอยู่เลย */
+.side-tools{margin-top:auto;padding-top:14px;border-top:1px solid rgba(255,255,255,.10);}
+.side-tool-btn{
+  width:100%;display:flex;align-items:center;gap:9px;
+  background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.12);
+  color:#D7E0E4;font-family:inherit;font-size:12.5px;font-weight:600;
+  padding:9px 11px;border-radius:9px;cursor:pointer;text-align:left;
+  transition:background .14s, border-color .14s, color .14s;
+}
+.side-tool-btn:hover{background:rgba(255,255,255,.10);border-color:rgba(255,255,255,.26);color:#fff;}
+.side-tool-btn .sti{font-size:14px;line-height:1;}
+.side-tool-note{font-size:10px;color:#7E8E96;margin-top:6px;line-height:1.5;padding:0 2px;}
 /* รายการในแถบข้างก็เลื่อนได้เอง จึงต้องจองที่สกรอลบาร์ไว้เหมือนกัน ด้วยเหตุผลเดียวกับ .sidebar */
 .cc-list{display:flex;flex-direction:column;gap:6px;overflow-y:auto;flex:1;scrollbar-gutter:stable;scrollbar-width:thin;scrollbar-color:rgba(255,255,255,.18) transparent;}
 .cc-list::-webkit-scrollbar{width:8px;}
@@ -745,6 +758,29 @@ table.ledger .del-x:hover{color:var(--rust);}
 .xs-warn .v{font-family:'JetBrains Mono';letter-spacing:-.2px;}
 .xs-wbs-line{border:1px solid var(--border-soft);border-radius:8px;padding:12px;margin-bottom:10px;background:#FBFCFC;}
 /* ปุ่มเอาออกอยู่ท้ายแถวเดียวกัน ไม่ตกลงไปกินพื้นที่อีกบรรทัด */
+/* ===== ฟอร์มใบตัดงบเปล่า ===== */
+.bs-sheet{border:1px solid var(--border-soft);border-radius:10px;padding:13px 14px;margin-bottom:12px;background:#FCFDFD;}
+.bs-sec-name{font-size:13px;font-weight:700;color:var(--text);margin-bottom:10px;}
+.bs-sec-head{display:flex;align-items:center;gap:12px;flex-wrap:wrap;}
+.bs-sub{font-size:11.5px;color:var(--text-faint);font-weight:400;}
+.bs-grid{display:flex;gap:8px;flex-wrap:wrap;align-items:flex-end;}
+.bs-grid > .field{margin-bottom:10px;}
+.bs-switch{display:flex;align-items:center;gap:7px;font-size:13px;font-weight:600;color:var(--text);cursor:pointer;}
+.bs-switch input{width:16px;height:16px;cursor:pointer;}
+.bs-fill{margin-top:12px;}
+.bs-items{width:100%;border-collapse:collapse;}
+.bs-items th{font-size:11.5px;color:var(--text-muted);font-weight:600;text-align:left;padding:0 6px 5px;}
+.bs-items td{padding:3px 4px;vertical-align:middle;}
+.bs-items td:first-child{color:var(--text-faint);font-size:12px;text-align:center;}
+.bs-items input{width:100%;font-family:'JetBrains Mono';font-size:14px;padding:7px 9px;
+  border:1px solid var(--border);border-radius:7px;}
+.bs-items .bs-sum{font-family:'JetBrains Mono';font-size:14px;text-align:right;padding-right:10px;color:var(--text-muted);}
+.bs-cols .bs-rowname{text-align:left;font-size:12.5px;color:var(--text-muted);padding-left:6px;}
+.bs-total-row{display:flex;align-items:baseline;gap:12px;margin-top:12px;padding-top:11px;border-top:1px solid var(--border);}
+.bs-total-label{font-size:13px;color:var(--text-muted);}
+.bs-total-words{flex:1;font-size:13px;color:var(--text);}
+.bs-total-num{font-family:'JetBrains Mono';font-size:21px;font-weight:700;letter-spacing:-.4px;}
+.bs-mismatch{margin-top:9px;font-size:12.5px;font-weight:600;color:var(--rust);}
 .xs-row{display:flex;gap:8px;align-items:flex-end;flex-wrap:nowrap;}
 /* .modal .field มี margin-bottom 14px ซึ่งทำให้ปุ่มเอาออกหล่นต่ำกว่าช่องอื่น */
 .xs-row > .field{margin-bottom:0;}
@@ -1031,6 +1067,15 @@ table.ledger .del-x:hover{color:var(--rust);}
         <div class="cc-list" id="whFileList"></div>
       </div>
     </div>
+
+    <!-- ใบตัดงบเปล่า: แยกจากระบบคุมงบทั้งหมด ไม่อ่านไม่เขียนข้อมูลใดๆ กรอกแล้วพิมพ์ จบ
+         จึงวางไว้ท้ายแถบข้าง นอกกลุ่มของทุกโหมด และขึ้นเหมือนกันทุกโหมด -->
+    <div class="side-tools">
+      <button class="side-tool-btn" onclick="openBlankSlipModal()" title="พิมพ์ใบตัดงบเปล่าโดยกรอกเองทุกช่อง ไม่เกี่ยวกับงบในระบบ">
+        <span class="sti">🖨</span><span>ใบตัดงบเปล่า</span>
+      </button>
+      <div class="side-tool-note">กรอกเอง พิมพ์ แล้วจบ — ไม่ตัดงบ ไม่เก็บบันทึก</div>
+    </div>
   </aside>
 
   <main class="main" id="main"></main>
@@ -1225,6 +1270,123 @@ table.ledger .del-x:hover{color:var(--rust);}
 </div>
 
 <!-- บิลใบเดียวที่ตัดงบข้ามระบบ: งบหมายเลขงาน (WBS) + งบทำการ (ศูนย์ต้นทุน) -->
+<!-- ===== ใบตัดงบเปล่า — กรอกเองล้วน ไม่แตะข้อมูลในระบบ =====
+     จัดหน้าต่างให้หน้าตาเหมือนใบจริง (หัวใบ / ตารางรายการ / ตารางล่าง) แทนที่จะเรียงเป็นรายการ
+     ช่องกรอก เพราะคนกรอกมีใบกระดาษอยู่ตรงหน้า จะได้มองปราดเดียวรู้ว่าช่องไหนคือช่องไหน -->
+<div class="modal-overlay hidden" id="blankSlipModal">
+  <div class="modal" style="max-width:980px;">
+    <h2>ใบตัดงบเปล่า</h2>
+    <p class="modal-desc">กรอกเองทุกช่อง แล้วกดพิมพ์ — ไม่ตัดงบของศูนย์ต้นทุนหรือแฟ้มงานใดๆ และไม่เก็บบันทึกไว้ในระบบ</p>
+
+    <div class="bs-sheet">
+      <div class="bs-sec-name">หัวใบ</div>
+      <div class="bs-grid">
+        <div class="field" style="flex:1 1 150px;"><label>กฟฟ.</label><input type="text" id="bsOffice" placeholder="เบตง"></div>
+        <div class="field" style="flex:1.4 1 200px;"><label>งบ</label><input type="text" id="bsBudget" placeholder="ทำการ"></div>
+        <div class="field" style="flex:1.2 1 180px;"><label>หมายเลขศูนย์ต้นทุน</label><input type="text" id="bsCcCode" placeholder="เว้นว่างได้"></div>
+        <div class="field" style="flex:0 0 150px;"><label>วันที่</label><input type="date" id="bsDate"></div>
+      </div>
+      <div class="bs-grid">
+        <div class="field" style="flex:1 1 160px;"><label>เลขที่ กฟฟ.</label><input type="text" id="bsDocNoOffice" placeholder="เว้นว่างได้"></div>
+        <div class="field" style="flex:1 1 160px;"><label>เลขที่</label><input type="text" id="bsDocNo" placeholder="เว้นว่างได้"></div>
+        <div class="field" style="flex:1.4 1 200px;"><label>ผู้เบิก</label><input type="text" id="bsPayer"></div>
+        <div class="field" style="flex:0 0 120px;"><label>รหัสพนักงาน</label><input type="text" id="bsPayerCode"></div>
+        <div class="field" style="flex:1.2 1 180px;"><label>ตำแหน่ง/ที่อยู่</label><input type="text" id="bsPayerPos"></div>
+      </div>
+    </div>
+
+    <div class="bs-sheet">
+      <div class="bs-sec-name">รายการ <span class="bs-sub">ใส่กี่บรรทัดก็ได้ บรรทัดที่เว้นว่างจะพิมพ์เป็นช่องเปล่า</span></div>
+      <table class="bs-items">
+        <thead><tr><th style="width:34px;">#</th><th>รายการ</th><th style="width:130px;">จำนวนเงิน</th><th style="width:120px;">ภาษีมูลค่าเพิ่ม</th><th style="width:120px;">รวม</th></tr></thead>
+        <tbody id="bsItemRows"></tbody>
+      </table>
+      <div class="bs-total-row">
+        <span class="bs-total-label">รวมเงินที่เบิก</span>
+        <span class="bs-total-words" id="bsTotalWords">—</span>
+        <span class="bs-total-num" id="bsTotalNum">0.00</span>
+      </div>
+      <div class="bs-mismatch hidden" id="bsMismatch"></div>
+    </div>
+
+    <div class="bs-sheet">
+      <div class="bs-sec-head">
+        <label class="bs-switch"><input type="checkbox" id="bsUseCcTable" onchange="onBlankTableToggle()">
+          <span>กรอกตารางศูนย์ต้นทุน</span></label>
+        <span class="bs-sub">ติ๊กแล้วดึงเลขศูนย์ต้นทุนกับยอดตัดงบ (ก่อนภาษี) จากข้างบนมาให้ · ไม่ติ๊ก = พิมพ์เป็นตารางเปล่าไว้เขียนมือ</span>
+      </div>
+      <div id="bsCcFields" class="bs-fill hidden">
+        <div class="bs-grid"><div class="field" style="flex:0 0 190px;"><label>รหัสศูนย์ต้นทุน (ช่องซ้าย)</label><input type="text" id="bsCcRowLabel" oninput="recalcBlankSlip()"></div></div>
+        <table class="bs-items bs-cols">
+          <thead><tr><th style="width:150px;">ช่อง</th><th>คอลัมน์ 1</th><th>คอลัมน์ 2</th><th>คอลัมน์ 3</th></tr></thead>
+          <tbody>
+            <tr><td class="bs-rowname">ชื่อ-รหัสบัญชี</td>
+              <td><input type="text" id="bsCcName0" oninput="recalcBlankSlip()"></td>
+              <td><input type="text" id="bsCcName1" oninput="recalcBlankSlip()"></td>
+              <td><input type="text" id="bsCcName2" oninput="recalcBlankSlip()"></td></tr>
+            <tr><td class="bs-rowname">รหัสศูนย์ต้นทุน</td>
+              <td><input type="text" id="bsCcCode0" oninput="recalcBlankSlip()"></td>
+              <td><input type="text" id="bsCcCode1" oninput="recalcBlankSlip()"></td>
+              <td><input type="text" id="bsCcCode2" oninput="recalcBlankSlip()"></td></tr>
+            <tr><td class="bs-rowname">จำนวนเงิน</td>
+              <td><input type="number" step="0.01" id="bsCcAmt0" oninput="recalcBlankSlip()"></td>
+              <td><input type="number" step="0.01" id="bsCcAmt1" oninput="recalcBlankSlip()"></td>
+              <td><input type="number" step="0.01" id="bsCcAmt2" oninput="recalcBlankSlip()"></td></tr>
+            <tr><td class="bs-rowname">งบประมาณคงเหลือ</td>
+              <td><input type="text" id="bsCcLeft0" oninput="recalcBlankSlip()"></td>
+              <td><input type="text" id="bsCcLeft1" oninput="recalcBlankSlip()"></td>
+              <td><input type="text" id="bsCcLeft2" oninput="recalcBlankSlip()"></td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="bs-sheet">
+      <div class="bs-sec-head">
+        <label class="bs-switch"><input type="checkbox" id="bsUseWbsTable" onchange="onBlankTableToggle()">
+          <span>กรอกตารางหมายเลขงาน (WBS)</span></label>
+        <span class="bs-sub">ติ๊กแล้วดึงยอดตัดงบ (ก่อนภาษี) จากข้างบนมาให้ · ไม่ติ๊ก = พิมพ์เป็นตารางเปล่าไว้เขียนมือ</span>
+      </div>
+      <div id="bsWbsFields" class="bs-fill hidden">
+        <table class="bs-items bs-cols">
+          <thead><tr><th style="width:150px;">ช่อง</th><th>คอลัมน์ 1</th><th>คอลัมน์ 2</th><th>คอลัมน์ 3</th></tr></thead>
+          <tbody>
+            <tr><td class="bs-rowname">ชื่อ-รหัสบัญชี</td>
+              <td><input type="text" id="bsWName0" oninput="recalcBlankSlip()"></td>
+              <td><input type="text" id="bsWName1" oninput="recalcBlankSlip()"></td>
+              <td><input type="text" id="bsWName2" oninput="recalcBlankSlip()"></td></tr>
+            <tr><td class="bs-rowname">WBS / PM order</td>
+              <td><input type="text" id="bsWWbs0" oninput="recalcBlankSlip()"></td>
+              <td><input type="text" id="bsWWbs1" oninput="recalcBlankSlip()"></td>
+              <td><input type="text" id="bsWWbs2" oninput="recalcBlankSlip()"></td></tr>
+            <tr><td class="bs-rowname">กิจกรรม</td>
+              <td><input type="text" id="bsWAct0" oninput="recalcBlankSlip()"></td>
+              <td><input type="text" id="bsWAct1" oninput="recalcBlankSlip()"></td>
+              <td><input type="text" id="bsWAct2" oninput="recalcBlankSlip()"></td></tr>
+            <tr><td class="bs-rowname">โครงข่าย</td>
+              <td><input type="text" id="bsWNet0" oninput="recalcBlankSlip()"></td>
+              <td><input type="text" id="bsWNet1" oninput="recalcBlankSlip()"></td>
+              <td><input type="text" id="bsWNet2" oninput="recalcBlankSlip()"></td></tr>
+            <tr><td class="bs-rowname">จำนวนเงิน</td>
+              <td><input type="number" step="0.01" id="bsWAmt0" oninput="recalcBlankSlip()"></td>
+              <td><input type="number" step="0.01" id="bsWAmt1" oninput="recalcBlankSlip()"></td>
+              <td><input type="number" step="0.01" id="bsWAmt2" oninput="recalcBlankSlip()"></td></tr>
+            <tr><td class="bs-rowname">งบประมาณคงเหลือ</td>
+              <td><input type="text" id="bsWLeft0" oninput="recalcBlankSlip()"></td>
+              <td><input type="text" id="bsWLeft1" oninput="recalcBlankSlip()"></td>
+              <td><input type="text" id="bsWLeft2" oninput="recalcBlankSlip()"></td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="modal-actions">
+      <button class="btn btn-outline" onclick="closeModal('blankSlipModal')">ปิด</button>
+      <button class="btn btn-primary" onclick="printBlankSlip()">พิมพ์ใบ</button>
+    </div>
+  </div>
+</div>
+
 <div class="modal-overlay hidden" id="xSplitModal">
   <div class="modal" style="max-width:960px;">
     <h2>เบิกร่วมงบทำการ</h2>
@@ -2514,6 +2676,9 @@ function thaiNumberText(numStr){
 }
 function bahtText(amount){
   amount = Math.round((Number(amount)||0) * 100) / 100;
+  // เกินหลักพันล้านล้าน JS จะเขียนเลขเป็น 1e+21 ซึ่งตัวแปลงคำอ่านรับไม่ได้ (ได้คำว่า undefined
+  // ปนออกมา) ยอดขนาดนั้นไม่มีจริงในงานนี้ จึงคืนค่าว่างดีกว่าพิมพ์คำที่ผิดลงใบ
+  if(!isFinite(amount) || Math.abs(amount) >= 1e15) return '';
   const negative = amount < 0;
   amount = Math.abs(amount);
   const baht = Math.floor(amount);
@@ -6716,6 +6881,366 @@ async function submitXSplit(){
     console.error(e); flashSaved(true);
     alert('บันทึกไม่สำเร็จ: ' + e.message);
   }
+}
+
+/* ============ ใบตัดงบเปล่า: กรอกเอง พิมพ์ แล้วจบ ============
+   ตั้งใจให้ไม่แตะข้อมูลในระบบเลยแม้แต่นิดเดียว — ไม่อ่านศูนย์ต้นทุน/แฟ้มงาน ไม่เขียน Firestore
+   ไม่เก็บลงเครื่อง ค่าที่กรอกอยู่ในช่อง input เท่านั้น ปิดหน้าต่างหรือรีเฟรชแล้วหายหมด
+   ใช้เวลาต้องออกใบให้เรื่องที่ไม่ได้อยู่ในระบบคุมงบ */
+const BLANK_SLIP_ROWS = 5;          // เท่าจำนวนบรรทัดของฟอร์มกระดาษจริง
+function blankSlipRowHtml(i){
+  return `<tr>
+    <td>${i+1}</td>
+    <td><input type="text" id="bsDesc${i}" oninput="recalcBlankSlip()"></td>
+    <td><input type="number" step="0.01" id="bsAmt${i}" oninput="recalcBlankSlip()"></td>
+    <td><input type="number" step="0.01" id="bsTax${i}" oninput="recalcBlankSlip()"></td>
+    <td class="bs-sum" id="bsSum${i}">—</td>
+  </tr>`;
+}
+function openBlankSlipModal(){
+  document.getElementById('bsItemRows').innerHTML =
+    Array.from({length: BLANK_SLIP_ROWS}, (_,i)=>blankSlipRowHtml(i)).join('');
+  // เติมค่าที่เดาได้ให้เป็นจุดตั้งต้น ไม่ได้ล็อก แก้ทับได้ทุกช่อง
+  const v = (id, val)=>{ document.getElementById(id).value = val; };
+  v('bsOffice', (state.orgSettings && state.orgSettings.officeName) || '');
+  v('bsBudget', 'ทำการ');
+  v('bsCcCode', '');
+  v('bsDate', todayStr());
+  v('bsDocNoOffice', ''); v('bsDocNo', '');
+  v('bsPayer', state.user ? (state.user.displayName || state.user.email || '') : '');
+  v('bsPayerCode', state.user ? (state.user.employeeCode || '') : '');
+  v('bsPayerPos', state.user ? (state.user.position || '') : '');
+  document.getElementById('bsUseCcTable').checked = false;
+  document.getElementById('bsUseWbsTable').checked = false;
+  bsAuto = {};
+  ['bsCcRowLabel','bsCcName0','bsCcName1','bsCcName2','bsCcCode0','bsCcCode1','bsCcCode2',
+   'bsCcAmt0','bsCcAmt1','bsCcAmt2','bsCcLeft0','bsCcLeft1','bsCcLeft2',
+   'bsWName0','bsWName1','bsWName2','bsWWbs0','bsWWbs1','bsWWbs2','bsWAct0','bsWAct1','bsWAct2',
+   'bsWNet0','bsWNet1','bsWNet2','bsWAmt0','bsWAmt1','bsWAmt2','bsWLeft0','bsWLeft1','bsWLeft2']
+    .forEach(id=>{ const el = document.getElementById(id); if(el) el.value = ''; });
+  syncBlankSlipTables();
+  recalcBlankSlip();
+  openModal('blankSlipModal');
+  setTimeout(()=>document.getElementById('bsDesc0').focus(), 50);
+}
+// ยอด "รวมเงินที่เบิก" ของตารางบน = รวมภาษีด้วย เหมือนใบกำกับ
+function blankSlipTotal(){
+  let t = 0;
+  for(let i=0;i<BLANK_SLIP_ROWS;i++){
+    const desc = bsVal('bsDesc'+i), a = bsNum('bsAmt'+i), x = bsNum('bsTax'+i);
+    if(desc || a || x) t += a + x;
+  }
+  return t;
+}
+// ยอดสำหรับ "ตารางล่าง" ต้องเป็นยอดก่อนภาษี เพราะตารางล่างคือยอดที่ไปตัดงบจริง ซึ่งไม่รวม
+// ภาษีซื้อที่ขอเครดิตได้ — ตรงกับ entryLedgerAmount ที่ใบของระบบใช้ และตรงกับหมายเหตุท้ายใบ
+// (ถ้าเป็นกรณีเครดิตภาษีซื้อไม่ได้ ผู้ใช้แก้ตัวเลขในตารางล่างเป็นยอดรวมภาษีเองได้)
+function blankSlipLedgerTotal(){
+  let t = 0;
+  for(let i=0;i<BLANK_SLIP_ROWS;i++){
+    const desc = bsVal('bsDesc'+i), a = bsNum('bsAmt'+i), x = bsNum('bsTax'+i);
+    if(desc || a || x) t += a;
+  }
+  return t;
+}
+// นับเฉพาะตารางที่เปิดใช้อยู่จริง ค่าที่ค้างอยู่ในตารางที่ติ๊กออกไปแล้วไม่นับ (ไม่ได้พิมพ์ลงใบอยู่ดี)
+// และใช้ !== 0 ไม่ใช่ > 0 เพราะยอดติดลบ (ใบลดหนี้) ก็ถือว่าลงยอดแล้วเหมือนกัน
+function blankTableHasAmount(prefix){
+  const on = prefix === 'bsCcAmt'
+    ? document.getElementById('bsUseCcTable').checked
+    : document.getElementById('bsUseWbsTable').checked;
+  return on && [0,1,2].some(i=> bsNum(prefix+i) !== 0);
+}
+
+/* ---- ค่าที่ระบบเติมให้ ต้องตามยอดข้างบนตลอด ไม่ใช่ถ่ายรูปไว้ตอนติ๊ก ----
+   เก็บไว้ว่าเติมอะไรลงช่องไหน ถ้าค่าในช่องยังเป็นค่าที่เติมไว้ แปลว่าผู้ใช้ยังไม่แตะ ก็อัปเดตตามได้
+   พอผู้ใช้พิมพ์ทับเมื่อไหร่ ระบบจะเลิกยุ่งกับช่องนั้นทันที */
+let bsAuto = {};
+function blankAutoAmountTarget(){
+  const cc = document.getElementById('bsUseCcTable').checked;
+  const wbs = document.getElementById('bsUseWbsTable').checked;
+  if(cc && ('bsCcAmt0' in bsAuto)) return 'bsCcAmt0';
+  if(wbs && ('bsWAmt0' in bsAuto)) return 'bsWAmt0';
+  // ยอดรวมลงได้ก้อนเดียว ถ้าอีกตารางลงยอดไว้แล้วก็ไม่ลงซ้ำ ให้ผู้ใช้แบ่งเอง
+  if(cc && !bsVal('bsCcAmt0') && !blankTableHasAmount('bsWAmt')) return 'bsCcAmt0';
+  if(wbs && !bsVal('bsWAmt0') && !blankTableHasAmount('bsCcAmt')) return 'bsWAmt0';
+  return null;
+}
+function syncBlankAutoFields(){
+  // เลิกดูแลช่องที่ผู้ใช้แก้เอง หรือช่องของตารางที่ถูกติ๊กออกไปแล้ว
+  Object.keys(bsAuto).forEach(id=>{
+    const el = document.getElementById(id);
+    if(!el || el.value !== bsAuto[id]) delete bsAuto[id];
+  });
+  // หมายเลขศูนย์ต้นทุนจากหัวใบ
+  const ccOn = document.getElementById('bsUseCcTable').checked;
+  const code = bsVal('bsCcCode');
+  const leftEl = document.getElementById('bsCcRowLabel');
+  if(ccOn && leftEl && (!leftEl.value || ('bsCcRowLabel' in bsAuto))){
+    leftEl.value = code;
+    if(code) bsAuto.bsCcRowLabel = code; else delete bsAuto.bsCcRowLabel;
+  }
+  // ยอดเงินของตารางล่าง
+  const target = blankAutoAmountTarget();
+  const ledger = blankSlipLedgerTotal();
+  if(target){
+    const el = document.getElementById(target);
+    if(ledger > 0){ el.value = String(ledger); bsAuto[target] = el.value; }
+    else if(target in bsAuto){ el.value = ''; delete bsAuto[target]; }
+  }
+}
+function onBlankTableToggle(){ syncBlankSlipTables(); }
+function syncBlankSlipTables(){
+  document.getElementById('bsCcFields').classList.toggle('hidden', !document.getElementById('bsUseCcTable').checked);
+  document.getElementById('bsWbsFields').classList.toggle('hidden', !document.getElementById('bsUseWbsTable').checked);
+  recalcBlankSlip();
+}
+const bsVal = (id)=>{ const el = document.getElementById(id); return el ? el.value.trim() : ''; };
+const bsNum = (id)=>{ const el = document.getElementById(id); return el ? (Number(el.value) || 0) : 0; };
+function blankSlipData(){
+  const rows = [];
+  for(let i=0;i<BLANK_SLIP_ROWS;i++){
+    const desc = bsVal('bsDesc'+i), amount = bsNum('bsAmt'+i), tax = bsNum('bsTax'+i);
+    rows.push({desc, amount, tax, filled: !!(desc || amount || tax)});
+  }
+  const col = (p)=>[0,1,2].map(i=>({
+    name: bsVal(p.name+i), amount: bsNum(p.amount+i), remaining: bsVal(p.remaining+i),
+    code: p.code ? bsVal(p.code+i) : '', wbs: p.wbs ? bsVal(p.wbs+i) : '',
+    act: p.act ? bsVal(p.act+i) : '', net: p.net ? bsVal(p.net+i) : '',
+  }));
+  return {
+    office: bsVal('bsOffice'), budget: bsVal('bsBudget'), ccCode: bsVal('bsCcCode'),
+    date: bsVal('bsDate') || todayStr(),
+    docNoOffice: bsVal('bsDocNoOffice'), docNo: bsVal('bsDocNo'),
+    payer: bsVal('bsPayer'), payerCode: bsVal('bsPayerCode'), payerPos: bsVal('bsPayerPos'),
+    rows,
+    useCc: document.getElementById('bsUseCcTable').checked,
+    ccLeftLabel: bsVal('bsCcRowLabel'),
+    cc: col({name:'bsCcName', code:'bsCcCode', amount:'bsCcAmt', remaining:'bsCcLeft'}),
+    useWbs: document.getElementById('bsUseWbsTable').checked,
+    wbs: col({name:'bsWName', wbs:'bsWWbs', act:'bsWAct', net:'bsWNet', amount:'bsWAmt', remaining:'bsWLeft'}),
+  };
+}
+// ยอดรวมคิดให้อัตโนมัติ เพราะเป็นจุดที่คนกรอกมือผิดบ่อยที่สุด และคำอ่านภาษาไทยยิ่งพิมพ์เองยาก
+function recalcBlankSlip(){
+  syncBlankAutoFields();                 // ค่าที่ระบบเติมให้ ต้องตามยอดข้างบนตลอดเวลา
+  const d = blankSlipData();
+  let total = 0;
+  d.rows.forEach((r,i)=>{
+    const sum = r.filled ? (r.amount + r.tax) : null;
+    if(sum !== null) total += sum;
+    document.getElementById('bsSum'+i).textContent = sum === null ? '—' : fmt2(sum);
+  });
+  document.getElementById('bsTotalNum').textContent = fmt2(total);
+  document.getElementById('bsTotalWords').textContent = total > 0 ? bahtText(total) : '—';
+
+  // ถ้าผู้ใช้แก้ยอดในตารางล่างเองจนไม่ตรงกับยอดที่เบิก ต้องรู้ก่อนพิมพ์ ไม่ใช่ไปเจอตอนใบเซ็นแล้ว
+  // เทียบกับยอดก่อนภาษี เพราะตารางล่างเป็นยอดตัดงบ
+  const lower = (d.useCc  ? d.cc.reduce((s,c)=> s + c.amount, 0)  : 0)
+              + (d.useWbs ? d.wbs.reduce((s,w)=> s + w.amount, 0) : 0);
+  const ledger = blankSlipLedgerTotal();
+  const warn = document.getElementById('bsMismatch');
+  if(warn){
+    const off = (d.useCc || d.useWbs) && Math.abs(lower - ledger) > 0.005;
+    warn.classList.toggle('hidden', !off);
+    if(off) warn.textContent = `ตารางล่างรวมได้ ${fmt(lower)} แต่ยอดตัดงบของบิลนี้คือ ${fmt(ledger)} (ยอดก่อนภาษี) — ตรวจอีกครั้งก่อนพิมพ์`;
+  }
+}
+function buildBlankSlipBodyHtml(d){
+  const dp = thaiDateParts(d.date);
+  const filled = d.rows.filter(r=>r.filled);
+  const total = filled.reduce((s,r)=> s + r.amount + r.tax, 0);
+  const line = (txt)=> txt ? numEn(escapeHtml(txt)) : '_____________';
+  const itemRows = d.rows.map((r,i)=> r.filled ? `
+      <tr>
+        <td class="ctr">${numEn(String(i+1))}</td>
+        <td class="hl">${escapeHtml(r.desc)}</td>
+        <td class="num hl">${r.amount ? numEn(fmt2(r.amount)) : ''}</td>
+        <td class="num hl">${r.tax ? numEn(fmt2(r.tax)) : '-'}</td>
+        <td class="num hl">${(r.amount || r.tax) ? numEn(fmt2(r.amount + r.tax)) : ''}</td>
+      </tr>` : `
+      <tr><td>&nbsp;</td><td></td><td></td><td></td><td></td></tr>`).join('');
+
+  // ตารางล่างสองใบ: ถ้าไม่ติ๊กใช้ ก็พิมพ์เป็นช่องเปล่าตามฟอร์มกระดาษ ให้เขียนมือได้
+  const ccUsed = d.useCc ? d.cc.filter(c=>c.name || c.code || c.amount) : [];
+  const ccTotal = ccUsed.reduce((s,c)=> s + c.amount, 0);
+  const cCell = (i, get)=> d.useCc && d.cc[i] ? get(d.cc[i]) : '';
+  const ccTable = `
+    <table class="detail">
+      <colgroup><col style="width:22%;"><col style="width:18%;"><col style="width:18%;"><col style="width:18%;"><col style="width:24%;"></colgroup>
+      <tr>
+        <td>ชื่อ-รหัสบัญชี</td>
+        <td class="hl">${cCell(0, c=>c.name ? fitLabelHtml(c.name) : '')}</td>
+        <td class="hl">${cCell(1, c=>c.name ? fitLabelHtml(c.name) : '')}</td>
+        <td class="hl">${cCell(2, c=>c.name ? fitLabelHtml(c.name) : '')}</td>
+        <td class="ctr">รวมค่าใช้จ่าย</td>
+      </tr>
+      <tr>
+        <td>รหัสศูนย์ต้นทุน</td>
+        <td class="hl">${cCell(0, c=>c.code ? numEn(escapeHtml(c.code)) : '')}</td>
+        <td class="hl">${cCell(1, c=>c.code ? numEn(escapeHtml(c.code)) : '')}</td>
+        <td class="hl">${cCell(2, c=>c.code ? numEn(escapeHtml(c.code)) : '')}</td>
+        <td></td>
+      </tr>
+      <tr>
+        <td class="hl">${d.useCc && d.ccLeftLabel ? numEn(escapeHtml(d.ccLeftLabel)) : '&nbsp;'}</td>
+        <td class="num hl">${cCell(0, c=>c.amount ? numEn(fmt2(c.amount)) : '')}</td>
+        <td class="num hl">${cCell(1, c=>c.amount ? numEn(fmt2(c.amount)) : '')}</td>
+        <td class="num hl">${cCell(2, c=>c.amount ? numEn(fmt2(c.amount)) : '')}</td>
+        <td class="num hl">${ccTotal ? numEn(fmt2(ccTotal)) : ''}</td>
+      </tr>
+      <tr><td>&nbsp;</td><td></td><td></td><td></td><td></td></tr>
+      <tr>
+        <td class="bold">รวม</td>
+        <td class="num bold">${cCell(0, c=>c.amount ? numEn(fmt2(c.amount)) : '')}</td>
+        <td class="num bold">${cCell(1, c=>c.amount ? numEn(fmt2(c.amount)) : '')}</td>
+        <td class="num bold">${cCell(2, c=>c.amount ? numEn(fmt2(c.amount)) : '')}</td>
+        <td class="num bold">${ccTotal ? numEn(fmt2(ccTotal)) : ''}</td>
+      </tr>
+      <tr>
+        <td>งบประมาณคงเหลือหลังเบิกจ่ายครั้งนี้</td>
+        <td class="num hl">${cCell(0, c=>c.remaining ? numEn(escapeHtml(c.remaining)) : '')}</td>
+        <td class="num hl">${cCell(1, c=>c.remaining ? numEn(escapeHtml(c.remaining)) : '')}</td>
+        <td class="num hl">${cCell(2, c=>c.remaining ? numEn(escapeHtml(c.remaining)) : '')}</td>
+        <td></td>
+      </tr>
+    </table>`;
+
+  const wUsed = d.useWbs ? d.wbs.filter(w=>w.name || w.wbs || w.amount) : [];
+  const wTotal = wUsed.reduce((s,w)=> s + w.amount, 0);
+  const wCell = (i, get)=> d.useWbs && d.wbs[i] ? get(d.wbs[i]) : '';
+  // ไม่ได้กรอกตารางนี้ = พิมพ์กริดเปล่าหน้าตาเดียวกับใบที่ระบบออกให้ จะได้เขียนมือบนช่องที่คุ้นเคย
+  const wbsTable = !d.useWbs ? `
+    <table class="detail">
+      <tr>
+        <td style="width:34%;">ชื่อ-รหัสบัญชี</td>
+        <td class="ctr">เบี้ยเลี้ยง</td>
+        <td class="ctr">ที่พัก</td>
+        <td class="ctr" rowspan="2">รวมค่าใช้จ่าย</td>
+      </tr>
+      <tr><td>WBS / PM order</td><td></td><td></td></tr>
+      <tr><td>กิจกรรม</td><td></td><td></td><td></td></tr>
+      <tr><td>โครงข่าย</td><td></td><td></td><td></td></tr>
+      <tr>
+        <td class="bold">รวม</td>
+        <td class="ctr">-</td>
+        <td class="ctr">-</td>
+        <td class="ctr">-</td>
+      </tr>
+      <tr>
+        <td colspan="3">งบประมาณคงเหลือหลังเบิกจ่ายครั้งนี้</td>
+        <td></td>
+      </tr>
+    </table>` : `
+    <table class="detail">
+      <colgroup><col style="width:22%;"><col style="width:18%;"><col style="width:18%;"><col style="width:18%;"><col style="width:24%;"></colgroup>
+      <tr>
+        <td>ชื่อ-รหัสบัญชี</td>
+        <td class="ctr hl">${wCell(0, w=>w.name ? fitLabelHtml(w.name) : '')}</td>
+        <td class="ctr hl">${wCell(1, w=>w.name ? fitLabelHtml(w.name) : '')}</td>
+        <td class="ctr hl">${wCell(2, w=>w.name ? fitLabelHtml(w.name) : '')}</td>
+        <td class="ctr">รวมค่าใช้จ่าย</td>
+      </tr>
+      <tr>
+        <td>WBS / PM order</td>
+        <td class="hl wbs-code">${wCell(0, w=>w.wbs ? numEn(escapeHtml(w.wbs)) : '')}</td>
+        <td class="hl wbs-code">${wCell(1, w=>w.wbs ? numEn(escapeHtml(w.wbs)) : '')}</td>
+        <td class="hl wbs-code">${wCell(2, w=>w.wbs ? numEn(escapeHtml(w.wbs)) : '')}</td>
+        <td></td>
+      </tr>
+      <tr>
+        <td>กิจกรรม</td>
+        <td class="hl">${wCell(0, w=>w.act ? numEn(escapeHtml(w.act)) : '')}</td>
+        <td class="hl">${wCell(1, w=>w.act ? numEn(escapeHtml(w.act)) : '')}</td>
+        <td class="hl">${wCell(2, w=>w.act ? numEn(escapeHtml(w.act)) : '')}</td>
+        <td></td>
+      </tr>
+      <tr>
+        <td>โครงข่าย</td>
+        <td class="hl">${wCell(0, w=>w.net ? numEn(escapeHtml(w.net)) : '')}</td>
+        <td class="hl">${wCell(1, w=>w.net ? numEn(escapeHtml(w.net)) : '')}</td>
+        <td class="hl">${wCell(2, w=>w.net ? numEn(escapeHtml(w.net)) : '')}</td>
+        <td></td>
+      </tr>
+      <tr>
+        <td class="bold">รวม</td>
+        <td class="num bold">${wCell(0, w=>w.amount ? numEn(fmt2(w.amount)) : '')}</td>
+        <td class="num bold">${wCell(1, w=>w.amount ? numEn(fmt2(w.amount)) : '')}</td>
+        <td class="num bold">${wCell(2, w=>w.amount ? numEn(fmt2(w.amount)) : '')}</td>
+        <td class="num bold">${wTotal ? numEn(fmt2(wTotal)) : ''}</td>
+      </tr>
+      <tr>
+        <td>งบประมาณคงเหลือหลังเบิกจ่ายครั้งนี้</td>
+        <td class="num hl">${wCell(0, w=>w.remaining ? numEn(escapeHtml(w.remaining)) : '')}</td>
+        <td class="num hl">${wCell(1, w=>w.remaining ? numEn(escapeHtml(w.remaining)) : '')}</td>
+        <td class="num hl">${wCell(2, w=>w.remaining ? numEn(escapeHtml(w.remaining)) : '')}</td>
+        <td></td>
+      </tr>
+    </table>`;
+
+  // ใบนี้พิมพ์ตารางล่างครบทั้งสองใบเสมอ (ใบไหนไม่ได้กรอกก็เป็นช่องเปล่าไว้เขียนมือ) ความสูงจึง
+  // เท่ากับใบบิลร่วม จึงใช้ระยะบรรทัดชุดเดียวกัน — ขนาดตัวอักษรเท่าใบอื่นทุกประการ บีบแค่ระยะ
+  // เพื่อให้จบในหน้าเดียวแน่นอน ไม่ว่าจะกรอกมากแค่ไหน
+  return `${'<div class="slip-two-budget">'}
+    <table class="hdr">
+      <tr>
+        <td class="seal-cell">
+          <img class="seal-img" src="${ORG_LOGO_BASE64}" alt="ตราหน่วยงาน">
+          <div class="hdr-title">แบบขอเบิกจ่ายเงินและตัดงบประมาณ</div>
+          <div class="hdr-line">กฟฟ. &nbsp;${escapeHtml(d.office)}</div>
+          <div class="hdr-line">งบ &nbsp;${escapeHtml(d.budget)}</div>
+          <div class="hdr-line">หมายเลขศูนย์ต้นทุน &nbsp;${numEn(escapeHtml(d.ccCode))}</div>
+        </td>
+        <td class="hdr-right">
+          <div class="hdr-line">เลขที่ กฟฟ. ${line(d.docNoOffice)}</div>
+          <div class="hdr-line">เลขที่ ${line(d.docNo)}</div>
+          <div class="hdr-line">วันที่ ${numEn(dp.day)} &nbsp;เดือน ${escapeHtml(dp.month)} &nbsp;พ.ศ. ${numEn(dp.year)}</div>
+          <div class="hdr-line">ผู้เบิก ${escapeHtml(d.payer)} &nbsp;&nbsp;&nbsp; ${numEn(escapeHtml(d.payerCode))}</div>
+          <div class="hdr-line">ตำแหน่ง/ที่อยู่ &nbsp;${escapeHtml(d.payerPos)}</div>
+        </td>
+      </tr>
+    </table>
+    <table class="items">
+      <thead>
+        <tr>
+          <th style="width:8%;">ลำดับ</th>
+          <th>รายการ</th>
+          <th style="width:16%;">จำนวนเงิน</th>
+          <th style="width:14%;">ภาษีมูลค่าเพิ่ม</th>
+          <th style="width:16%;">รวม</th>
+        </tr>
+      </thead>
+      <tbody>
+        ${itemRows}
+        <tr><td colspan="5">(มีหลักฐานประกอบแนบ รวม _______ ฉบับ)</td></tr>
+        <tr>
+          <td colspan="3" class="bold">รวมเงินที่เบิก&nbsp;&nbsp;<span class="hl" style="font-weight:400;">${total ? escapeHtml(bahtText(total)) : ''}</span></td>
+          <td></td>
+          <td class="num bold hl">${total ? numEn(fmt2(total)) : ''}</td>
+        </tr>
+      </tbody>
+    </table>
+    <div class="section-label">รายละเอียดค่าใช้จ่ายตามศูนย์ต้นทุนประกอบใบสำคัญจ่ายเงิน</div>
+    ${ccTable}
+    ${wbsTable}
+    <div class="note-sig-row">
+      <div class="note">
+        หมายเหตุ - การระบุจำนวนเงินไม่เครดิตภาษีซื้อ ให้ใช้ยอดเงินรวมภาษี<br>
+        &nbsp;&nbsp;&nbsp;&nbsp; - กรณีค่าใช้จ่ายที่เครดิตภาษีซื้อ ให้ใช้ยอดมูลค่าสินค้าไม่รวมภาษี
+      </div>
+      <table class="sig-block">
+        <tr><td class="sig-label">ลงชื่อ</td><td class="sig-blank">________________________</td><td class="sig-label">ผู้ควบคุมงบ</td></tr>
+        <tr><td></td><td class="ctr">( &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; )</td><td></td></tr>
+      </table>
+    </div>
+  </div>`;
+}
+function printBlankSlip(){
+  const d = blankSlipData();
+  if(!d.rows.some(r=>r.filled)){
+    if(!confirm('ยังไม่ได้กรอกรายการสักบรรทัด จะพิมพ์เป็นใบเปล่าเลยไหม?')) return;
+  }
+  openSlipPrintWindow(buildBlankSlipBodyHtml(d), `ใบตัดงบ_${d.date}`);
 }
 
 /* ---- แสดงผล / พิมพ์ / ลบ ของบิลข้ามระบบ ---- */
