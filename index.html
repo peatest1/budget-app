@@ -323,7 +323,7 @@ body{
 .year-picker .yp-ctl{display:flex;align-items:center;gap:8px;}
 .year-picker select{
   flex:1;min-width:0;background:none;border:none;
-  color:#F5E4C2;font-family:'Space Grotesk',sans-serif;font-size:18px;font-weight:800;
+  color:#F5E4C2;font-family:'Space Grotesk','Noto Sans Thai',sans-serif;font-size:18px;font-weight:800;
   padding:0;cursor:pointer;letter-spacing:.01em;
 }
 .year-picker select option{color:#1C2B33;font-size:13px;}
@@ -1064,7 +1064,6 @@ table.ledger .del-x:hover{color:var(--rust);}
         <div class="yp-label">ปีงบประมาณ</div>
         <div class="yp-ctl">
           <select id="yearSelect" onchange="onYearChange(this.value)"></select>
-          <button title="เพิ่มปีงบประมาณใหม่" onclick="promptAddYear()">+</button>
         </div>
       </div>
 
@@ -1080,7 +1079,6 @@ table.ledger .del-x:hover{color:var(--rust);}
         <div class="yp-label">ปีงบประมาณ</div>
         <div class="yp-ctl">
           <select id="projYearSelect" onchange="setProjYear(this.value)"></select>
-          <button title="เพิ่มปีงบประมาณใหม่" onclick="promptAddYear()">+</button>
         </div>
       </div>
       <div class="proj-search">
@@ -1106,7 +1104,6 @@ table.ledger .del-x:hover{color:var(--rust);}
         <div class="yp-label">ปีงบประมาณ</div>
         <div class="yp-ctl">
           <select id="whYearSelect" onchange="onYearChange(this.value)"></select>
-          <button title="เพิ่มปีงบประมาณใหม่" onclick="promptAddYear()">+</button>
         </div>
       </div>
       <button class="btn btn-primary btn-block" id="newWhFileBtn" onclick="openNewWhFileModal()">+ แฟ้มงบซื้อของใหม่</button>
@@ -2615,7 +2612,7 @@ let state = {
   userDept: null,          // department key saved on the user's profile (member only)
   activeDept: null,        // department key currently being viewed
   costCenters: [],         // all cost centers across all years (raw docs)
-  years: [DEFAULT_YEAR],   // known years, derived + manually added
+  years: [DEFAULT_YEAR],   // ปีที่มีให้เลือก — คำนวณใหม่ทุกครั้งใน recomputeYears()
   activeYear: DEFAULT_YEAR,
   activeCcId: null,
   activeItemKey: null,     // item.code used as key within a cost center
@@ -4088,13 +4085,23 @@ function autoSelectFirstCc(){
     state.activeItemKey = null;
   }
 }
+/* รายชื่อปีงบประมาณในดรอปดาวน์ คิดจากของจริงล้วนๆ ไม่มีการพิมพ์เพิ่มเองอีกแล้ว
+   - ปีที่แล้วกับปีนี้ มีให้เสมอ (ปีที่แล้วไว้ตามเก็บของค้าง หรือแผนกที่เพิ่งเริ่มใช้ย้อนลงข้อมูล)
+   - ปีหน้าโผล่เองตั้งแต่ 1 พฤศจิกายน เพื่อให้ตั้งงบปีหน้าล่วงหน้าได้ ถ้าไม่ได้ใช้ก็หายไปเองตอนขึ้นปี
+   - ปีไหนมีศูนย์ต้นทุนหรือแฟ้มงบซื้อของอยู่ ต้องอยู่ในลิสต์เสมอ ไม่งั้นข้อมูลจะเดินไปถึงไม่ได้
+   เลิกเก็บปีที่ผู้ใช้กดเพิ่มเอง เพราะมันไม่เคยถูกบันทึกลงฐานข้อมูลจริง พิมพ์ผิดแล้วลบไม่ได้ */
+const YEAR_AHEAD_FROM_MONTH = 10;   // 0 = มกราคม → 10 = พฤศจิกายน
 function recomputeYears(){
   // คิดปีปัจจุบันสดทุกครั้ง ไม่ใช้ค่าที่คำนวณไว้ตอนโหลดหน้า เผื่อมีคนเปิดแอปค้างข้ามปี
-  const set = new Set([currentBudgetYear()]);
-  state.costCenters.forEach(c=>set.add(c.year));
-  state.years.forEach(y=>set.add(y));
+  const cur = currentBudgetYear();
+  const set = new Set([cur - 1, cur]);
+  if(new Date().getMonth() >= YEAR_AHEAD_FROM_MONTH) set.add(cur + 1);
+  state.costCenters.forEach(c=>{ if(c.year) set.add(Number(c.year)); });
+  (state.whFiles || []).forEach(f=>{ if(f.year) set.add(Number(f.year)); });
   state.years = [...set].sort((a,b)=>b-a);
-  if(!state.years.includes(state.activeYear)) state.activeYear = state.years[0];
+  if(!state.years.includes(state.activeYear)){
+    state.activeYear = state.years.includes(cur) ? cur : state.years[0];
+  }
 }
 // Entry source for one budget-line item. item.entries[] is frozen (historical only, already
 // migrated to the costCenters/{ccId}/entries subcollection) — new entries land only in the
@@ -4406,17 +4413,6 @@ function onYearChange(val){
   state.activeWhFileId = null; state.whSlipSelection = [];
   autoSelectFirstCc();
   autoSelectFirstWhFile();
-  render();
-}
-function promptAddYear(){
-  const val = prompt('ปีงบประมาณใหม่ (พ.ศ.) เช่น ' + (currentBudgetYear() + 1));
-  if(!val) return;
-  const year = Number(val);
-  if(!year || year < 2500 || year > 2700){ alert('กรุณากรอกปี พ.ศ. ให้ถูกต้อง'); return; }
-  if(!state.years.includes(year)) state.years.push(year);
-  state.years.sort((a,b)=>b-a);
-  state.activeYear = year;
-  state.activeCcId = null; state.activeItemKey = null;
   render();
 }
 
@@ -6108,7 +6104,14 @@ function renderYearPicker(){
   // Budget mode and the warehouse's งบซื้อของ mode each have their own <select> in the sidebar but
   // share one state.activeYear, so both are filled from the same list whichever mode is showing.
   // คำว่า "ปีงบประมาณ" ย้ายไปอยู่ป้ายเหนือช่องแล้ว ตัวเลือกจึงเหลือแค่เลขปี
-  const opts = state.years.map(y=>`<option value="${y}" ${y===state.activeYear?'selected':''}>${y}</option>`).join('');
+  // ติดป้ายเฉพาะปีที่ระบบเติมให้เองและยังไม่มีข้อมูลอะไรเลย กันเผลอสร้างศูนย์ต้นทุนผิดปี
+  const cur = currentBudgetYear();
+  const hasData = y => state.costCenters.some(c=>Number(c.year)===y)
+    || (state.whFiles || []).some(f=>Number(f.year)===y);
+  const opts = state.years.map(y=>{
+    const tag = hasData(y) ? '' : (y === cur + 1 ? ' (ปีหน้า)' : (y === cur - 1 ? ' (ปีที่แล้ว)' : ''));
+    return `<option value="${y}" ${y===state.activeYear?'selected':''}>${y}${tag}</option>`;
+  }).join('');
   const sel = document.getElementById('yearSelect');
   if(sel) sel.innerHTML = opts;
   const whSel = document.getElementById('whYearSelect');
