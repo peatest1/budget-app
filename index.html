@@ -527,6 +527,31 @@ body{
   .item-row .acct-code{order:0;}
   .item-row .item-budget{order:2;margin-left:auto;}
   .item-row .item-arrow{order:3;}
+  .item-row .drag-handle{order:-1;}
+}
+
+/* ---- จัดลำดับด้วยการลาก ----
+   touch-action:none จำเป็นสำหรับจอสัมผัส ไม่งั้นนิ้วที่ลากจะไปเลื่อนหน้าแทนที่จะลากบรรทัด */
+.drag-handle{
+  flex-shrink:0;display:inline-flex;align-items:center;justify-content:center;
+  width:18px;height:22px;padding:0;border:none;background:none;border-radius:5px;
+  color:#BCC5C9;cursor:grab;touch-action:none;user-select:none;-webkit-user-select:none;
+  transition:color .12s, background .12s;
+}
+.drag-handle:hover{color:var(--amber-dark);background:#FCEED2;}
+.drag-handle:focus-visible{outline:2px solid var(--amber);outline-offset:1px;color:var(--amber-dark);}
+.sort-dragging{
+  opacity:.92;background:#FFFCF4 !important;
+  box-shadow:0 14px 28px -14px rgba(22,33,43,.5);
+  position:relative;z-index:5;
+}
+body.sort-active{cursor:grabbing;user-select:none;-webkit-user-select:none;}
+body.sort-active .drag-handle{cursor:grabbing;}
+.sort-hint{font-size:11px;color:var(--text-faint);display:flex;align-items:center;gap:5px;}
+.cc-item-row .drag-handle{margin-top:4px;}
+@media (max-width:640px){
+  /* นิ้วใหญ่กว่าเมาส์ ปุ่มจับบนมือถือต้องกว้างพอให้กดโดน */
+  .drag-handle{width:30px;height:34px;}
 }
 
 .gauge-wrap{position:relative;padding-top:4px;}
@@ -780,6 +805,9 @@ table.ledger .del-x:hover{color:var(--rust);}
 .bs-total-label{font-size:13px;color:var(--text-muted);}
 .bs-total-words{flex:1;font-size:13px;color:var(--text);}
 .bs-total-num{font-family:'JetBrains Mono';font-size:21px;font-weight:700;letter-spacing:-.4px;}
+.cc-src{background:#FFF9ED;border:1px solid #F0D9A8;border-radius:9px;padding:11px 12px;margin-bottom:14px;}
+.cc-src select{width:100%;}
+.cc-src .role-hint{margin-top:6px;}
 .bs-mismatch{margin-top:9px;font-size:12.5px;font-weight:600;color:var(--rust);}
 /* สองคอลัมน์: ฝั่งซ้ายกรอก ฝั่งขวาคือกระดาษที่จะได้จริง
    กระดาษอยู่ใน iframe เพราะสไตล์ของใบตัดงบใช้ตัวเลือกกว้างมาก (body, table, td, th)
@@ -1107,7 +1135,14 @@ table.ledger .del-x:hover{color:var(--rust);}
 <div class="modal-overlay hidden" id="newCcModal">
   <div class="modal" style="max-width:520px;">
     <h2>สร้างศูนย์ต้นทุนใหม่</h2>
-    <p class="modal-desc">จะสร้างในปีงบประมาณที่กำลังเลือกอยู่</p>
+    <p class="modal-desc" id="newCcDesc">จะสร้างในปีงบประมาณที่กำลังเลือกอยู่</p>
+    <!-- ยกของปีก่อนมาตั้งต้น: แผนกที่ไม่ใช่ ผปบ. ต้องพิมพ์บัญชีเองทุกบรรทัดทุกปี ซึ่งเสียเวลามาก
+         กล่องนี้จะโผล่เฉพาะแผนกที่เคยมีศูนย์ต้นทุนปีก่อนอยู่แล้ว -->
+    <div class="field cc-src hidden" id="ccSourceField">
+      <label>เริ่มจาก</label>
+      <select id="ccSource" onchange="onCcSourceChange()"></select>
+      <div class="role-hint" id="ccSourceHint"></div>
+    </div>
     <div class="field">
       <label>รหัสศูนย์ต้นทุน</label>
       <input type="text" id="ccCode" placeholder="เช่น L309101030">
@@ -1124,9 +1159,9 @@ table.ledger .del-x:hover{color:var(--rust);}
           <button type="button" onclick="toggleAllCcSeedItems(false)" style="background:none;border:none;color:var(--text-muted);font-size:11px;font-weight:700;cursor:pointer;text-decoration:underline;">ไม่เลือกเลย</button>
         </span>
       </label>
-      <div class="check-list" id="ccSeedItemList" style="max-height:260px;"></div>
+      <div class="check-list" id="ccSeedItemList" data-sortable="ccseed" style="max-height:260px;"></div>
       <button type="button" onclick="addCustomCcItemRow()" style="margin-top:8px;background:none;border:1px dashed var(--amber);color:var(--amber-dark);font-size:12px;font-weight:700;cursor:pointer;padding:7px 10px;border-radius:7px;width:100%;">+ เพิ่มบัญชีเอง (นอกเหนือจากลิสต์)</button>
-      <div class="role-hint">ไม่จำเป็นต้องเลือกครบทุกบัญชี — แก้ไขงบ/เพิ่ม/ลบรายการบัญชีทีหลังได้เสมอ</div>
+      <div class="role-hint">ไม่จำเป็นต้องเลือกครบทุกบัญชี — แก้ไขงบ/เพิ่ม/ลบรายการบัญชีทีหลังได้เสมอ · ลากปุ่มจุดหกจุดหน้าบรรทัดเพื่อจัดลำดับ</div>
     </div>
     <div class="modal-actions">
       <button class="btn btn-outline" onclick="closeModal('newCcModal')">ยกเลิก</button>
@@ -2643,6 +2678,13 @@ function fmt(n){
 }
 function escapeHtml(s){
   return String(s??'').replace(/[&<>"']/g, m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
+}
+/* ค่าที่ถูกใส่ลงไปในโค้ดจาวาสคริปต์ข้างใน onclick="..." ต้องกันสองชั้น
+   escapeHtml อย่างเดียวไม่พอ เพราะเบราว์เซอร์ถอด &#39; กลับเป็น ' ก่อนจะคอมไพล์สคริปต์
+   รหัสบัญชีที่มีเครื่องหมาย ' ติดมาจึงหลุดออกจากสตริงกลายเป็นคำสั่งได้
+   จึงต้องเติม \ กันในระดับจาวาสคริปต์ก่อน แล้วค่อย escapeHtml ทับอีกที */
+function escapeJsStr(s){
+  return escapeHtml(String(s ?? '').replace(/\\/g, '\\\\').replace(/'/g, "\\'").replace(/[\r\n]/g, ' '));
 }
 function flashSaved(isError){
   const el = document.getElementById('saveIndicator');
@@ -4383,13 +4425,19 @@ function openNewCcModal(){
   if(!canManageDept(state.activeDept)){ alert('คุณไม่มีสิทธิ์สร้างศูนย์ต้นทุนในแผนกนี้'); return; }
   document.getElementById('ccCode').value='';
   document.getElementById('ccName').value='';
-  renderCcSeedItemList();
+  document.getElementById('newCcDesc').textContent = 'จะสร้างในปีงบประมาณ ' + state.activeYear;
+  const latest = renderCcSourceOptions();
+  if(latest){ document.getElementById('ccSource').value = latest.id; onCcSourceChange(); }
+  else { renderCcSeedItemList(); }
   openModal('newCcModal');
   setTimeout(()=>document.getElementById('ccCode').focus(),50);
 }
-function ccItemRowHtml(code, label, budget, isCustom){
+let ccRowSeq = 0;
+function ccItemRowHtml(code, label, budget, isCustom, example){
+  // data-sortrow ใช้เลขวิ่ง ไม่ใช้รหัสบัญชี เพราะบรรทัดที่เพิ่มเองยังไม่มีรหัส และอาจซ้ำกันได้
   return `
-    <label style="display:flex;align-items:flex-start;gap:8px;padding:9px 11px;border:1px solid #D9DEE0;border-radius:8px;cursor:pointer;font-size:13px;line-height:1.45;background:#fff;" class="cc-item-row">
+    <label data-sortrow="r${++ccRowSeq}" data-example="${escapeHtml(example || '')}" style="display:flex;align-items:flex-start;gap:8px;padding:9px 11px;border:1px solid #D9DEE0;border-radius:8px;cursor:pointer;font-size:13px;line-height:1.45;background:#fff;" class="cc-item-row">
+      ${dragHandleHtml('จัดลำดับบัญชีนี้')}
       <input type="checkbox" class="cc-seed-check" checked style="margin-top:6px;flex-shrink:0;width:15px;height:15px;">
       <input type="text" class="cc-item-code" value="${escapeHtml(code)}" placeholder="รหัสบัญชี" style="width:92px;flex-shrink:0;font-family:'JetBrains Mono',monospace;color:#C7841E;font-weight:700;font-size:12.5px;padding:6px 7px;border:1px solid #E6E9EA;border-radius:6px;">
       <input type="text" class="cc-item-label" value="${escapeHtml(label)}" placeholder="ชื่อรายการบัญชี" style="flex:1;min-width:0;color:#1C2B33;font-size:12.5px;padding:6px 7px;border:1px solid #E6E9EA;border-radius:6px;font-family:'Noto Sans Thai',sans-serif;">
@@ -4399,7 +4447,66 @@ function ccItemRowHtml(code, label, budget, isCustom){
 }
 function renderCcSeedItemList(){
   const list = document.getElementById('ccSeedItemList');
-  list.innerHTML = SEED_ITEMS_030.map(s => ccItemRowHtml(s.code, s.label, s.budget, false)).join('');
+  list.innerHTML = SEED_ITEMS_030.map(s => ccItemRowHtml(s.code, s.label, s.budget, false, s.example)).join('');
+}
+/* ---- ยกศูนย์ต้นทุนของปีก่อนมาเป็นตัวตั้งต้น ----
+   คัดมาเฉพาะโครงของงบ: รหัสบัญชี ชื่อบัญชี และยอดงบ
+   ไม่เอารายการจ่าย ไม่เอายอดที่จ่ายไปแล้ว ไม่เอาบัญชีที่ถูกลบทิ้งไปแล้ว */
+function ccCarrySources(){
+  return (state.costCenters || [])
+    .filter(c => c.deptKey === state.activeDept && !c.deletedAt && Number(c.year) !== Number(state.activeYear))
+    .sort((a,b) => Number(b.year) - Number(a.year));
+}
+function ccLiveItems(cc){
+  return ((cc && cc.items) || []).filter(it => !it.deletedAt);
+}
+function renderCcSourceOptions(){
+  const field = document.getElementById('ccSourceField');
+  const sel = document.getElementById('ccSource');
+  const sources = ccCarrySources();
+  field.classList.toggle('hidden', !sources.length);
+  if(!sources.length) return null;
+  sel.innerHTML = sources.map(c=>{
+    const n = ccLiveItems(c).length;
+    return `<option value="${escapeHtml(c.id)}">ยกจากปี ${c.year} — ${escapeHtml(c.code)} (${n} บัญชี)</option>`;
+  }).join('')
+    + `<option value="__seed__">รายการบัญชีมาตรฐาน (ชุดตั้งต้นของระบบ)</option>`
+    + `<option value="__blank__">เริ่มจากศูนย์เปล่า ไม่มีบัญชีเลย</option>`;
+  return sources[0];
+}
+function onCcSourceChange(){
+  const v = document.getElementById('ccSource').value;
+  const list = document.getElementById('ccSeedItemList');
+  const hint = document.getElementById('ccSourceHint');
+  if(v === '__seed__'){
+    renderCcSeedItemList();
+    hint.textContent = 'ชุดบัญชีมาตรฐานของระบบ — ติ๊กออกได้ถ้าแผนกนี้ไม่ได้ใช้';
+    return;
+  }
+  if(v === '__blank__'){
+    list.innerHTML = '';
+    hint.textContent = 'ไม่มีบัญชีตั้งต้น กด "+ เพิ่มบัญชีเอง" เพื่อใส่ทีละรายการ';
+    return;
+  }
+  const src = (state.costCenters || []).find(c => c.id === v);
+  if(!src){
+    // ศูนย์ต้นทุนต้นทางหายไประหว่างเปิดหน้าต่างอยู่ (คนอื่นลบทิ้ง) — ต้องบอกด้วย
+    // ไม่ใช่สลับกลับไปชุดมาตรฐานเงียบๆ ทั้งที่ข้อความยังบอกว่ายกมากี่บัญชี
+    renderCcSeedItemList();
+    const latest = renderCcSourceOptions();
+    if(latest) document.getElementById('ccSource').value = '__seed__';
+    document.getElementById('ccSourceHint').textContent =
+      'ศูนย์ต้นทุนที่เลือกไว้ถูกลบไปแล้ว จึงกลับมาใช้ชุดบัญชีมาตรฐานแทน — เลือกปีอื่นได้จากช่องด้านบน';
+    return;
+  }
+  const items = ccLiveItems(src);
+  list.innerHTML = items.map(it => ccItemRowHtml(it.code, it.label, Number(it.budget)||0, false, it.example)).join('');
+  // เติมรหัสกับชื่อให้ด้วย เพราะข้ามปีแล้วมักเป็นเลขเดิมชื่อเดิม (แก้ทับได้)
+  document.getElementById('ccCode').value = src.code || '';
+  document.getElementById('ccName').value = src.name || '';
+  const total = items.reduce((t,it)=> t + (Number(it.budget)||0), 0);
+  hint.textContent = `ยกมา ${items.length} บัญชี รวมงบปี ${src.year} ${fmt(total)} บาท — ตัวเลขงบปีนี้แก้ได้ทุกช่องก่อนกดสร้าง`
+    + ' · ไม่ได้ยกรายการจ่ายของปีก่อนมาด้วย';
 }
 function addCustomCcItemRow(){
   const list = document.getElementById('ccSeedItemList');
@@ -4417,6 +4524,13 @@ async function submitNewCc(){
   const code = document.getElementById('ccCode').value.trim();
   const name = document.getElementById('ccName').value.trim();
   if(!code || !name){ alert('กรุณากรอกรหัสและชื่อให้ครบ'); return; }
+  // ตั้งแต่มีการยกของปีก่อนมา ช่องรหัสจะถูกเติมให้อัตโนมัติ ถ้าเผลอกดสร้างซ้ำ
+  // จะได้ศูนย์ต้นทุนรหัสเดียวกันปีเดียวกันสองใบ ซึ่งหน้าจอแยกไม่ออกเลย
+  const dup = ccsForYear(state.activeYear).find(c => c.code === code);
+  if(dup){
+    alert('ปี ' + state.activeYear + ' มีศูนย์ต้นทุนรหัส ' + code + ' อยู่แล้ว ("' + dup.name + '")\n\nถ้าต้องการแก้ของเดิม ให้ปิดหน้าต่างนี้แล้วเลือกศูนย์ต้นทุนนั้นจากเมนูซ้ายมือ');
+    return;
+  }
 
   const rows = [...document.querySelectorAll('#ccSeedItemList .cc-item-row')];
   const items = [];
@@ -4431,7 +4545,13 @@ async function submitNewCc(){
     if(seenCodes.has(itemCode)){ alert('มีรหัสบัญชีซ้ำกัน: '+itemCode); return; }
     seenCodes.add(itemCode);
     const seedMatch = SEED_ITEMS_030.find(s=>s.code===itemCode);
-    items.push({ code:itemCode, label:itemLabel, budget:itemBudget, example: seedMatch ? seedMatch.example : undefined, entries:[] });
+    // คำอธิบายตัวอย่างของบัญชีที่ยกมาจากปีก่อน ต้องติดมาด้วย ไม่ใช่หาจากชุดมาตรฐานอย่างเดียว
+    const example = row.dataset.example || (seedMatch ? seedMatch.example : '');
+    // ห้ามใส่คีย์ที่ค่าเป็น undefined ลงไป Firestore จะปฏิเสธทั้งเอกสาร
+    // (บัญชีที่พิมพ์เพิ่มเองไม่มีคำอธิบายตัวอย่าง ถ้าปล่อยไว้จะสร้างศูนย์ต้นทุนไม่สำเร็จทั้งใบ)
+    const it = { code:itemCode, label:itemLabel, budget:itemBudget, entries:[] };
+    if(example) it.example = example;
+    items.push(it);
   }
 
   const cc = {
@@ -7805,9 +7925,170 @@ function rowActionButtonsHtml(printOnclick, deleteOnclick, canDelete, editOnclic
   </div>`;
 }
 
-function renderItemCard(item){
+/* ============ จัดลำดับรายการด้วยการลากขึ้นลง ============
+   ใช้ pointer events ตัวเดียวจบ ทั้งเมาส์และนิ้วบนจอสัมผัส และลากได้จากปุ่มจับ (⠿) เท่านั้น
+   ช่องกรอกในบรรทัดจึงยังพิมพ์/เลือกข้อความได้ตามปกติ
+   ผูกไว้ที่ document ครั้งเดียว ไม่ต้องผูกใหม่ทุกครั้งที่วาดหน้าใหม่
+   ตัวที่ลากได้ต้องมี [data-sortable] ที่กล่องนอก และ [data-sortrow] ที่แต่ละบรรทัด */
+function dragGlyphHtml(){
+  return `<svg width="10" height="16" viewBox="0 0 10 16" aria-hidden="true" focusable="false"><g fill="currentColor"><circle cx="2.6" cy="3" r="1.35"/><circle cx="7.4" cy="3" r="1.35"/><circle cx="2.6" cy="8" r="1.35"/><circle cx="7.4" cy="8" r="1.35"/><circle cx="2.6" cy="13" r="1.35"/><circle cx="7.4" cy="13" r="1.35"/></g></svg>`;
+}
+function dragHandleHtml(label){
+  const l = escapeHtml(label || 'จัดลำดับ');
+  return `<span class="drag-handle" role="button" tabindex="0" aria-label="${l}"
+    title="${l} — ลากขึ้นลง หรือกดที่ปุ่มนี้แล้วใช้ลูกศร ↑ ↓"
+    onclick="event.preventDefault();event.stopPropagation();">${dragGlyphHtml()}</span>`;
+}
+let sortDrag = null;
+function sortRowsOf(list){ return [...list.children].filter(el => el.hasAttribute('data-sortrow')); }
+function sortScrollerOf(el){
+  // เริ่มที่ตัวลิสต์เอง ไม่ใช่กล่องแม่ เพราะลิสต์ในหน้าต่างสร้างศูนย์ต้นทุน (.check-list)
+  // เป็นตัวที่เลื่อนเอง ถ้าข้ามไป จะลากออกนอกช่วงที่มองเห็นไม่ได้เลย
+  let n = el;
+  while(n && n !== document.body){
+    const s = getComputedStyle(n).overflowY;
+    if((s === 'auto' || s === 'scroll') && n.scrollHeight > n.clientHeight + 2) return n;
+    n = n.parentElement;
+  }
+  return null;
+}
+function sortAutoScroll(d, y){
+  const EDGE = 38, STEP = 13;
+  if(d.scroller){
+    const b = d.scroller.getBoundingClientRect();
+    if(y < b.top + EDGE) d.scroller.scrollTop -= STEP;
+    else if(y > b.bottom - EDGE) d.scroller.scrollTop += STEP;
+    return;
+  }
+  if(y < EDGE) window.scrollBy(0, -STEP);
+  else if(y > window.innerHeight - EDGE) window.scrollBy(0, STEP);
+}
+function onSortPointerDown(e){
+  if(e.button) return;                       // เฉพาะปุ่มซ้าย
+  const handle = e.target.closest ? e.target.closest('.drag-handle') : null;
+  if(!handle) return;
+  const list = handle.closest('[data-sortable]');
+  const row = handle.closest('[data-sortrow]');
+  if(!list || !row || !list.contains(row)) return;
+  // กันไม่ให้ label ไปโฟกัส/ติ๊กเช็กบ็อกซ์ และกันการลากเลือกข้อความ
+  e.preventDefault(); e.stopPropagation();
+  // preventDefault ด้านบนกันการโฟกัสตามปกติไปด้วย ต้องโฟกัสเองเพื่อให้กดลูกศรต่อได้ทันที
+  // ตามที่เขียนบอกไว้ใน tooltip
+  try{ handle.focus({preventScroll:true}); }catch(_){ handle.focus(); }
+  sortDrag = { list, row, handle, startY:e.clientY, moved:false, scroller:sortScrollerOf(list), pid:e.pointerId };
+  row.classList.add('sort-dragging');
+  document.body.classList.add('sort-active');
+  // ฟังที่ window ไม่ใช้ setPointerCapture ที่ปุ่มจับ เพราะปุ่มอยู่ในบรรทัดที่ถูกย้ายตำแหน่ง
+  // พอ insertBefore ย้ายบรรทัด เบราว์เซอร์จะปล่อย pointer capture ทิ้ง การลากจะค้างกลางทาง
+  window.addEventListener('pointermove', onSortPointerMove, true);
+  window.addEventListener('pointerup', onSortPointerUp, true);
+  window.addEventListener('pointercancel', onSortPointerUp, true);
+}
+// ถ้ามีข้อมูลใหม่จากเซิร์ฟเวอร์เข้ามากลางคัน หน้าจอจะถูกวาดใหม่ทั้งก้อน
+// บรรทัดที่กำลังลากจะหลุดออกจากหน้าจอไปเฉยๆ ถ้าปล่อยให้ลากต่อ จะกลายเป็นลากของที่มองไม่เห็น
+// แล้วตอนปล่อยมือก็จะบันทึกลำดับที่ผู้ใช้ไม่เคยเห็น — ต้องยกเลิกการลากทิ้งไปเลย
+function sortDragLost(){
+  const d = sortDrag; if(!d) return false;
+  if(d.row.isConnected && d.list.isConnected) return false;
+  sortDrag = null;
+  window.removeEventListener('pointermove', onSortPointerMove, true);
+  window.removeEventListener('pointerup', onSortPointerUp, true);
+  window.removeEventListener('pointercancel', onSortPointerUp, true);
+  d.row.classList.remove('sort-dragging');
+  document.body.classList.remove('sort-active');
+  return true;
+}
+function onSortPointerMove(e){
+  const d = sortDrag; if(!d || e.pointerId !== d.pid) return;
+  if(sortDragLost()) return;
+  if(!d.moved && Math.abs(e.clientY - d.startY) < 4) return;   // สั่นเล็กน้อยยังไม่นับเป็นลาก
+  d.moved = true;
+  sortAutoScroll(d, e.clientY);
+  const others = sortRowsOf(d.list).filter(r => r !== d.row);
+  let before = null;
+  for(const r of others){
+    const b = r.getBoundingClientRect();
+    if(e.clientY < b.top + b.height / 2){ before = r; break; }
+  }
+  if(before){ if(d.row.nextElementSibling !== before) d.list.insertBefore(d.row, before); }
+  else if(d.list.lastElementChild !== d.row){ d.list.appendChild(d.row); }
+}
+function onSortPointerUp(e){
+  const d = sortDrag; if(!d || e.pointerId !== d.pid) return;
+  if(sortDragLost()) return;
+  sortDrag = null;
+  window.removeEventListener('pointermove', onSortPointerMove, true);
+  window.removeEventListener('pointerup', onSortPointerUp, true);
+  window.removeEventListener('pointercancel', onSortPointerUp, true);
+  d.row.classList.remove('sort-dragging');
+  document.body.classList.remove('sort-active');
+  if(!d.moved) return;
+  // คลิกที่เกิดต่อท้ายการลาก ต้องไม่ไปเปิดรายการบัญชีหรือติ๊กเช็กบ็อกซ์
+  const swallow = ev => { ev.stopPropagation(); ev.preventDefault(); };
+  document.addEventListener('click', swallow, true);
+  setTimeout(()=>document.removeEventListener('click', swallow, true), 0);
+  commitSortOrder(d.list);
+}
+function onSortKeyDown(e){
+  const handle = e.target && e.target.closest ? e.target.closest('.drag-handle') : null;
+  if(!handle) return;
+  const dir = e.key === 'ArrowUp' ? -1 : (e.key === 'ArrowDown' ? 1 : 0);
+  if(!dir) return;
+  const list = handle.closest('[data-sortable]');
+  const row = handle.closest('[data-sortrow]');
+  if(!list || !row) return;
+  e.preventDefault();
+  const rows = sortRowsOf(list);
+  const j = rows.indexOf(row) + dir;
+  if(j < 0 || j >= rows.length) return;
+  if(dir < 0) list.insertBefore(row, rows[j]);
+  else list.insertBefore(row, rows[j].nextElementSibling);
+  const key = row.getAttribute('data-sortrow');
+  const kind = list.getAttribute('data-sortable');
+  commitSortOrder(list);
+  // commit ของรายการบัญชีจะวาดลิสต์ใหม่ทั้งก้อน ปุ่มเดิมหายไปพร้อม DOM เก่า
+  // ต้องหาปุ่มของบรรทัดเดียวกันในลิสต์ใหม่มาโฟกัส ไม่งั้นกดลูกศรรัวต่อไม่ได้
+  const live = document.querySelector('[data-sortable="' + kind + '"] [data-sortrow="' + (window.CSS && CSS.escape ? CSS.escape(key) : key) + '"] .drag-handle');
+  if(live){ live.focus(); live.closest('[data-sortrow]').scrollIntoView({block:'nearest'}); }
+}
+function commitSortOrder(list){
+  const keys = sortRowsOf(list).map(r => r.getAttribute('data-sortrow'));
+  if(list.getAttribute('data-sortable') === 'items') commitItemOrder(keys);
+  // ลิสต์ในหน้าต่างสร้างศูนย์ต้นทุนไม่ต้อง commit — submitNewCc อ่านลำดับจาก DOM อยู่แล้ว
+}
+/* ลำดับที่ลากได้ถูกเก็บเป็นลำดับของ cc.items ตรงๆ (ไม่มีฟิลด์ลำดับแยก)
+   จึงต้องระวังสองอย่าง: บัญชีที่อยู่ในถังขยะไม่ได้โชว์บนหน้าจอ ต้องไม่หายไปจาก array
+   และบัญชีที่คนอื่นเพิ่งเพิ่มเข้ามาระหว่างที่เราลาก ก็ต้องไม่หายไปด้วย */
+function commitItemOrder(codes){
+  const cc = getCc(state.activeCcId);
+  if(!cc){ return; }
+  if(!canManageDept(cc.deptKey)){ alert('คุณไม่มีสิทธิ์จัดลำดับรายการบัญชีในแผนกนี้'); render(); return; }
+  const all = cc.items || [];
+  const live = all.filter(it => !it.deletedAt);
+  const trashed = all.filter(it => it.deletedAt);
+  // จับคู่ทีละตัวจากตัวที่ยังไม่ถูกหยิบ ไม่ใช้ Map ที่คีย์ด้วยรหัสบัญชี
+  // เพราะถ้าข้อมูลเก่ามีรหัสซ้ำกันหรือรหัสว่าง Map จะยุบเหลือตัวเดียว แล้วอีกตัวจะหายไปจริงๆ ตอนบันทึก
+  const pool = live.slice();
+  const ordered = [];
+  codes.forEach(c => {
+    const i = pool.findIndex(it => it.code === c);
+    if(i !== -1) ordered.push(pool.splice(i, 1)[0]);
+  });
+  pool.forEach(it => ordered.push(it));
+  const same = ordered.length === live.length && ordered.every((it, i) => it === live[i]);
+  if(same) return;                                   // ลากแล้ววางที่เดิม ไม่ต้องเขียนลงฐานข้อมูล
+  cc.items = ordered.concat(trashed);
+  saveCc(cc);
+  renderItemListContainer();
+}
+
+document.addEventListener('pointerdown', onSortPointerDown, true);
+document.addEventListener('keydown', onSortKeyDown);
+
+function renderItemCard(item, canSort){
   const t = itemTotals(item);
-  return `<div class="item-row" onclick="selectItem('${escapeHtml(item.code)}')">
+  return `<div class="item-row" data-sortrow="${escapeHtml(item.code)}" onclick="selectItem('${escapeJsStr(item.code)}')">
+    ${canSort ? dragHandleHtml('จัดลำดับบัญชี ' + (item.code || '') + ' ' + (item.label || '')) : ''}
     <span class="acct-code mono">${escapeHtml(item.code||'—')}</span>
     <span class="item-label">${escapeHtml(item.label)}</span>
     <span class="item-budget">${fmt(t.budget)}</span>
@@ -7826,23 +8107,32 @@ function buildItemListInnerHtml(cc){
     ? items.filter(it => (it.code||'').toLowerCase().includes(q) || (it.label||'').toLowerCase().includes(q))
     : items;
 
-  let html = `<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
+  // ลากจัดลำดับได้เฉพาะตอนเห็นรายการครบทั้งลิสต์ ถ้ากำลังค้นหาอยู่ ลำดับที่เห็นไม่ใช่ลำดับจริง
+  const canSort = canManage && !q && filtered.length > 1;
+
+  let html = `<div style="display:flex;justify-content:space-between;align-items:center;gap:12px;margin-bottom:12px;">
     <div class="eyebrow" style="color:var(--text-faint);">รายการงบประมาณ (${filtered.length}${q ? ' จาก '+items.length : ''})</div>
     ${canManage ? `<button class="btn btn-outline btn-sm" onclick="openAddItemModal()">+ เพิ่มรายการ</button>` : ''}
   </div>`;
+  if(canSort){
+    html += `<div class="sort-hint" style="margin:-4px 0 9px;">${dragGlyphHtml()} ลากขึ้นลงเพื่อจัดลำดับบัญชี — ลำดับนี้จะใช้ทั้งในลิสต์นี้และในช่องเลือกบัญชีตอนตัดงบ</div>`;
+  } else if(canManage && q && filtered.length > 1){
+    html += `<div class="sort-hint" style="margin:-4px 0 9px;">ล้างคำค้นหาก่อน จึงจะลากจัดลำดับบัญชีได้</div>`;
+  }
 
   if(!filtered.length){
     html += `<div class="empty-state"><p>ไม่พบรายการบัญชีที่ตรงกับคำค้นหา "${escapeHtml(state.itemSearchQuery||'')}"</p></div>`;
   } else {
     html += `<div style="display:flex;gap:14px;padding:0 16px;margin-bottom:6px;font-size:11px;color:var(--text-faint);font-weight:700;text-transform:uppercase;letter-spacing:.04em;">
+      ${canSort ? `<span style="width:18px;flex-shrink:0;"></span>` : ''}
       <span style="width:76px;flex-shrink:0;">รหัสบัญชี</span>
       <span style="flex:1;">ชื่อรายการ</span>
       <span style="min-width:110px;text-align:right;">งบทั้งปี</span>
       <span style="width:14px;flex-shrink:0;"></span>
     </div>`;
-    html += `<div class="item-list">`;
+    html += `<div class="item-list"${canSort ? ' data-sortable="items"' : ''}>`;
     filtered.forEach(item=>{
-      html += renderItemCard(item);
+      html += renderItemCard(item, canSort);
     });
     html += `</div>`;
   }
@@ -7866,8 +8156,8 @@ function buildItemTrashSectionHtml(cc, canManage){
             <div style="font-size:11px;color:var(--text-faint);margin-top:2px;">ลบเมื่อ ${new Date(item.deletedAt).toLocaleString('th-TH',{dateStyle:'medium',timeStyle:'short'})}${item.deletedByName ? ' โดย '+escapeHtml(item.deletedByName) : ''}</div>
           </div>
           <div style="display:flex;gap:8px;flex-shrink:0;">
-            <button class="btn btn-outline btn-sm" onclick="restoreItem('${escapeHtml(item.code)}')">กู้คืน</button>
-            <button class="btn btn-danger-ghost btn-sm" onclick="permanentlyDeleteItem('${escapeHtml(item.code)}')">ลบถาวร</button>
+            <button class="btn btn-outline btn-sm" onclick="restoreItem('${escapeJsStr(item.code)}')">กู้คืน</button>
+            <button class="btn btn-danger-ghost btn-sm" onclick="permanentlyDeleteItem('${escapeJsStr(item.code)}')">ลบถาวร</button>
           </div>
         </div>`).join('')}
     </div>
@@ -7917,14 +8207,14 @@ function renderItemDetail(cc, item){
           const vatBadge = (itemHasVatCreditToggle(item) && r.vatCreditable === false)
             ? `<div style="font-size:10.5px;color:var(--rust);margin-top:2px;">เครดิตภาษีซื้อไม่ได้ — รวมภาษีแล้ว</div>` : '';
           return `<tr>
-            <td style="text-align:center;"><input type="checkbox" title="เลือกรวมพิมพ์ใบตัดงบ" ${checked?'checked':''} onchange="toggleSlipSelection('${escapeHtml(item.code)}','${r.id}')"></td>
+            <td style="text-align:center;"><input type="checkbox" title="เลือกรวมพิมพ์ใบตัดงบ" ${checked?'checked':''} onchange="toggleSlipSelection('${escapeJsStr(item.code)}','${r.id}')"></td>
             <td class="mono">${escapeHtml(r.date)}</td>
             <td>${escapeHtml(r.desc)}${splitBadgeHtml(r)}${xSplitBadgeHtml(r)}${(r.addedByName || r.addedByEmail) ? `<div style="font-size:10.5px;color:var(--text-faint);margin-top:2px;">เพิ่มโดย ${escapeHtml(r.addedByName || r.addedByEmail)}</div>` : ''}${entryEditNoteHtml(r)}${vatBadge}</td>
             <td class="num">${fmt(paidThisTime)}</td>
             <td class="num">${fmt(r.cumulative)}</td>
             <td class="num ${rowRemaining<0?'neg':''}">${fmt(rowRemaining)}</td>
             <td style="white-space:nowrap;">
-              ${rowActionButtonsHtml(`downloadWithdrawalSlip('${escapeHtml(item.code)}','${r.id}')`, `deleteEntry('${escapeHtml(item.code)}','${r.id}')`, canDelete, `openEditEntry('${escapeHtml(item.code)}','${r.id}')`, canDelete)}
+              ${rowActionButtonsHtml(`downloadWithdrawalSlip('${escapeJsStr(item.code)}','${r.id}')`, `deleteEntry('${escapeJsStr(item.code)}','${r.id}')`, canDelete, `openEditEntry('${escapeJsStr(item.code)}','${r.id}')`, canDelete)}
             </td>
           </tr>`;
         }).join('')}
@@ -7943,7 +8233,7 @@ function renderItemDetail(cc, item){
         <div class="detail-code-edit">
           <span>รหัสบัญชี</span>
           ${admin
-            ? `<input type="text" class="code-highlight-input" value="${escapeHtml(item.code)}" onchange="updateItemMeta('${escapeHtml(item.code)}','code', this.value)">`
+            ? `<input type="text" class="code-highlight-input" value="${escapeHtml(item.code)}" onchange="updateItemMeta('${escapeJsStr(item.code)}','code', this.value)">`
             : `<span class="acct-code mono">${escapeHtml(item.code||'—')}</span>`}
         </div>
       </div>
@@ -7952,7 +8242,7 @@ function renderItemDetail(cc, item){
         <div class="field">
           <label>งบประมาณทั้งปี (บาท)</label>
           ${admin
-            ? `<input type="number" min="0" step="0.01" value="${item.budget}" onchange="updateItemBudget('${escapeHtml(item.code)}', this.value)">`
+            ? `<input type="number" min="0" step="0.01" value="${item.budget}" onchange="updateItemBudget('${escapeJsStr(item.code)}', this.value)">`
             : `<div class="readout">${fmt(t.budget)}</div>`}
         </div>
       </div>
@@ -7970,15 +8260,15 @@ function renderItemDetail(cc, item){
         </div>
       </div>
       ${admin
-        ? `<div style="margin-top:14px;"><button class="btn btn-danger-ghost btn-sm" onclick="removeItem('${escapeHtml(item.code)}')">ลบรายการนี้ออกจากศูนย์ต้นทุน</button></div>`
+        ? `<div style="margin-top:14px;"><button class="btn btn-danger-ghost btn-sm" onclick="removeItem('${escapeJsStr(item.code)}')">ลบรายการนี้ออกจากศูนย์ต้นทุน</button></div>`
         : `<div style="margin-top:12px;font-size:11.5px;color:var(--text-faint);">งบและรหัสแก้ไขได้เฉพาะผู้ดูแลแผนกหรือแอดมิน — คุณเพิ่มรายการจ่ายได้ และลบได้เฉพาะรายการที่คุณเพิ่มเอง</div>`}
     </div>
 
     <div class="entry-form">
       <div class="field"><label>วันที่</label><input type="date" id="entryDate"></div>
-      <div class="field desc"><label>รายการ</label><input type="text" id="entryDesc" placeholder="เช่น ${escapeHtml(item.example || (item.label+' นายสมชาย ใจดี วันที่...'))}" onkeydown="if(event.key==='Enter'){addEntry('${escapeHtml(item.code)}');}"></div>
-      <div class="field amt"><label>จ่ายรอบนี้ (บาท)</label><input type="number" id="entryAmount" min="0" step="0.01" placeholder="0.00" onkeydown="if(event.key==='Enter'){addEntry('${escapeHtml(item.code)}');}"></div>
-      <div class="field tax"><label>ภาษีมูลค่าเพิ่ม (ถ้ามี)</label><input type="number" id="entryTax" min="0" step="0.01" placeholder="0.00" onkeydown="if(event.key==='Enter'){addEntry('${escapeHtml(item.code)}');}"></div>
+      <div class="field desc"><label>รายการ</label><input type="text" id="entryDesc" placeholder="เช่น ${escapeHtml(item.example || (item.label+' นายสมชาย ใจดี วันที่...'))}" onkeydown="if(event.key==='Enter'){addEntry('${escapeJsStr(item.code)}');}"></div>
+      <div class="field amt"><label>จ่ายรอบนี้ (บาท)</label><input type="number" id="entryAmount" min="0" step="0.01" placeholder="0.00" onkeydown="if(event.key==='Enter'){addEntry('${escapeJsStr(item.code)}');}"></div>
+      <div class="field tax"><label>ภาษีมูลค่าเพิ่ม (ถ้ามี)</label><input type="number" id="entryTax" min="0" step="0.01" placeholder="0.00" onkeydown="if(event.key==='Enter'){addEntry('${escapeJsStr(item.code)}');}"></div>
       ${itemHasVatCreditToggle(item) ? `
       <div class="field" style="display:flex;align-items:center;gap:6px;padding-top:20px;">
         <label style="display:flex;align-items:center;gap:6px;font-weight:400;white-space:nowrap;">
@@ -7986,7 +8276,7 @@ function renderItemDetail(cc, item){
           เครดิตภาษีซื้อได้
         </label>
       </div>` : ''}
-      <button class="btn btn-primary" type="button" onclick="addEntry('${escapeHtml(item.code)}')">+ เพิ่มรายการ</button>
+      <button class="btn btn-primary" type="button" onclick="addEntry('${escapeJsStr(item.code)}')">+ เพิ่มรายการ</button>
     </div>
     ${itemHasVatCreditToggle(item) ? `<div style="margin-top:-10px;margin-bottom:14px;font-size:11px;color:var(--text-faint);">ถ้าไม่ติ๊ก "เครดิตภาษีซื้อได้" ระบบจะเอาค่าภาษีมารวมในยอด "จ่ายรอบนี้/รวมจ่าย/คงเหลือ" (กลับด้านจากปกติ) — ค่าเริ่มต้นคือติ๊กไว้</div>` : ''}
 
