@@ -395,6 +395,9 @@ body{
 .cc-item .code{font-family:'JetBrains Mono';font-size:11.5px;color:var(--amber);letter-spacing:.02em;}
 .cc-item .name{font-size:13.5px;color:#EDEFEF;margin-top:2px;line-height:1.35;}
 .cc-progress{height:3px;border-radius:2px;background:rgba(255,255,255,.09);margin-top:8px;overflow:hidden;}
+/* ขีดบอกตำแหน่ง 80% บนแถบของแฟ้ม WBS — เกจวัดเทียบงบ 100% แต่ใช้จ่ายได้จริงแค่ 80% */
+.cc-progress.has-mark80{position:relative;}
+.cc-progress .mark80{position:absolute;left:80%;top:0;bottom:0;width:2px;margin-left:-1px;background:rgba(255,255,255,.75);}
 .cc-progress-fill{height:100%;border-radius:2px;transition:width .25s ease;}
 .cc-progress-fill.ok{background:var(--teal);}
 .cc-progress-fill.warn{background:var(--amber);}
@@ -6884,6 +6887,21 @@ function renderSlipSelectionBar(){
   `;
 }
 
+// พื้นหลังของเกจวงกลมแบบ WBS: วัดเทียบงบ 100% และมีขีดสีเข้มที่ 80% บอกเพดานงบที่ใช้ได้จริง
+// (ชั้นบนสุดเป็นขีด ชั้นล่างเป็นวงที่เติมสีตามยอดที่จ่าย)
+function wbsGaugeBg(color, fillPct){
+  return `conic-gradient(transparent 0 79.3%, #1C2B33 79.3% 80.7%, transparent 80.7% 100%), `
+    + `conic-gradient(${color} 0% ${fillPct}%, var(--border-soft) ${fillPct}% 100%)`;
+}
+// เกณฑ์สีของ WBS ผูกกับขีด 80% (งบที่ใช้ได้จริง) ไม่ใช่ 100% แบบงบทั่วไป
+//   เขียว < 70%   เหลือง 70–80% (ใกล้ถึงขีด)   แดง > 80% (เกินงบที่ใช้ได้ ตรงกับตอนช่องคงเหลือติดลบ)
+// ปัดเป็นทศนิยม 2 ตำแหน่งก่อนเทียบ กันเศษทศนิยมทำให้จ่ายพอดี 80% กลายเป็นแดง
+function wbsGaugeClass(pct){
+  const p = Math.round((Number(pct)||0) * 100) / 100;
+  if(p > 80) return 'over';
+  if(p >= 70) return 'warn';
+  return 'ok';
+}
 function gaugeClass(pct){
   if(pct>100) return 'over';
   if(pct>=80) return 'warn';
@@ -9021,7 +9039,7 @@ function renderProjectSidebar(){
       <div class="name">${projHighlight(p.name)}</div>
       ${projectYearOf(p)==null ? `<div class="noyear" title="แฟ้มนี้ไม่มีข้อมูลปี จึงแสดงในทุกปีเพื่อไม่ให้หาไม่เจอ">ไม่ระบุปี · แสดงทุกปี</div>` : ''}
       ${justClosed ? `<div class="jc-note">ปิดงานแล้วเมื่อวันที่ ${thaiDateLabel(p.closedAt)}</div>` : ''}
-      <div class="cc-progress" title="ใช้ไปแล้ว ${pct.toFixed(0)}%"><div class="cc-progress-fill ${gaugeClass(pct)}" style="width:${Math.min(pct,100)}%"></div></div>
+      <div class="cc-progress has-mark80" title="ใช้ไปแล้ว ${pct.toFixed(0)}% ของงบ 100% — ขีดคือ 80% ที่ใช้ได้จริง"><div class="cc-progress-fill ${wbsGaugeClass(pct)}" style="width:${Math.min(pct,100)}%"></div><div class="mark80"></div></div>
       ${p.closed ? `<div class="mini-stamp" title="ปิดงานแล้ว"><span>ปิด<br>งาน</span></div>` : ''}
     </div>`;
   };
@@ -9357,7 +9375,7 @@ function renderProjectCatCard(workTypeKey, catKey, cat){
   const t = projCatTotals(cat, workTypeKey, catKey);
   const pct = t.amount100>0 ? (t.totalPaid/t.amount100*100) : 0;
   const barWidth = Math.min(pct,100);
-  const gClass = gaugeClass(pct);
+  const gClass = wbsGaugeClass(pct);
   const gaugeColorVar = gClass==='over' ? 'var(--rust)' : (gClass==='warn' ? 'var(--amber)' : 'var(--teal)');
   const remainCls = t.remaining<0?'neg':'pos';
   return `<div class="cat-card" onclick="selectProjectCat('${catKey}')">
@@ -9366,7 +9384,7 @@ function renderProjectCatCard(workTypeKey, catKey, cat){
       <span class="cat-code mono">${escapeHtml(cat.code||'—')}</span>
     </div>
     <div class="cat-card-body">
-      <div class="mini-radial" style="background:conic-gradient(${gaugeColorVar} 0% ${barWidth}%, var(--border-soft) ${barWidth}% 100%);">
+      <div class="mini-radial" style="background:${wbsGaugeBg(gaugeColorVar, barWidth)};" title="ขีดเข้ม = 80% ของงบ (เพดานที่ใช้ได้จริง)">
         <div class="mini-radial-inner"><span>${Math.round(pct)}%</span></div>
       </div>
       <div class="cat-card-nums">
@@ -9383,7 +9401,7 @@ function renderProjectCatDetail(p, workTypeKey, wtName, networkNo, catKey, cat, 
   const t = projCatTotals(cat, workTypeKey, catKey);
   const pct = t.amount100>0 ? (t.totalPaid/t.amount100*100) : 0;
   const barWidth = Math.min(pct,100);
-  const gClass = gaugeClass(pct);
+  const gClass = wbsGaugeClass(pct);
   const gaugeColorVar = gClass==='over' ? 'var(--rust)' : (gClass==='warn' ? 'var(--amber)' : 'var(--teal)');
   const remainCls = t.remaining<0?'neg':'pos';
 
@@ -9454,7 +9472,7 @@ function renderProjectCatDetail(p, workTypeKey, wtName, networkNo, catKey, cat, 
       </div>
 
       <div class="summary-card">
-        <div class="radial-gauge" style="background:conic-gradient(${gaugeColorVar} 0% ${barWidth}%, var(--border-soft) ${barWidth}% 100%);">
+        <div class="radial-gauge" style="background:${wbsGaugeBg(gaugeColorVar, barWidth)};" title="ขีดเข้ม = 80% ของงบ (เพดานที่ใช้ได้จริง)">
           <div class="radial-gauge-inner">
             <span class="radial-gauge-pct">${Math.round(pct)}%</span>
             <span class="radial-gauge-label">ใช้ไปแล้ว</span>
