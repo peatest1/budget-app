@@ -1246,6 +1246,16 @@ table.ledger .del-x:hover{color:var(--rust);}
   /* ใบขอโอนงบไม่มีแถบปุ่มล่าง ต้องเว้นขอบล่างเอง */
   .modal-overlay > .modal.tr-modal{padding-bottom:calc(18px + env(safe-area-inset-bottom));}
   .tr-f2{grid-template-columns:1fr;}
+  /* ใบขอโอนงบ: กระดาษตัวอย่างกว้าง 672px ถ้าไม่บอกให้คอลัมน์หดได้ ทั้งแผงจะกว้างตามกระดาษจนล้นจอ */
+  .tr-grid{grid-template-columns:minmax(0,1fr);}
+  .tr-grid > *, .tr-card, .tr-sheet-wrap{min-width:0;}
+  .tr-head h2{flex:1 1 auto;font-size:18px;}
+  .tr-head .spacer{display:none;}
+  /* ตารางยอดในใบขอโอน: ชื่อหมวดตัดบรรทัดได้ เหลือที่ให้ช่องตัวเลขเห็นครบ */
+  .tr-tbl td:first-child{white-space:normal;width:26%;}
+  .tr-tbl input{padding:6px 4px;}
+  /* ช่องที่แก้ไม่ได้ไม่มีแป้นพิมพ์เด้ง iPhone จึงไม่ซูม ใช้ตัวเล็กลงได้ ตัวเลขหลักล้านจะได้ไม่ล้นช่อง */
+  #transferModal .tr-tbl input[readonly]{font-size:14px !important;}
 
   /* ---------- แถบเลือกพิมพ์รวม / ป้ายบันทึกแล้ว / ปุ่มเพิ่มลอย ---------- */
   .slip-bar{
@@ -4477,19 +4487,38 @@ function trEditorHtml(p){
       </div>
     </div>`;
 }
+// The letter is laid out at the printed width, then the whole sheet is scaled to the pane — so what
+// is on screen is what comes out of the printer, not a differently-sized relayout.
+var trSheetObserver = null;
+function trSyncSheet(){
+  const sheet = document.getElementById('trSheet'), wrap = document.getElementById('trSheetWrap');
+  if(!sheet || !wrap || !sheet.offsetWidth) return;
+  sheet.style.transform = 'none';
+  const k = Math.min(1, wrap.clientWidth / sheet.offsetWidth);
+  sheet.style.transform = 'scale('+k+')';
+  const h = (sheet.offsetHeight * k) + 'px';
+  if(wrap.style.height !== h) wrap.style.height = h;
+}
 function trRenderPreview(){
   const t = state.trCur, host = document.getElementById('trPreview');
   if(!t || !host) return;
   host.innerHTML = trLetterHtml(t);
   trFit(host);
-  // The letter is laid out at the printed width, then the whole sheet is scaled to the pane — so what
-  // is on screen is what comes out of the printer, not a differently-sized relayout.
+  trSyncSheet();
+  // ความสูงของกรอบตัวอย่างวัดตอนวาดครั้งแรก ตอนนั้นโลโก้หัวกระดาษยังโหลดไม่เสร็จ (สูง 0) และฟอนต์อาจยังไม่มา
+  // พอโลโก้ขึ้น กระดาษยาวขึ้น แต่กรอบยังเตี้ยเท่าเดิม ส่วนท้าย (ชื่อผู้อนุมัติ) จึงถูกตัดหายจนกว่าจะแก้ช่องไหนสักช่อง
+  // แก้โดยคอยดูขนาดกระดาษ แล้วปรับกรอบตามทุกครั้งที่เปลี่ยน + วัดใหม่เมื่อโลโก้และฟอนต์มาครบ
   const sheet = document.getElementById('trSheet'), wrap = document.getElementById('trSheetWrap');
-  if(sheet && wrap){
-    sheet.style.transform = 'none';
-    const k = Math.min(1, wrap.clientWidth / sheet.offsetWidth);
-    sheet.style.transform = 'scale('+k+')';
-    wrap.style.height = (sheet.offsetHeight * k) + 'px';
+  if(sheet && wrap && window.ResizeObserver){
+    if(!trSheetObserver) trSheetObserver = new ResizeObserver(()=>trSyncSheet());
+    trSheetObserver.disconnect();
+    trSheetObserver.observe(sheet); trSheetObserver.observe(wrap);
+  }
+  host.querySelectorAll('img').forEach(img=>{
+    if(!img.complete) img.addEventListener('load', ()=>{ if(host.isConnected){ trFit(host); trSyncSheet(); } }, { once:true });
+  });
+  if(document.fonts && document.fonts.ready){
+    document.fonts.ready.then(()=>{ if(host.isConnected){ trFit(host); trSyncSheet(); } }).catch(()=>{});
   }
   const r = trCompute(t.amounts);
   const keys = trRows(t.amounts);
