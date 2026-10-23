@@ -2,7 +2,7 @@
 <html lang="th">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
 <link rel="manifest" href="manifest.webmanifest">
 <title>คุมไม่ไหว</title>
 
@@ -1045,7 +1045,8 @@ table.ledger .del-x:hover{color:var(--rust);}
 .m-topbar,.m-scrim,.m-fab,.m-only{display:none;}
 /* จอแคบไม่เกิน 760px หรือจอสัมผัสไม่เกิน 1000px (มือถือแนวนอน, iPad แนวตั้ง) — คอมที่ใช้เมาส์ไม่เข้าเงื่อนไขนี้ */
 @media (max-width:760px), (max-width:1000px) and (pointer:coarse){
-  html{-webkit-text-size-adjust:100%;}
+  /* manipulation = ไม่ซูมเมื่อแตะสองครั้ง (ยังเลื่อนหน้าได้ปกติ) */
+  html{-webkit-text-size-adjust:100%;touch-action:manipulation;}
   body{-webkit-tap-highlight-color:transparent;}
   .m-only{display:inline-flex;}
   /* ตัวหนังสือในช่องกรอกต้อง 16px ขึ้นไป ไม่งั้น iPhone ซูมหน้าเข้าเองทุกครั้งที่แตะช่อง */
@@ -1209,7 +1210,13 @@ table.ledger .del-x:hover{color:var(--rust);}
   details.ln-ledger summary{padding:3px 10px;}
 
   /* ---------- หน้าต่างกรอกข้อมูล: เต็มจอแบบแอป ปุ่มยืนยันติดขอบล่างเสมอ ---------- */
-  .modal-overlay{padding:0;align-items:stretch;overscroll-behavior:contain;}
+  /* ต้องเป็น flex-start ไม่ใช่ stretch — แบบ stretch กล่องหน้าต่างจะสูงเท่าจอพอดี เนื้อหาที่ยาวกว่าจอ
+     จะล้นออกนอกกล่อง พื้นขาวเลยหายตอนเลื่อนลง เห็นหน้าข้างหลังซ้อนขึ้นมา */
+  .modal-overlay{padding:0;align-items:flex-start;overscroll-behavior:contain;overflow-x:hidden;}
+  .modal-overlay > .modal{flex-shrink:0;overflow-x:clip;}
+  /* แถบสถานะของ iPhone (นาฬิกา/แบต) โปร่งใส เนื้อหาในหน้าต่างที่เลื่อนขึ้นไปจะลอดใต้ตัวเลขนาฬิกา — ปิดด้วยแถบขาว */
+  .modal-overlay::before{content:"";position:fixed;z-index:6;left:0;right:0;top:0;height:env(safe-area-inset-top, 0px);background:#fff;pointer-events:none;}
+  body.m-drawer-open::after{content:"";position:fixed;z-index:47;left:0;top:0;width:min(86vw,330px);height:env(safe-area-inset-top, 0px);background:var(--ink);pointer-events:none;}
   .modal-overlay > .modal{
     display:flex;flex-direction:column;
     max-width:none !important;width:100%;min-height:100%;margin:0;border-radius:0;box-shadow:none;
@@ -1262,6 +1269,31 @@ table.ledger .del-x:hover{color:var(--rust);}
   body.m-has-form:not(.m-form-visible):not(.m-drawer-open) .m-fab{opacity:1;transform:none;pointer-events:auto;}
   body:has(.slip-bar.show) .m-fab{bottom:calc(112px + env(safe-area-inset-bottom));}
   .m-fab:active{transform:scale(.95);}
+
+  /* แยกหลายบัญชี: ยอดเงินกับภาษีอยู่คู่กันเต็มแถว ปุ่มเอาออกย้ายไปมุมขวาบนของการ์ด */
+  .se-line{position:relative;}
+  .se-line > .field:first-child{flex:1 1 100% !important;min-width:0 !important;}
+  .se-line > .field:nth-child(2), .se-line > .field:nth-child(3){flex:1 1 0 !important;width:auto !important;}
+  .se-line > .btn-danger-ghost{position:absolute;top:6px;right:8px;height:26px !important;padding:0 10px;}
+  /* เบิกร่วม: ช่องเลือกศูนย์ต้นทุนบนจอคอมกว้าง 190px พอเห็นแค่รหัส บนมือถือให้เต็มแถว */
+  #xsCcField{width:100% !important;}
+  /* ---------- กันของล้นจอ (iPhone ใช้ WebKit: ช่องเลือก/ช่องวันที่ไม่ยอมหดตามกล่อง ทำให้ทั้งหน้ากว้างเกินจอ) ---------- */
+  .app-shell > .main{overflow-x:hidden;overflow-x:clip;}
+  .main .field, .modal-overlay .field, .xs-row > *, .bs-grid > *{min-width:0;max-width:100%;}
+  .main input, .main select, .main textarea,
+  .modal-overlay input, .modal-overlay select, .modal-overlay textarea{min-width:0;max-width:100%;}
+  /* ช่องเลือกของ iPhone เป็นก้อนเทาโค้งๆ ตามแบบของเครื่อง — ทำให้เป็นช่องขาวแบบเดียวกับช่องอื่น มีลูกศรเอง */
+  .main select, .modal-overlay select{
+    -webkit-appearance:none;appearance:none;color:var(--text);background-color:#fff;
+    background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%2366757C' stroke-width='3' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'/%3E%3C/svg%3E");
+    background-repeat:no-repeat;background-position:right 12px center;background-size:12px 12px;padding-right:34px !important;
+    text-overflow:ellipsis;white-space:nowrap;overflow:hidden;
+  }
+  /* ช่องวันที่ของ iPhone: พื้นเทา ตัวหนังสืออยู่กลาง และกว้างเกินกล่อง */
+  .main input[type=date], .modal-overlay input[type=date]{
+    -webkit-appearance:none;appearance:none;background-color:#fff;color:var(--text);display:block;text-align:left;min-height:44px;
+  }
+  .main input[type=date]::-webkit-date-and-time-value, .modal-overlay input[type=date]::-webkit-date-and-time-value{text-align:left;}
 
   /* ---------- หน้าเข้าสู่ระบบ ---------- */
   .center-screen{padding:calc(24px + env(safe-area-inset-top)) 16px calc(24px + env(safe-area-inset-bottom));}
@@ -9822,6 +9854,11 @@ function mCloseDrawer(fromPop){
 function mToggleDrawer(){ mDrawerIsOpen() ? mCloseDrawer() : mOpenDrawer(); }
 window.addEventListener('popstate', ()=>{ if(mDrawerIsOpen()) mCloseDrawer(true); });
 document.addEventListener('keydown', e=>{ if(e.key === 'Escape' && mDrawerIsOpen()) mCloseDrawer(); });
+// ห้ามถ่างนิ้วซูมบนมือถือให้รู้สึกเป็นแอป — iPhone ไม่สน user-scalable=no ใน viewport จึงต้องกันเหตุการณ์เอง
+// ทำเฉพาะตอนเป็นหน้าตามือถือ (Safari บน Mac ก็ส่ง gesturestart ตอนถ่างทัชแพด ห้ามไปกันบนคอม)
+document.addEventListener('gesturestart', e=>{ if(M_MQ.matches) e.preventDefault(); }, { passive:false });
+document.addEventListener('gesturechange', e=>{ if(M_MQ.matches) e.preventDefault(); }, { passive:false });
+document.addEventListener('touchmove', e=>{ if(M_MQ.matches && e.touches && e.touches.length > 1) e.preventDefault(); }, { passive:false });
 if(M_MQ.addEventListener) M_MQ.addEventListener('change', e=>{ if(!e.matches) mCloseDrawer(); mAfterRender(); });
 
 // เลือกศูนย์ต้นทุน/แฟ้มงาน หรือกดปุ่มที่เปิดหน้าต่างในเมนู แล้วปิดเมนูให้เอง
