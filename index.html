@@ -1395,6 +1395,14 @@ table.ledger .del-x:hover{color:var(--rust);}
   #main .sort-hint{display:none;}
   #main div:has(> #itemSearchInput){flex:1 1 auto !important;width:auto !important;max-width:none !important;}
   .m-nav-btns{display:flex;gap:6px;margin-left:auto;}
+  /* ---------- ให้รู้สึกเป็นแอป: ดึงจอสุดขอบแล้วหัวไม่หลุดตามลงมา ----------
+     iPhone ยืดหน้าเด้งได้เมื่อเลื่อนเลยขอบ (เด้งทั้งหน้าพร้อมแถบบน เห็นพื้นเทาว่างๆ ด้านบน)
+     1) ปิดการเด้งที่ตัวหน้า  2) ตรึงแถบบนไว้กับจอ (fixed) แทนการติดตามหน้า (sticky)
+     3) พื้นหลังสุดของหน้าเป็นสีเดียวกับแถบบน เครื่องรุ่นเก่าที่ยังเด้งอยู่จะเห็นเป็นสีเดียวกัน ไม่เห็นช่องว่าง */
+  html{background:var(--ink);overscroll-behavior:none;}
+  body{overscroll-behavior:none;background:var(--paper);min-height:100vh;min-height:100dvh;}
+  .m-topbar{position:fixed;left:0;right:0;top:0;height:calc(58px + env(safe-area-inset-top));min-height:0;box-sizing:border-box;}
+  .app-shell{padding-top:calc(58px + env(safe-area-inset-top));grid-template-rows:1fr;}
   /* เมนูจัดการบนหัวหน้า (หน้าบัญชี/หมวดงบ): บนจอแคบปุ่มอาจอยู่ชิดซ้ายหรือขวา เมนูที่ห้อยจากปุ่มจะล้นจอ
      จึงให้ลอยเต็มความกว้างเหนือแถบล่างแทน */
   .head-menu{position:fixed;top:auto;left:max(12px, env(safe-area-inset-left));right:max(12px, env(safe-area-inset-right));
