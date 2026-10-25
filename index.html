@@ -436,6 +436,26 @@ body{
 }
 .page-header h1{font-family:'Space Grotesk';font-size:16px;font-weight:500;color:var(--text-muted);margin:0;line-height:1.3;}
 .header-actions{display:flex;gap:8px;flex-shrink:0;}
+.head-menu-wrap{position:relative;}
+.head-menu-btn svg{color:var(--text-muted);}
+.head-menu-btn .caret{font-size:10px;color:var(--text-faint);margin-left:1px;}
+.head-menu{
+  display:none;position:absolute;right:0;top:calc(100% + 6px);z-index:30;min-width:230px;padding:6px;
+  background:#fff;border:1px solid var(--border-soft);border-radius:12px;
+  box-shadow:0 18px 40px -16px rgba(22,33,43,.35), 0 2px 6px rgba(22,33,43,.06);
+}
+.head-menu.show{display:block;animation:headMenuIn .14s ease-out;}
+@keyframes headMenuIn{from{opacity:0;transform:translateY(-4px);}to{opacity:1;transform:none;}}
+.head-menu button{
+  display:flex;align-items:center;gap:10px;width:100%;padding:9px 11px;border:none;background:none;border-radius:8px;
+  font:600 13px 'Noto Sans Thai',sans-serif;color:var(--text);cursor:pointer;text-align:left;white-space:nowrap;
+}
+.head-menu button svg{color:var(--text-muted);flex-shrink:0;}
+.head-menu button:hover, .head-menu button:focus-visible{background:var(--paper);outline:none;}
+.head-menu button.danger, .head-menu button.danger svg{color:var(--rust);}
+.head-menu button.danger:hover, .head-menu button.danger:focus-visible{background:var(--rust-soft);}
+.head-menu .sep{height:1px;background:var(--border-soft);margin:5px 4px;}
+@media (prefers-reduced-motion: reduce){ .head-menu.show{animation:none;} }
 .btn-reopen{border-color:rgba(47,122,110,.4) !important;color:var(--teal) !important;background:var(--teal-soft) !important;font-weight:600;}
 
 /* "ปิดงาน" (closed WBS project file) indicators */
@@ -1314,9 +1334,262 @@ table.ledger .del-x:hover{color:var(--rust);}
 @media (max-width:760px) and (prefers-reduced-motion: reduce), (max-width:1000px) and (pointer:coarse) and (prefers-reduced-motion: reduce){
   .sidebar, body.m-drawer-open .sidebar, .m-scrim, .m-fab{transition:none !important;}
 }
+/* ==================== มือถือ รุ่น 2: แถบเมนูล่าง + การ์ดหน้าหลัก + ไอคอนทางลัด + แผ่นเลื่อนขึ้น ====================
+   เหมือนชุดแรก: ทุกกฎอยู่ใต้ media query ของมือถือ ชิ้นใหม่ทุกชิ้นซ่อนไว้บนจอคอม */
+.m-tabbar,.m-home,.m-sheet-ov,.m-splash,.m-toast{display:none;}
+@media (max-width:760px), (max-width:1000px) and (pointer:coarse){
+  /* ---------- แถบเมนูล่าง: ใช้แทนปุ่ม ☰ และปุ่ม + ลอย ---------- */
+  .m-tabbar{
+    display:grid;grid-template-columns:repeat(5,1fr);align-items:end;
+    position:fixed;left:0;right:0;bottom:0;z-index:42;
+    background:rgba(255,255,255,.97);-webkit-backdrop-filter:blur(14px);backdrop-filter:blur(14px);
+    border-top:1px solid var(--border-soft);box-shadow:0 -8px 24px -18px rgba(22,33,43,.45);
+    padding:6px max(6px, env(safe-area-inset-right)) calc(6px + env(safe-area-inset-bottom)) max(6px, env(safe-area-inset-left));
+  }
+  body.m-typing .m-tabbar{display:none;}
+  .m-tab{
+    position:relative;display:flex;flex-direction:column;align-items:center;gap:3px;
+    background:none;border:none;padding:6px 2px 2px;cursor:pointer;color:#8A979C;
+    font-family:'Noto Sans Thai',sans-serif;font-size:10.5px;font-weight:600;line-height:1.2;min-width:0;
+  }
+  .m-tab span{max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+  .m-tab.on{color:var(--amber-dark);}
+  .m-tab.on svg{stroke-width:2.3;}
+  .m-tab:active{color:var(--text);}
+  .m-badge{
+    position:absolute;top:1px;left:calc(50% + 6px);min-width:17px;height:17px;padding:0 5px;border-radius:9px;
+    background:var(--rust);color:#fff;font:700 10.5px/17px 'JetBrains Mono',monospace;text-align:center;
+    box-shadow:0 0 0 2px #fff;
+  }
+  .m-badge:empty{display:none;}
+  .m-tab-add{
+    display:flex;flex-direction:column;align-items:center;gap:3px;background:none;border:none;cursor:pointer;
+    padding:0 0 2px;color:var(--text);font:700 10.5px/1.2 'Noto Sans Thai',sans-serif;
+  }
+  .m-tab-add i{
+    display:flex;align-items:center;justify-content:center;width:58px;height:58px;margin-top:-30px;border-radius:50%;
+    background:var(--amber);color:var(--ink);font-style:normal;
+    box-shadow:0 0 0 5px #fff, 0 12px 22px -8px rgba(199,132,30,.85);
+    transition:transform .12s;
+  }
+  .m-tab-add:active i{transform:scale(.93);}
+  .m-tab:focus-visible,.m-tab-add:focus-visible{outline:2px solid var(--amber);outline-offset:-2px;border-radius:10px;}
+
+  /* แถบล่างมาแทนแล้ว: ปุ่ม ☰ กับปุ่ม + ลอยไม่ต้องมี */
+  body.m-v2 .m-burger, body.m-v2 .m-fab{display:none !important;}
+  body.m-v2 .m-topbar{padding-left:max(14px, env(safe-area-inset-left));}
+  body.m-v2 .app-shell > .main{padding-bottom:calc(118px + env(safe-area-inset-bottom));}
+  body.m-v2 .slip-bar{bottom:calc(84px + env(safe-area-inset-bottom));}
+
+  /* ---------- หน้าหลัก: การ์ดงบเลื่อนซ้ายขวา + ไอคอนทางลัด ---------- */
+  .m-home{display:block;margin:-2px -14px 18px;}
+  #main.m-homed .page-header > div:first-child{display:none;}
+  #main.m-homed .page-header{justify-content:flex-end;margin-bottom:12px;}
+  #main.m-homed .stat-strip, #main.m-homed .wh-hero{display:none;}
+  /* ปุ่ม "แก้ไข" บนหัวหน้าย้ายไปเป็นไอคอน "แก้ไขชื่อ" แล้ว */
+  /* ปุ่มบนหัวหน้า (แก้ไข ปิดงาน ขอโอน ลบ ...) ย้ายไปอยู่ในไอคอนเครื่องมือกับแผ่น "จัดการ" หมดแล้ว */
+  #main.m-homed .page-header{display:none;}
+  /* ซ้ำกับไอคอน "แยกหลายบัญชี" / ปุ่ม "เพิ่มรายการบัญชี" อยู่ในแผ่นจัดการ / คำอธิบายการลากรกเกินไปบนจอเล็ก */
+  #main.m-homed > :not(.m-home) button[onclick="openSplitEntryModal()"]{display:none;}
+  #itemListContainer button[onclick="openAddItemModal()"]{display:none;}
+  #main .sort-hint{display:none;}
+  #main div:has(> #itemSearchInput){flex:1 1 auto !important;width:auto !important;max-width:none !important;}
+  .m-nav-btns{display:flex;gap:6px;margin-left:auto;}
+  /* เมนูจัดการบนหัวหน้า (หน้าบัญชี/หมวดงบ): บนจอแคบปุ่มอาจอยู่ชิดซ้ายหรือขวา เมนูที่ห้อยจากปุ่มจะล้นจอ
+     จึงให้ลอยเต็มความกว้างเหนือแถบล่างแทน */
+  .head-menu{position:fixed;top:auto;left:max(12px, env(safe-area-inset-left));right:max(12px, env(safe-area-inset-right));
+    bottom:calc(88px + env(safe-area-inset-bottom));min-width:0;z-index:55;padding:8px;border-radius:16px;
+    box-shadow:0 -6px 40px -10px rgba(22,33,43,.45);}
+  .head-menu button{min-height:46px;font-size:14px;}
+  .m-manage{display:inline-flex;align-items:center;gap:5px;color:var(--text-muted);}
+  /* มีการ์ดให้แตะเลือกแล้ว ข้อความ "เลือกจากเมนูด้านซ้าย" ของหน้าต้อนรับไม่ต้องมี */
+  #main.m-has-cards > .welcome{display:none;}
+  .m-cards{
+    display:flex;gap:12px;overflow-x:auto;scroll-snap-type:x mandatory;-webkit-overflow-scrolling:touch;
+    padding:4px 14px 14px;scroll-padding:0 14px;scrollbar-width:none;overscroll-behavior-x:contain;
+  }
+  .m-cards::-webkit-scrollbar{display:none;}
+  .m-card{
+    position:relative;overflow:hidden;flex:0 0 calc(100% - 22px);scroll-snap-align:start;scroll-snap-stop:always;
+    border-radius:20px;padding:16px 18px 15px;color:#fff;cursor:pointer;min-height:188px;
+    background:
+      radial-gradient(circle at 92% 6%, rgba(232,163,61,.42), rgba(232,163,61,0) 46%),
+      radial-gradient(circle at 4% 104%, rgba(47,122,110,.55), rgba(47,122,110,0) 50%),
+      radial-gradient(circle at 1.4px 1.4px, rgba(237,240,239,.07) 1.4px, transparent 0) 0 0/22px 22px,
+      linear-gradient(150deg, #22323D, #16212B 62%);
+    box-shadow:0 16px 30px -18px rgba(22,33,43,.75), 0 1px 0 rgba(255,255,255,.06) inset;
+  }
+  .m-card:only-child{flex-basis:100%;}
+  .m-card-top{display:flex;align-items:center;gap:8px;}
+  .m-card-kind{font-size:10.5px;font-weight:700;color:#C9D3D6;background:rgba(255,255,255,.09);border:1px solid rgba(255,255,255,.12);border-radius:20px;padding:2px 9px;}
+  .m-card-closed{font-size:10.5px;font-weight:700;color:#FFD3C8;background:rgba(193,70,47,.35);border-radius:20px;padding:2px 9px;}
+  .m-card-pick{margin-left:auto;font-size:10.5px;font-weight:700;color:var(--ink);background:var(--amber);border-radius:20px;padding:2px 9px;}
+  .m-card-code{font-family:'JetBrains Mono',monospace;font-size:15px;font-weight:700;color:var(--amber);margin-top:10px;letter-spacing:.01em;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+  .m-card-name{font-size:13px;color:#C9D3D6;margin-top:1px;line-height:1.4;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+  .m-card-lab{font-size:11px;color:#93A3AA;margin-top:12px;}
+  .m-card-big{font-family:'JetBrains Mono',monospace;font-size:29px;font-weight:700;letter-spacing:-.8px;line-height:1.15;}
+  .m-card-big small{font-size:17px;opacity:.6;letter-spacing:0;}
+  .m-card-big.neg{color:#FF9B85;}
+  .m-card-bar{position:relative;height:6px;border-radius:9px;background:rgba(255,255,255,.12);margin-top:12px;overflow:hidden;}
+  .m-card-bar i{position:absolute;left:0;top:0;bottom:0;border-radius:9px;background:linear-gradient(90deg,#2F7A6E,#4FB09D);}
+  .m-card-bar i.warn{background:linear-gradient(90deg,#C7841E,#E8A33D);}
+  .m-card-bar i.over{background:linear-gradient(90deg,#9E3522,#E0634A);}
+  .m-card-bar b{position:absolute;left:80%;top:-2px;bottom:-2px;width:2px;margin-left:-1px;background:rgba(255,255,255,.85);}
+  .m-card-foot{display:flex;justify-content:space-between;gap:10px;font-size:11px;color:#93A3AA;margin-top:7px;}
+  .m-card-foot b{color:#E3E9EB;font-family:'JetBrains Mono',monospace;font-weight:600;}
+  .m-card.add{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px;
+    background:#fff;color:var(--amber-dark);border:1.5px dashed rgba(232,163,61,.7);box-shadow:none;font-weight:700;font-size:13.5px;}
+  .m-card.add i{display:flex;width:44px;height:44px;border-radius:50%;align-items:center;justify-content:center;background:#FCEED2;font-style:normal;}
+
+  .m-cards-nav{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:0 14px;}
+  .m-dots{display:flex;align-items:center;gap:5px;min-height:18px;}
+  .m-dots i{width:6px;height:6px;border-radius:4px;background:#C5CDD0;transition:width .2s, background .2s;}
+  .m-dots i.on{width:18px;background:var(--amber-dark);}
+  .m-count{font:600 12px 'JetBrains Mono',monospace;color:var(--text-muted);}
+  .m-all{background:#fff;border:1px solid var(--border);border-radius:20px;padding:5px 12px;font:600 12px 'Noto Sans Thai',sans-serif;color:var(--text);cursor:pointer;}
+
+  .m-tiles{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;padding:16px 14px 0;}
+  .m-tile{
+    position:relative;display:flex;flex-direction:column;align-items:center;gap:7px;padding:12px 4px 10px;
+    background:#fff;border:1px solid var(--border-soft);border-radius:16px;cursor:pointer;
+    font:600 11px/1.3 'Noto Sans Thai',sans-serif;color:var(--text);text-align:center;
+    box-shadow:0 2px 6px -4px rgba(22,33,43,.25);
+  }
+  .m-tile i{display:flex;align-items:center;justify-content:center;width:40px;height:40px;border-radius:12px;background:#FCEED2;color:var(--amber-dark);font-style:normal;}
+  .m-tile.teal i{background:var(--teal-soft);color:var(--teal);}
+  .m-tile.ink i{background:#E7EBEC;color:var(--ink);}
+  .m-tile.dot::after{content:"";position:absolute;top:8px;right:10px;width:8px;height:8px;border-radius:50%;background:var(--rust);}
+  .m-tile:active{transform:scale(.97);}
+  .m-sec-title{font:700 13px 'Noto Sans Thai',sans-serif;color:var(--text);margin:20px 14px 0;display:flex;justify-content:space-between;align-items:baseline;}
+  .m-sec-title span{font-size:11.5px;font-weight:600;color:var(--text-faint);}
+
+  /* ---------- แผ่นเลื่อนขึ้นจากด้านล่าง (เพิ่มเติม / เลือกบัญชี) ---------- */
+  .m-sheet-ov{display:flex;position:fixed;inset:0;z-index:60;background:rgba(10,16,22,.5);align-items:flex-end;animation:mFade .2s ease;}
+  .m-sheet-ov.hidden{display:none;}
+  .m-sheet{
+    width:100%;max-height:calc(100% - env(safe-area-inset-top) - 30px);overflow-y:auto;overscroll-behavior:contain;
+    background:var(--paper);border-radius:22px 22px 0 0;
+    padding:8px max(14px, env(safe-area-inset-right)) calc(20px + env(safe-area-inset-bottom)) max(14px, env(safe-area-inset-left));
+    animation:mSheetUp .3s cubic-bezier(.2,.8,.2,1);
+  }
+  .m-grab{width:40px;height:5px;border-radius:3px;background:#C9D0D3;margin:2px auto 12px;}
+  .m-sheet h3{font:700 17px 'Noto Sans Thai',sans-serif;margin:0 4px 12px;color:var(--text);}
+  .m-group-h{font-size:11.5px;font-weight:700;color:var(--text-faint);margin:16px 6px 7px;}
+  .m-group{background:#fff;border-radius:14px;overflow:hidden;border:1px solid var(--border-soft);}
+  .m-row{
+    display:flex;align-items:center;gap:12px;width:100%;min-height:54px;padding:9px 14px;background:none;border:none;
+    border-top:1px solid var(--border-soft);cursor:pointer;text-align:left;font:600 14px 'Noto Sans Thai',sans-serif;color:var(--text);
+  }
+  .m-row:first-child{border-top:none;}
+  .m-row:active{background:#F6F7F6;}
+  .m-row > i{display:flex;align-items:center;justify-content:center;flex-shrink:0;width:34px;height:34px;border-radius:10px;background:#F1F3F3;color:var(--ink);font-style:normal;}
+  .m-row > span{flex:1;min-width:0;}
+  .m-row > span small{display:block;font-size:11.5px;font-weight:500;color:var(--text-muted);margin-top:1px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+  .m-row > em{font-style:normal;font:600 12.5px 'JetBrains Mono',monospace;color:var(--teal);white-space:nowrap;}
+  .m-row > em.neg{color:var(--rust);}
+  .m-row > .chev{color:#B4BEC2;flex-shrink:0;}
+  .m-row.on > i{background:var(--amber);color:var(--ink);}
+  .m-row.danger{color:var(--rust);}
+  .m-row.danger > i{background:var(--rust-soft);color:var(--rust);}
+  .m-row .acct-code{font-size:10.5px;}
+  .m-prof{display:flex;align-items:center;gap:13px;background:#fff;border:1px solid var(--border-soft);border-radius:16px;padding:14px;}
+  .m-ava{
+    flex-shrink:0;width:52px;height:52px;border-radius:50%;display:flex;align-items:center;justify-content:center;
+    background:linear-gradient(150deg,#22323D,#16212B);color:var(--amber);font:700 21px 'Noto Sans Thai',sans-serif;
+  }
+  .m-prof-t{flex:1;min-width:0;}
+  .m-prof-t b{display:block;font-size:15.5px;color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+  .m-prof-t small{display:block;font-size:12px;color:var(--text-muted);margin-top:1px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+  .m-prof-t .role-badge{margin-top:6px;}
+  .m-prof-t .role-badge.member{background:#EEF1F2;color:var(--text-muted);border-color:var(--border);}
+  .m-prof button{flex-shrink:0;background:#fff;border:1px solid var(--border);border-radius:9px;padding:7px 11px;font:600 12.5px 'Noto Sans Thai',sans-serif;color:var(--text);cursor:pointer;}
+  .m-sheet-foot{text-align:center;font-size:11px;color:var(--text-faint);margin-top:18px;}
+  .m-empty{padding:22px 12px;text-align:center;font-size:13px;color:var(--text-muted);}
+
+  /* ---------- หน้าต่างเล็กๆ เป็นแผ่นเลื่อนขึ้นจากด้านล่าง (ฟอร์มยาวยังเต็มจอเหมือนเดิม) ---------- */
+  :is(#editEntryModal,#addItemModal,#profileModal,#editCcModal,#addWorkTypeModal,#orgSettingsModal,#editProjectModal,#whFileModal,#newProjectModal,#trashModal).modal-overlay{
+    align-items:flex-end;animation:mFade .2s ease;
+  }
+  :is(#editEntryModal,#addItemModal,#profileModal,#editCcModal,#addWorkTypeModal,#orgSettingsModal,#editProjectModal,#whFileModal,#newProjectModal,#trashModal).modal-overlay::before{display:none;}
+  :is(#editEntryModal,#addItemModal,#profileModal,#editCcModal,#addWorkTypeModal,#orgSettingsModal,#editProjectModal,#whFileModal,#newProjectModal,#trashModal) > .modal{
+    position:relative;min-height:0 !important;max-height:calc(100% - env(safe-area-inset-top) - 30px);overflow-y:auto;
+    border-radius:22px 22px 0 0;padding-top:28px;animation:mSheetUp .3s cubic-bezier(.2,.8,.2,1);
+  }
+  :is(#editEntryModal,#addItemModal,#profileModal,#editCcModal,#addWorkTypeModal,#orgSettingsModal,#editProjectModal,#whFileModal,#newProjectModal,#trashModal) > .modal::before{
+    content:"";position:absolute;top:10px;left:50%;width:40px;height:5px;margin-left:-20px;border-radius:3px;background:#C9D0D3;
+  }
+  :is(#editEntryModal,#addItemModal,#profileModal,#editCcModal,#addWorkTypeModal,#orgSettingsModal,#editProjectModal,#whFileModal,#newProjectModal,#trashModal) .modal-actions{margin-top:16px;}
+
+  /* ---------- หน้าเปิดแอป ---------- */
+  .m-splash{
+    display:flex;position:fixed;inset:0;z-index:200;align-items:center;justify-content:center;
+    background:
+      radial-gradient(circle at 85% 12%, rgba(232,163,61,.35), rgba(232,163,61,0) 40%),
+      radial-gradient(circle at 10% 92%, rgba(47,122,110,.5), rgba(47,122,110,0) 45%),
+      radial-gradient(circle at 1.4px 1.4px, rgba(237,240,239,.07) 1.4px, transparent 0) 0 0/26px 26px,
+      var(--ink);
+    transition:opacity .35s ease, visibility 0s linear .35s;
+  }
+  .m-splash.out{opacity:0;visibility:hidden;}
+  .m-splash-in{display:flex;flex-direction:column;align-items:center;gap:6px;color:#fff;animation:mPop .5s cubic-bezier(.2,.8,.2,1);}
+  .m-splash img{width:92px;height:92px;border-radius:24px;box-shadow:0 18px 40px -14px rgba(0,0,0,.6);margin-bottom:10px;}
+  .m-splash img:not([src]){visibility:hidden;}
+  .m-splash .t{font:700 22px 'Noto Sans Thai',sans-serif;}
+  .m-splash .s{font:500 12px 'Space Grotesk',sans-serif;color:#93A3AA;letter-spacing:.12em;}
+  .m-load{display:flex;gap:6px;margin-top:22px;}
+  .m-load i{width:7px;height:7px;border-radius:50%;background:var(--amber);animation:mBlink 1s infinite ease-in-out;}
+  .m-load i:nth-child(2){animation-delay:.15s;} .m-load i:nth-child(3){animation-delay:.3s;}
+
+  .m-toast{
+    display:block;position:fixed;left:50%;bottom:calc(96px + env(safe-area-inset-bottom));z-index:70;transform:translate(-50%,10px);
+    max-width:calc(100% - 40px);background:var(--ink);color:#fff;font:600 13px/1.45 'Noto Sans Thai',sans-serif;text-align:center;
+    padding:10px 16px;border-radius:14px;box-shadow:0 12px 26px -12px rgba(0,0,0,.5);opacity:0;pointer-events:none;transition:opacity .2s, transform .2s;
+  }
+  .m-toast.show{opacity:1;transform:translate(-50%,0);}
+}
+@keyframes mSheetUp{from{transform:translateY(100%);}to{transform:none;}}
+@keyframes mFade{from{opacity:0;}to{opacity:1;}}
+@keyframes mPop{from{opacity:0;transform:scale(.9);}to{opacity:1;transform:none;}}
+@keyframes mBlink{0%,100%{opacity:.25;transform:scale(.8);}50%{opacity:1;transform:none;}}
+@media (prefers-reduced-motion: reduce){
+  .m-sheet, .m-sheet-ov, .m-splash-in, .m-load i, .modal{animation:none !important;}
+}
+@media (max-width:760px), (max-width:1000px) and (pointer:coarse){
+  /* รายการบัญชี: รหัสเรียงเป็นคอลัมน์ซ้ายแบบสมุดบัญชี / ชื่อเต็ม / งบอยู่ใต้ชื่อ */
+  .item-list{border-radius:16px;}
+  .item-row{display:grid;grid-template-columns:auto 82px 1fr auto;grid-template-areas:"h c t a" "h c m a";column-gap:10px;row-gap:3px;align-items:center;padding:10px 12px;min-height:0;}
+  .item-row .drag-handle{grid-area:h;width:22px;height:30px;}
+  .item-row .acct-code{grid-area:c;align-self:stretch;display:flex;align-items:center;background:none;padding:0;font-size:12.5px;border-right:1px solid var(--border-soft);border-radius:0;}
+  .item-row .item-label{grid-area:t;white-space:normal;font-size:13.5px;line-height:1.35;}
+  .item-row .item-budget{grid-area:m;justify-self:start;margin-left:0;text-align:left;min-width:0;font-size:12px;font-weight:600;color:var(--text-muted);}
+  .item-row .item-budget::before{content:'งบ ';font-family:'Noto Sans Thai',sans-serif;font-weight:500;}
+  .item-row .item-arrow{grid-area:a;}
+}
+
+/* ===== ป้ายสถานะอินเทอร์เน็ต: โผล่เฉพาะตอนเน็ตหลุด (และบอกสั้นๆ ตอนกลับมา) ตอนปกติไม่มีอะไรบนจอ ===== */
+.net-banner{
+  position:fixed;z-index:85;top:14px;left:calc(50% + 140px);transform:translate(-50%,-140%);
+  display:flex;align-items:center;gap:9px;max-width:min(560px, calc(100vw - 320px));
+  padding:9px 16px;border-radius:999px;background:var(--ink);color:#fff;
+  font:600 13px/1.4 'Noto Sans Thai',sans-serif;box-shadow:0 12px 30px -12px rgba(0,0,0,.5);
+  transition:transform .25s ease, background .25s;pointer-events:none;
+}
+.net-banner.show{transform:translate(-50%,0);}
+.net-banner i{flex-shrink:0;width:9px;height:9px;border-radius:50%;background:#E0634A;box-shadow:0 0 0 4px rgba(224,99,74,.25);}
+.net-banner small{display:block;font-size:11.5px;font-weight:500;color:#B7C2C6;}
+.net-banner.back{background:var(--teal);}
+.net-banner.back i{background:#BFF0E3;box-shadow:none;}
+.net-banner.back small{display:none;}
+@media (max-width:860px){ .net-banner{left:50%;max-width:calc(100vw - 24px);} }
+@media (max-width:760px), (max-width:1000px) and (pointer:coarse){
+  .net-banner{top:calc(66px + env(safe-area-inset-top));border-radius:14px;width:calc(100vw - 24px);}
+}
+@media (prefers-reduced-motion: reduce){ .net-banner{transition:none;} }
 </style>
 </head>
 <body>
+<!-- หน้าเปิดแอปของเวอร์ชันมือถือ (จอคอมลบทิ้งทันทีตอนโหลด) -->
+<div class="m-splash" id="mSplash" aria-hidden="true"><div class="m-splash-in"><img id="mSplashLogo" alt=""><div class="t">คุมไม่ไหว</div><div class="s">BUDGET TRACKER</div><div class="m-load"><i></i><i></i><i></i></div></div></div>
 
 <!-- Auth screen -->
 <div class="center-screen" id="authScreen">
@@ -1480,7 +1753,16 @@ table.ledger .del-x:hover{color:var(--rust);}
   <button class="m-fab" id="mFab" type="button" onclick="mFabTap()" aria-label="เพิ่มรายการ" title="เพิ่มรายการ">
     <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" aria-hidden="true"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
   </button>
+  <!-- แถบเมนูล่างของเวอร์ชันมือถือ — จอคอมซ่อนไว้ -->
+  <nav class="m-tabbar" id="mTabbar" aria-label="เมนูหลัก">
+    <button type="button" class="m-tab" data-tab="home" onclick="mTabHome()"><svg width="23" height="23" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 11l9-7 9 7"/><path d="M5 10v10h14V10"/><path d="M10 20v-6h4v6"/></svg><span>หน้าหลัก</span></button>
+    <button type="button" class="m-tab" data-tab="list" onclick="mDrawerIsOpen() ? mCloseDrawer() : mOpenDrawer()"><svg width="23" height="23" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg><span id="mTabListLabel">ศูนย์ต้นทุน</span></button>
+    <button type="button" class="m-tab-add" onclick="mTabAdd()"><i><svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" aria-hidden="true"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg></i>เพิ่มรายการ</button>
+    <button type="button" class="m-tab" data-tab="print" onclick="mTabPrint()"><svg width="23" height="23" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg><span>พิมพ์รวม</span><b class="m-badge" id="mPrintBadge"></b></button>
+    <button type="button" class="m-tab" data-tab="more" onclick="mOpenMore()"><svg width="23" height="23" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></svg><span>เพิ่มเติม</span></button>
+  </nav>
 </div>
+<div class="m-sheet-ov hidden" id="mSheet" onclick="if(event.target===this) mCloseSheet()"><div class="m-sheet" role="dialog" aria-modal="true"><div class="m-grab"></div><div id="mSheetBody"></div></div></div>
 
 <div class="save-indicator" id="saveIndicator">บันทึกแล้ว</div>
 
@@ -7133,8 +7415,12 @@ function renderMain(){
       </div>
       <div class="header-actions">
         ${canManage ? `
-          <button class="btn btn-outline btn-sm" onclick="openEditCcModal()">แก้ไข</button>
-          <button class="btn btn-danger-ghost btn-sm" onclick="deleteCc()">ลบศูนย์ต้นทุน</button>
+          ${headMenuHtml([
+            { icon:'pen', label:'แก้ไขชื่อ / รหัสศูนย์ต้นทุน', fn:'openEditCcModal()' },
+            { icon:'plus', label:'เพิ่มรายการบัญชี', fn:'openAddItemModal()' },
+            { sep:true },
+            { icon:'trash', label:'ลบศูนย์ต้นทุน', fn:'deleteCc()', danger:true },
+          ])}
         ` : `<span class="eyebrow" style="color:var(--text-faint);">ดูอย่างเดียว · เพิ่มรายการจ่ายได้</span>`}
       </div>
     </div>
@@ -9087,6 +9373,33 @@ function commitItemOrder(codes){
 document.addEventListener('pointerdown', onSortPointerDown, true);
 document.addEventListener('keydown', onSortKeyDown);
 
+/* ---- เมนู "จัดการ" บนหัวหน้า: รวมปุ่มของผู้ดูแล (แก้ไข / เพิ่มบัญชี / ลบ) ไว้ปุ่มเดียว ---- */
+const HEAD_MENU_IC = {
+  pen:'<path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z"/>',
+  plus:'<line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>',
+  lock:'<rect x="4" y="11" width="16" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/>',
+  trash:'<polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/>',
+  gear:'<circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-2.8 1.2V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-2.9-1.2l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1A1.7 1.7 0 0 0 3 14H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.2-2.9l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1A1.7 1.7 0 0 0 10 3.1V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 2.9 1.2l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1A1.7 1.7 0 0 0 21 10h.1a2 2 0 1 1 0 4H21a1.7 1.7 0 0 0-1.6 1z"/>'
+};
+function headMenuIcon(n){ return `<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${HEAD_MENU_IC[n]||''}</svg>`; }
+function headMenuHtml(items){
+  return `<div class="head-menu-wrap">
+    <button type="button" class="btn btn-outline btn-sm head-menu-btn" onclick="toggleHeadMenu(this)" aria-haspopup="true" aria-expanded="false">${headMenuIcon('gear')}จัดการ<span class="caret">▾</span></button>
+    <div class="head-menu" role="menu">${items.map(it => it.sep ? '<div class="sep"></div>'
+      : `<button type="button" role="menuitem" class="${it.danger ? 'danger' : ''}" onclick="closeHeadMenus();${it.fn}">${headMenuIcon(it.icon)}${it.label}</button>`).join('')}</div>
+  </div>`;
+}
+function closeHeadMenus(){
+  document.querySelectorAll('.head-menu.show').forEach(m => { m.classList.remove('show'); const b = m.previousElementSibling; if(b) b.setAttribute('aria-expanded', 'false'); });
+}
+function toggleHeadMenu(btn){
+  const menu = btn.nextElementSibling, open = !menu.classList.contains('show');
+  closeHeadMenus();
+  if(open){ menu.classList.add('show'); btn.setAttribute('aria-expanded', 'true'); const f = menu.querySelector('button'); if(f) f.focus({ preventScroll:true }); }
+}
+document.addEventListener('click', e => { if(!(e.target.closest && e.target.closest('.head-menu-wrap'))) closeHeadMenus(); });
+document.addEventListener('keydown', e => { if(e.key === 'Escape') closeHeadMenus(); });
+
 function renderItemCard(item, canSort){
   const t = itemTotals(item);
   return `<div class="item-row" data-sortrow="${escapeHtml(item.code)}" onclick="selectItem('${escapeJsStr(item.code)}')">
@@ -9114,13 +9427,7 @@ function buildItemListInnerHtml(cc){
 
   let html = `<div style="display:flex;justify-content:space-between;align-items:center;gap:12px;margin-bottom:12px;">
     <div class="eyebrow" style="color:var(--text-faint);">รายการงบประมาณ (${filtered.length}${q ? ' จาก '+items.length : ''})</div>
-    ${canManage ? `<button class="btn btn-outline btn-sm" onclick="openAddItemModal()">+ เพิ่มรายการ</button>` : ''}
   </div>`;
-  if(canSort){
-    html += `<div class="sort-hint" style="margin:-4px 0 9px;">${dragGlyphHtml()} ลากขึ้นลงเพื่อจัดลำดับบัญชี — ลำดับนี้จะใช้ทั้งในลิสต์นี้และในช่องเลือกบัญชีตอนตัดงบ</div>`;
-  } else if(canManage && q && filtered.length > 1){
-    html += `<div class="sort-hint" style="margin:-4px 0 9px;">ล้างคำค้นหาก่อน จึงจะลากจัดลำดับบัญชีได้</div>`;
-  }
 
   if(!filtered.length){
     html += `<div class="empty-state"><p>ไม่พบรายการบัญชีที่ตรงกับคำค้นหา "${escapeHtml(state.itemSearchQuery||'')}"</p></div>`;
@@ -9477,11 +9784,12 @@ function renderWhMain(){
       </div>
       <div class="header-actions">
         ${canManage ? `
-          <button class="btn btn-outline btn-sm" onclick="openEditWhFileModal()">แก้ไข</button>
-          ${f.closed
-            ? `<button class="btn btn-reopen btn-sm" onclick="toggleWhFileClosed()">↺ ยกเลิกปิดงาน</button>`
-            : `<button class="btn btn-danger-ghost btn-sm" onclick="toggleWhFileClosed()">🔒 ปิดงาน</button>`}
-          <button class="btn btn-danger-ghost btn-sm" onclick="deleteWhFile()">ลบแฟ้ม</button>
+          ${headMenuHtml([
+            { icon:'pen', label:'แก้ไขชื่อ / งบแฟ้ม', fn:'openEditWhFileModal()' },
+            { icon:'lock', label:f.closed ? 'ยกเลิกปิดงาน' : 'ปิดงาน', fn:'toggleWhFileClosed()' },
+            { sep:true },
+            { icon:'trash', label:'ลบแฟ้ม', fn:'deleteWhFile()', danger:true },
+          ])}
         ` : `<span class="eyebrow" style="color:var(--text-faint);">ดูอย่างเดียว · เพิ่มรายการซื้อได้</span>`}
       </div>
     </div>
@@ -9572,14 +9880,16 @@ function renderProjectMain(){
       </div>
       <div class="header-actions">
         ${canManage ? `
-          <button class="btn btn-outline btn-sm" onclick="openEditProjectModal()">แก้ไข</button>
-          ${p.closed
-            ? `<button class="btn btn-reopen btn-sm" onclick="toggleProjectClosed()">↺ ยกเลิกปิดงาน</button>`
-            : `<button class="btn btn-danger-ghost btn-sm" onclick="toggleProjectClosed()">🔒 ปิดงาน</button>`}
           <button class="btn btn-transfer btn-sm" onclick="openTransferModal()">⇄ ขอโอนงบ${trNeg ? `<span class="tr-badge">${trNeg}</span>` : ''}</button>
-          <button class="btn btn-danger-ghost btn-sm" onclick="deleteProject()">ลบแฟ้มงาน</button>
         ` : ''}
         ${p.closed ? '' : `<button class="btn btn-outline btn-sm" onclick="openXSplitModal()" title="บิลใบเดียวที่เบิกจากงบหมายเลขงานร่วมกับงบทำการ เช่น ค่าแรงคนงานรายวัน">⇄ เบิกร่วมงบทำการ</button>`}
+        ${canManage ? headMenuHtml([
+          { icon:'pen', label:'แก้ไขชื่อ / เลข WBS', fn:'openEditProjectModal()' },
+          { icon:'plus', label:'เพิ่มประเภทงาน', fn:'openAddWorkTypeModal()' },
+          { icon:'lock', label:p.closed ? 'ยกเลิกปิดงาน' : 'ปิดงาน', fn:'toggleProjectClosed()' },
+          { sep:true },
+          { icon:'trash', label:'ลบแฟ้มงาน', fn:'deleteProject()', danger:true },
+        ]) : ''}
         ${!canManage ? `<span class="eyebrow" style="color:var(--text-faint);">ดูอย่างเดียว · เพิ่มรายการจ่ายได้</span>` : ''}
       </div>
     </div>
@@ -9612,9 +9922,7 @@ function renderProjectMain(){
       html += `<div class="dept-tab ${active?'active':''}" onclick="selectWorkType('${d.key}')">${d.name}</div>`;
     }
   });
-  if(canManage){
-    html += `<div class="dept-tab add" onclick="openAddWorkTypeModal()">+ เพิ่มประเภทงาน</div>`;
-  }
+  // "+ เพิ่มประเภทงาน" อยู่ในเมนูจัดการแล้ว (แฟ้มที่ยังไม่มีประเภทงานเลยมีปุ่มของตัวเองด้านล่าง)
   html += `</div>`;
 
   if(!addedKeys.length){
@@ -9999,6 +10307,498 @@ function mAfterRender(){
 (function(){
   const main = document.getElementById('main');
   if(main && 'MutationObserver' in window) new MutationObserver(()=>mAfterRender()).observe(main, { childList:true });
+})();
+/* ============ มือถือ รุ่น 2: แถบเมนูล่าง / การ์ดหน้าหลัก / ไอคอนทางลัด / แผ่น "เพิ่มเติม" / หน้าเปิดแอป ============
+   ทำงานเฉพาะตอน M_MQ ตรง (จอมือถือ) — บนจอคอมไม่ใส่อะไรเพิ่มในหน้าเลย */
+var M_IC = {
+  home:'<path d="M3 11l9-7 9 7"/><path d="M5 10v10h14V10"/><path d="M10 20v-6h4v6"/>',
+  folder:'<path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/>',
+  plus:'<line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>',
+  print:'<polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/>',
+  grid:'<rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/>',
+  split:'<path d="M12 3v6"/><path d="M12 9l-7 7v5"/><path d="M12 9l7 7v5"/><path d="M12 9v12"/>',
+  merge:'<path d="M4 7h12"/><path d="M13 4l3 3-3 3"/><path d="M20 17H8"/><path d="M11 14l-3 3 3 3"/>',
+  transfer:'<rect x="3" y="4" width="18" height="16" rx="2"/><path d="M7 10h10"/><path d="M14 7l3 3-3 3"/><path d="M17 16H7"/>',
+  doc:'<path d="M14 3H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z"/><path d="M14 3v6h6"/><line x1="8" y1="13" x2="16" y2="13"/><line x1="8" y1="17" x2="13" y2="17"/>',
+  trash:'<polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4h6v2"/>',
+  sheet:'<rect x="3" y="3" width="18" height="18" rx="2"/><line x1="3" y1="9" x2="21" y2="9"/><line x1="3" y1="15" x2="21" y2="15"/><line x1="9" y1="3" x2="9" y2="21"/>',
+  save:'<path d="M12 3v12"/><polyline points="7 10 12 15 17 10"/><path d="M5 21h14"/>',
+  gear:'<circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/>',
+  newfile:'<path d="M14 3H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z"/><path d="M14 3v6h6"/><line x1="12" y1="12" x2="12" y2="18"/><line x1="9" y1="15" x2="15" y2="15"/>',
+  addlist:'<line x1="9" y1="6" x2="20" y2="6"/><line x1="9" y1="12" x2="20" y2="12"/><line x1="9" y1="18" x2="14" y2="18"/><circle cx="4.5" cy="6" r="1"/><circle cx="4.5" cy="12" r="1"/><line x1="18" y1="15" x2="18" y2="21"/><line x1="15" y1="18" x2="21" y2="18"/>',
+  user:'<circle cx="12" cy="8" r="4"/><path d="M4 21c0-4 4-6 8-6s8 2 8 6"/>',
+  logout:'<path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/>',
+  chev:'<polyline points="9 6 15 12 9 18"/>',
+  wallet:'<rect x="3" y="6" width="18" height="14" rx="2"/><path d="M3 10h18"/><path d="M7 6V4h10v2"/>',
+  build:'<path d="M3 21h18"/><path d="M5 21V9l7-5 7 5v12"/><path d="M9 21v-6h6v6"/>',
+  box:'<path d="M21 8l-9-5-9 5 9 5 9-5z"/><path d="M3 8v8l9 5 9-5V8"/><path d="M12 13v8"/>',
+  pen:'<path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z"/>',
+  lock:'<rect x="4" y="11" width="16" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/>',
+  swap:'<path d="M7 4L3 8l4 4"/><path d="M3 8h13"/><path d="M17 20l4-4-4-4"/><path d="M21 16H8"/>'
+};
+function mIco(n, s){ return '<svg width="'+(s||22)+'" height="'+(s||22)+'" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">'+(M_IC[n]||'')+'</svg>'; }
+function mOn(){ return !!(M_MQ && M_MQ.matches); }
+
+// ของที่เลือกอยู่ — เงื่อนไขเดียวกับที่หน้าหลักของแต่ละโหมดใช้ตัดสินว่าจะแสดงหรือขึ้นหน้าต้อนรับ
+function mActiveCc(){
+  const cc = getCc(state.activeCcId);
+  return (cc && !cc.deletedAt && Number(cc.year) === Number(state.activeYear) && cc.deptKey === state.activeDept) ? cc : null;
+}
+function mActiveProject(){
+  const p = getProject(state.activeProjectId);
+  return (p && !p.deletedAt && p.deptKey === state.activeDept) ? p : null;
+}
+function mActiveWh(){
+  const f = getWhFile(state.activeWhFileId);
+  return (f && !f.deletedAt && whFilesForYear().some(x => x.id === f.id)) ? f : null;
+}
+
+// การ์ดของโหมดปัจจุบัน: ศูนย์ต้นทุนของปีนี้ / แฟ้ม WBS ที่ยังเปิดอยู่ของปีนี้ / แฟ้มงบซื้อของของปีนี้
+function mCards(){
+  const out = [];
+  if(state.appMode === 'project'){
+    const act = state.activeProjectId;
+    projectsForDept()
+      .filter(p => projectMatchesYear(p) && (!p.closed || isProjectRecentlyClosed(p) || p.id === act))
+      .sort((a,b) => String(a.wbs||'').localeCompare(String(b.wbs||'')))
+      .forEach(p => {
+        const t = projTotalsCheap(p), usable = money(t.amount100 * USABLE_RATIO), paid = money(t.totalPaid);
+        const pct = t.amount100 > 0 ? paid / t.amount100 * 100 : 0;
+        out.push({ id:p.id, kind:'งบโครงการ (WBS)', code:p.wbs, name:p.name, remain:money(usable - paid), paid, of:usable,
+          ofLabel:'งบใช้ได้ 80%', pct, cls:wbsGaugeClass(pct), mark80:true, closed:!!p.closed });
+      });
+  } else if(state.appMode === 'warehouse'){
+    whFilesForYear().forEach(f => {
+      const t = whTotals(f), pct = t.budget > 0 ? t.totalPaid / t.budget * 100 : 0;
+      out.push({ id:f.id, kind:'งบซื้อของ (WBS)', code:f.wbs, name:f.name, remain:t.remaining, paid:t.totalPaid, of:t.budget,
+        ofLabel:'งบอนุมัติ', pct, cls:gaugeClass(pct), closed:!!f.closed });
+    });
+  } else {
+    ccsForYear(state.activeYear).slice().sort((a,b) => String(a.code||'').localeCompare(String(b.code||''))).forEach(c => {
+      const t = ccTotals(c), pct = t.budget > 0 ? t.totalPaid / t.budget * 100 : 0;
+      out.push({ id:c.id, kind:'ศูนย์ต้นทุน', code:c.code, name:c.name, remain:money(t.remaining), paid:money(t.totalPaid), of:t.budget,
+        ofLabel:'งบทั้งปี', pct, cls:gaugeClass(pct) });
+    });
+  }
+  return out;
+}
+function mActiveId(){
+  const a = state.appMode === 'project' ? mActiveProject() : (state.appMode === 'warehouse' ? mActiveWh() : mActiveCc());
+  return a ? a.id : null;
+}
+function mSelect(id){
+  if(id === mActiveId()) return;
+  if(state.appMode === 'project') selectProject(id);
+  else if(state.appMode === 'warehouse') selectWhFile(id);
+  else selectCc(id);
+}
+function mMoney(n){
+  const s = fmt(n), i = s.lastIndexOf('.');
+  return i < 0 ? s : s.slice(0, i) + '<small>' + s.slice(i) + '</small>';
+}
+function mCardHtml(c, isActive){
+  const w = Math.max(0, Math.min(100, c.pct));
+  return `<article class="m-card" data-id="${escapeHtml(c.id)}" onclick="mSelect(this.dataset.id)" role="button" tabindex="0" aria-label="${escapeHtml(c.code||'')}">
+    <div class="m-card-top"><span class="m-card-kind">${c.kind}</span>${c.closed ? '<span class="m-card-closed">ปิดงานแล้ว</span>' : ''}${isActive ? '' : '<span class="m-card-pick">แตะเพื่อเปิด</span>'}</div>
+    <div class="m-card-code">${escapeHtml(c.code || '—')}</div>
+    <div class="m-card-name">${escapeHtml(c.name || '')}</div>
+    <div class="m-card-lab">คงเหลือ (บาท)</div>
+    <div class="m-card-big ${c.remain < 0 ? 'neg' : ''}">${mMoney(c.remain)}</div>
+    <div class="m-card-bar"><i class="${c.cls === 'ok' ? '' : c.cls}" style="width:${w}%"></i>${c.mark80 ? '<b></b>' : ''}</div>
+    <div class="m-card-foot"><span>ใช้ไป ${Math.round(c.pct)}%</span><span>จ่ายแล้ว <b>${fmt(c.paid)}</b> / ${fmt(c.of)}</span></div>
+  </article>`;
+}
+
+// เครื่องมือของโหมดปัจจุบัน (ใช้ทั้งไอคอนหน้าหลัก และรายการในแผ่น "เพิ่มเติม")
+function mTools(){
+  const cm = canManageDept(state.activeDept), t = [];
+  if(state.appMode === 'project'){
+    const p = mActiveProject();
+    if(p && cm) t.push({ l:'ขอโอนงบ', i:'transfer', f:'openTransferModal()', c:'teal' });
+    if(p && !p.closed) t.push({ l:'เบิกร่วมงบทำการ', i:'merge', f:'openXSplitModal()', c:'teal' });
+    if(cm) t.push({ l:'แฟ้มงานใหม่', i:'newfile', f:'openNewProjectModal()' });
+  } else if(state.appMode === 'warehouse'){
+    if(cm) t.push({ l:'แฟ้มงบซื้อของใหม่', i:'newfile', f:'openNewWhFileModal()' });
+  } else {
+    const cc = mActiveCc();
+    if(cc) t.push({ l:'แยกหลายบัญชี', i:'split', f:'openSplitEntryModal()', c:'teal' });
+    if(cc && cm) t.push({ l:'เพิ่มบัญชี', i:'addlist', f:'openAddItemModal()' });
+    if(cm) t.push({ l:'ศูนย์ต้นทุนใหม่', i:'newfile', f:'openNewCcModal()' });
+  }
+  t.push({ l:'ใบตัดงบเปล่า', i:'doc', f:'openBlankSlipModal()', c:'ink' });
+  if(cm) t.push({ l:'ถังขยะ', i:'trash', f:'openTrashModal()', c:'ink' });
+  if(cm) t.push({ l:'ส่งออก Excel', i:'sheet', f:'exportYearToExcel()', c:'ink' });
+  if(isAdmin()) t.push({ l:'สำรองข้อมูล', i:'save', f:'downloadBackup()', c:'ink', dot:isBackupOverdue() });
+  if(isAdmin()) t.push({ l:'ตั้งค่าหน่วยงาน', i:'gear', f:'openOrgSettingsModal()', c:'ink' });
+  return t;
+}
+// ไอคอนบนหน้าหลัก: คัดไว้แค่ที่ใช้บ่อยไม่เกิน 4 อัน (ที่เหลือยังอยู่ในแผ่น "เพิ่มเติม" ครบ)
+function mHomeTiles(){
+  // "แก้ไขชื่อ" = ชื่อ ตำแหน่ง รหัสพนักงานของผู้ใช้เอง (ที่พิมพ์ลงใบตัดงบ) ทุกคนแก้ของตัวเองได้
+  const cm = canManageDept(state.activeDept), t = [];
+  const me = { l:'แก้ไขชื่อ', i:'user', f:'openProfileModal()' };
+  if(state.appMode === 'project'){
+    const p = mActiveProject();
+    if(p && cm) t.push({ l:'ขอโอนงบ', i:'transfer', f:'openTransferModal()', c:'teal' });
+    if(p && !p.closed) t.push({ l:'เบิกร่วมงบทำการ', i:'merge', f:'openXSplitModal()', c:'teal' });
+    t.push(me);
+    if(cm) t.push({ l:'ถังขยะ', i:'trash', f:'openTrashModal()', c:'ink' });
+  } else if(state.appMode === 'warehouse'){
+    t.push({ l:'ใบตัดงบเปล่า', i:'doc', f:'openBlankSlipModal()', c:'ink' });
+    if(cm) t.push({ l:'ถังขยะ', i:'trash', f:'openTrashModal()', c:'ink' });
+    t.push(me);
+  } else {
+    if(mActiveCc()) t.push({ l:'แยกหลายบัญชี', i:'split', f:'openSplitEntryModal()', c:'teal' });
+    t.push({ l:'ใบตัดงบเปล่า', i:'doc', f:'openBlankSlipModal()', c:'ink' });
+    if(cm) t.push({ l:'ถังขยะ', i:'trash', f:'openTrashModal()', c:'ink' });
+    t.push(me);
+  }
+  return t.slice(0, 4);
+}
+// ปุ่มจัดการของผู้ดูแลแผนก/แอดมิน (ลบ ปิดงาน เพิ่มบัญชี ฯลฯ) — สมาชิกทั่วไปไม่เห็นปุ่มนี้เลย
+function mManageItems(){
+  if(!canManageDept(state.activeDept)) return [];
+  if(state.appMode === 'project'){
+    const p = mActiveProject(); if(!p) return [];
+    return [
+      { l:'แก้ไขชื่อ / เลข WBS', i:'pen', f:'openEditProjectModal()' },
+      { l:'เพิ่มประเภทงาน', i:'addlist', f:'openAddWorkTypeModal()' },
+      { l:p.closed ? 'ยกเลิกปิดงาน' : 'ปิดงาน', i:'lock', f:'toggleProjectClosed()', sub:p.closed ? 'เปิดให้เพิ่มรายการได้อีกครั้ง' : 'ล็อกแฟ้ม ไม่ให้เพิ่มรายการจ่าย' },
+      { l:'ลบแฟ้มงาน', i:'trash', f:'deleteProject()', danger:true, sub:'ย้ายไปถังขยะ กู้คืนได้ภายใน 30 วัน' },
+    ];
+  }
+  if(state.appMode === 'warehouse'){
+    const f = mActiveWh(); if(!f) return [];
+    return [
+      { l:'แก้ไขชื่อ / งบแฟ้ม', i:'pen', f:'openEditWhFileModal()' },
+      { l:f.closed ? 'ยกเลิกปิดงาน' : 'ปิดงาน', i:'lock', f:'toggleWhFileClosed()', sub:f.closed ? 'เปิดให้เพิ่มรายการได้อีกครั้ง' : 'ล็อกแฟ้ม ไม่ให้เพิ่มรายการซื้อ' },
+      { l:'ลบแฟ้ม', i:'trash', f:'deleteWhFile()', danger:true, sub:'ย้ายไปถังขยะ กู้คืนได้ภายใน 30 วัน' },
+    ];
+  }
+  if(!mActiveCc()) return [];
+  return [
+    { l:'แก้ไขชื่อ / รหัสศูนย์ต้นทุน', i:'pen', f:'openEditCcModal()' },
+    { l:'เพิ่มรายการบัญชี', i:'addlist', f:'openAddItemModal()', sub:'บัญชีใหม่ในศูนย์ต้นทุนนี้' },
+    { l:'ลบศูนย์ต้นทุน', i:'trash', f:'deleteCc()', danger:true, sub:'ย้ายไปถังขยะ กู้คืนได้ภายใน 30 วัน' },
+  ];
+}
+function mOpenManage(){
+  const items = mManageItems(); if(!items.length) return;
+  const name = state.appMode === 'project' ? (mActiveProject() || {}).wbs : (state.appMode === 'warehouse' ? (mActiveWh() || {}).wbs : (mActiveCc() || {}).code);
+  mOpenSheet(`<h3>จัดการ ${escapeHtml(name || '')}</h3><div class="m-group">${items.map(x =>
+    `<button type="button" class="m-row ${x.danger ? 'danger' : ''}" onclick="mRun('${x.f}')"><i>${mIco(x.i, 19)}</i><span>${x.l}${x.sub ? `<small>${x.sub}</small>` : ''}</span><b class="chev">${mIco('chev', 16)}</b></button>`).join('')}</div>
+    <div class="m-sheet-foot">เห็นเฉพาะผู้ดูแลแผนกและแอดมิน</div>`);
+}
+function mRun(code){ mCloseSheet(); try{ (new Function(code))(); }catch(e){ console.error(e); } }
+
+// หน้าหลัก = หน้าภาพรวมของแต่ละโหมด (ยังไม่ได้เปิดบัญชี/หมวดย่อย)
+function mIsOverview(){
+  if(state.appMode === 'project') return !state.activeProjectCatKey || !mActiveProject();
+  if(state.appMode === 'warehouse') return true;
+  return !state.activeItemKey || !mActiveCc();
+}
+function mRenderHome(){
+  const main = document.getElementById('main');
+  if(!main) return;
+  let home = main.querySelector(':scope > .m-home');
+  const want = mOn() && state.user && mIsOverview();
+  main.classList.toggle('m-homed', !!want);
+  if(!want){ main.classList.remove('m-has-cards'); if(home) home.remove(); return; }
+  const cards = mCards(), act = mActiveId(), tools = mHomeTiles();
+  main.classList.toggle('m-has-cards', cards.length > 0);
+  const canAdd = canManageDept(state.activeDept) && (state.appMode !== 'project' || isProjectModeAllowed(state.activeDept));
+  const canManage = mManageItems().length > 0;
+  const sig = JSON.stringify([state.appMode, act, cards, tools.map(x => x.l + (x.dot ? '!' : '')), canAdd, mManageItems().map(x => x.l)]);
+  if(home && home.dataset.sig === sig) return;
+  const addFn = state.appMode === 'project' ? 'openNewProjectModal()' : (state.appMode === 'warehouse' ? 'openNewWhFileModal()' : 'openNewCcModal()');
+  const addLabel = state.appMode === 'project' ? 'สร้างแฟ้มงาน' : (state.appMode === 'warehouse' ? 'สร้างแฟ้มงบซื้อของ' : 'สร้างศูนย์ต้นทุน');
+  const cardsHtml = cards.length
+    ? cards.map(c => mCardHtml(c, c.id === act)).join('')
+    : (canAdd ? `<article class="m-card add" onclick="${addFn}"><i>${mIco('plus', 22)}</i>${addLabel}</article>` : '');
+  const many = cards.length > 7;
+  const tilesHtml = tools.map(x =>
+    `<button type="button" class="m-tile ${x.c || ''} ${x.dot ? 'dot' : ''}" onclick="${x.f}"><i>${mIco(x.i, 21)}</i>${x.l}</button>`).join('');
+  const html = `${cardsHtml ? `<div class="m-cards" id="mCards">${cardsHtml}</div>` : ''}
+    ${(cards.length > 1 || canManage) ? `<div class="m-cards-nav">
+      ${cards.length > 1 ? (many ? `<span class="m-count" id="mCount"></span>` : `<span class="m-dots" id="mDots">${cards.map(() => '<i></i>').join('')}</span>`) : '<span></span>'}
+      <span class="m-nav-btns">${canManage ? `<button type="button" class="m-all m-manage" onclick="mOpenManage()">${mIco('gear', 14)}จัดการ</button>` : ''}
+      ${cards.length > 1 ? `<button type="button" class="m-all" onclick="mOpenDrawer()">ดูทั้งหมด (${cards.length})</button>` : ''}</span></div>` : ''}
+    ${tools.length ? `<div class="m-sec-title">เครื่องมือ<span>${state.appMode === 'project' ? 'งบโครงการก่อสร้าง' : (state.appMode === 'warehouse' ? 'งบซื้อของ' : 'งบทั่วไป')}</span></div>
+    <div class="m-tiles">${tilesHtml}</div>` : ''}`;
+  if(!home){ home = document.createElement('section'); home.className = 'm-home'; main.insertBefore(home, main.firstChild); }
+  home.dataset.sig = sig;
+  home.innerHTML = html;
+  const strip = home.querySelector('#mCards');
+  if(strip){
+    const idx = Math.max(0, cards.findIndex(c => c.id === act));
+    const card = strip.children[idx];
+    if(card) strip.scrollLeft = card.offsetLeft - strip.offsetLeft - 14;
+    mMarkDots(idx, cards.length);
+    let tmr = null;
+    strip.addEventListener('scroll', () => {
+      clearTimeout(tmr);
+      tmr = setTimeout(() => {
+        const step = strip.children.length > 1 ? strip.children[1].offsetLeft - strip.children[0].offsetLeft : strip.clientWidth;
+        const i = Math.max(0, Math.min(cards.length - 1, Math.round(strip.scrollLeft / step)));
+        mMarkDots(i, cards.length);
+        // ปัดการ์ดไปใบไหน ก็เปิดใบนั้นเลย (เฉพาะตอนที่มีใบเปิดอยู่แล้ว — หน้าต้อนรับต้องแตะเลือกเอง)
+        if(act && cards[i] && cards[i].id !== act) mSelect(cards[i].id);
+      }, 160);
+    }, { passive:true });
+  }
+}
+function mMarkDots(i, n){
+  const d = document.getElementById('mDots');
+  if(d) [...d.children].forEach((x, k) => x.classList.toggle('on', k === i));
+  const c = document.getElementById('mCount');
+  if(c) c.textContent = (i + 1) + ' / ' + n;
+}
+
+/* ---------- แถบเมนูล่าง ---------- */
+function mSelCount(){
+  return state.appMode === 'warehouse' ? state.whSlipSelection.length
+    : (state.appMode === 'project' ? state.projectSlipSelection.length : state.slipSelection.length);
+}
+function mSyncTabs(){
+  const bar = document.getElementById('mTabbar');
+  if(!bar) return;
+  document.body.classList.toggle('m-v2', mOn());
+  const n = mSelCount();
+  const b = document.getElementById('mPrintBadge'); if(b) b.textContent = n ? String(n) : '';
+  const lab = document.getElementById('mTabListLabel');
+  if(lab) lab.textContent = state.appMode === 'budget' ? 'ศูนย์ต้นทุน' : 'แฟ้มงาน';
+  const sheetOpen = !document.getElementById('mSheet').classList.contains('hidden');
+  bar.querySelectorAll('.m-tab').forEach(t => {
+    const k = t.dataset.tab;
+    t.classList.toggle('on', k === 'more' ? sheetOpen : (k === 'list' ? mDrawerIsOpen() : (k === 'home' ? (!sheetOpen && !mDrawerIsOpen() && mIsOverview()) : false)));
+  });
+}
+function mTabHome(){
+  mCloseSheet(); mCloseDrawer();
+  if(state.appMode === 'project'){ state.activeProjectCatKey = null; }
+  else if(state.appMode === 'budget'){ state.activeItemKey = null; }
+  render();
+  window.scrollTo({ top:0, behavior:'smooth' });
+}
+function mToast(msg){
+  let t = document.getElementById('mToast');
+  if(!t){ t = document.createElement('div'); t.id = 'mToast'; t.className = 'm-toast'; t.setAttribute('role', 'status'); document.body.appendChild(t); }
+  t.textContent = msg; t.classList.add('show');
+  clearTimeout(mToast._t); mToast._t = setTimeout(() => t.classList.remove('show'), 2600);
+}
+function mTabPrint(){
+  const n = mSelCount();
+  if(!n){ mToast('ติ๊ก ☐ หน้ารายการจ่ายก่อน แล้วกดตรงนี้เพื่อพิมพ์ใบตัดงบรวม (สูงสุด ' + MAX_SLIP_SELECTION + ' รายการ)'); return; }
+  if(state.appMode === 'warehouse') printCombinedWhSlip();
+  else if(state.appMode === 'project') printCombinedProjectSlip();
+  else printCombinedSlip();
+}
+// ปุ่ม + กลาง: มีฟอร์มบนจออยู่แล้ว → ไปที่ฟอร์ม / ยังไม่ได้เลือกบัญชี → ให้เลือกก่อนจากแผ่นด้านล่าง
+function mTabAdd(){
+  if(document.querySelector('#main .entry-form')){ mFabTap(); return; }
+  if(state.appMode === 'budget'){
+    const cc = mActiveCc();
+    if(!cc){ mOpenDrawer(); mToast('เลือกศูนย์ต้นทุนก่อน'); return; }
+    const items = (cc.items || []).filter(it => !it.deletedAt);
+    if(!items.length){ mToast('ศูนย์ต้นทุนนี้ยังไม่มีรายการบัญชี'); return; }
+    mOpenSheet(`<h3>เพิ่มรายการจ่ายในบัญชีไหน?</h3><div class="m-group">${items.map(it => {
+      const t = itemTotals(it);
+      return `<button type="button" class="m-row" onclick="mCloseSheet();selectItem('${escapeJsStr(it.code)}');setTimeout(mFabTap,80)">
+        <span><span class="acct-code mono">${escapeHtml(it.code || '—')}</span><small style="font-size:13.5px;color:var(--text);font-weight:600;margin-top:4px;white-space:normal;">${escapeHtml(it.label || '')}</small></span>
+        <em class="${t.remaining < 0 ? 'neg' : ''}">${fmt(t.remaining)}</em></button>`; }).join('')}</div>`);
+    return;
+  }
+  if(state.appMode === 'project'){
+    const p = mActiveProject();
+    if(!p){ mOpenDrawer(); mToast('เลือกแฟ้มงานก่อน'); return; }
+    if(p.closed){ mToast('แฟ้มงานนี้ปิดงานแล้ว — เพิ่มรายการไม่ได้'); return; }
+    const wk = state.activeWorkTypeKey, wt = wk && p.departments && p.departments[wk];
+    if(!wt){ mToast('เลือกประเภทงานก่อน (แท็บด้านบน)'); return; }
+    const cats = Object.entries(wt.budgets || {});
+    mOpenSheet(`<h3>เพิ่มรายการจ่ายในหมวดไหน?</h3><div class="m-group">${cats.map(([k, c]) => {
+      const t = projCatTotals(c, wk, k);
+      return `<button type="button" class="m-row" onclick="mCloseSheet();selectProjectCat('${escapeJsStr(k)}');setTimeout(mFabTap,80)">
+        <span>${escapeHtml(c.label || k)}<small>รหัสกิจกรรม ${escapeHtml(c.code || '—')}</small></span>
+        <em class="${t.remaining < 0 ? 'neg' : ''}">${fmt(t.remaining)}</em></button>`; }).join('')}</div>`);
+    return;
+  }
+  const f = mActiveWh();
+  if(!f){ mOpenDrawer(); mToast('เลือกแฟ้มงบซื้อของก่อน'); return; }
+  mToast('แฟ้มนี้ปิดงานแล้ว — เพิ่มรายการไม่ได้');
+}
+
+/* ---------- แผ่นเลื่อนขึ้นจากด้านล่าง ---------- */
+function mSheetOpen(){ const s = document.getElementById('mSheet'); return !!s && !s.classList.contains('hidden'); }
+// เมนูสไลด์กับแผ่นเลื่อนขึ้นใช้ "ขั้นประวัติ" ร่วมกันขั้นเดียว ปุ่มย้อนกลับของเครื่องจะปิดอันที่เปิดอยู่
+// (ถ้าต่างคนต่างดันประวัติ ตอนสลับจากเมนูไปแผ่น history.back() ที่ค้างอยู่จะไปปิดอันใหม่ทิ้ง)
+function mPushLayer(){ if(!(history.state && history.state.mLayer)){ try{ history.pushState({ mLayer:1 }, ''); }catch(e){} } }
+function mPopLayerIfIdle(){
+  setTimeout(() => {
+    if(!mDrawerIsOpen() && !mSheetOpen() && history.state && history.state.mLayer){ try{ history.back(); }catch(e){} }
+  }, 0);
+}
+function mHideSheetNow(){ const s = document.getElementById('mSheet'); if(s) s.classList.add('hidden'); }
+mOpenDrawer = function(){
+  if(mDrawerIsOpen()) return;
+  mHideSheetNow();
+  document.body.classList.add('m-drawer-open');
+  mSyncBurger(true); mPushLayer(); mSyncTabs();
+};
+mCloseDrawer = function(fromPop){
+  if(!mDrawerIsOpen()) return;
+  document.body.classList.remove('m-drawer-open');
+  mSyncBurger(false);
+  if(!fromPop) mPopLayerIfIdle();
+  mSyncTabs();
+};
+function mOpenSheet(html){
+  if(mDrawerIsOpen()){ document.body.classList.remove('m-drawer-open'); mSyncBurger(false); }
+  document.getElementById('mSheetBody').innerHTML = html;
+  const s = document.getElementById('mSheet');
+  s.classList.remove('hidden');
+  s.querySelector('.m-sheet').scrollTop = 0;
+  mPushLayer(); mSyncTabs();
+}
+function mCloseSheet(){
+  if(!mSheetOpen()) return;
+  mHideSheetNow(); mPopLayerIfIdle(); mSyncTabs();
+}
+window.addEventListener('popstate', () => {
+  if(mSheetOpen()) mHideSheetNow();
+  if(mDrawerIsOpen()){ document.body.classList.remove('m-drawer-open'); mSyncBurger(false); }
+  mSyncTabs();
+});
+
+function mOpenMore(){
+  if(mSheetOpen()){ mCloseSheet(); return; }
+  const u = state.user || {};
+  const name = u.displayName || u.email || '';
+  const meta = [u.position, u.employeeCode ? 'รหัส ' + u.employeeCode : ''].filter(Boolean).join(' · ');
+  const roleCls = isAdmin() ? 'admin' : (isDeptAdmin() ? 'deptadmin' : (isCompanyRep() ? 'rep' : 'member'));
+  const roleTxt = isAdmin() ? ROLE_LABELS.admin : (isDeptAdmin() ? ROLE_LABELS.dept_admin : (isCompanyRep() ? ROLE_LABELS.rep : ROLE_LABELS.member));
+  const d = deptByKey(state.activeDept);
+  const modes = [{ k:'budget', l:'คุมงบทั่วไป', i:'wallet' }];
+  if(isWarehouseModeAllowed(state.activeDept)) modes.push({ k:'warehouse', l:'คุมงบซื้อของ (WBS)', i:'box' });
+  else if(isProjectModeAllowed(state.activeDept)) modes.push({ k:'project', l:'คุมงบโครงการก่อสร้าง', i:'build' });
+  const row = (i, l, f, sub, extra) => `<button type="button" class="m-row ${extra || ''}" onclick="${f}"><i>${mIco(i, 19)}</i><span>${l}${sub ? `<small>${sub}</small>` : ''}</span><b class="chev">${mIco('chev', 16)}</b></button>`;
+  mOpenSheet(`
+    <div class="m-prof">
+      <div class="m-ava">${escapeHtml((name || '?').trim().charAt(0))}</div>
+      <div class="m-prof-t"><b>${escapeHtml(name)}</b><small>${escapeHtml(meta || u.email || '')}</small><span class="role-badge ${roleCls}">${escapeHtml(roleTxt)}</span></div>
+      <button type="button" onclick="mRun('openProfileModal()')">แก้ไข</button>
+    </div>
+    <div class="m-group-h">โหมดคุมงบ · ${escapeHtml(d ? d.abbr + ' ' + d.name : '')}</div>
+    <div class="m-group">${modes.map(m => row(m.i, m.l, `mRun('switchAppMode(\\'${m.k}\\')')`, '', state.appMode === m.k ? 'on' : '')).join('')}
+      ${row('swap', 'เปลี่ยนแผนก / ปีงบประมาณ', 'mCloseSheet();mOpenDrawer()', 'อยู่ในเมนูรายการงบ')}</div>
+    <div class="m-group-h">เครื่องมือ</div>
+    <div class="m-group">${mTools().map(x => row(x.i, x.l, `mRun('${x.f.replace(/'/g, "\\'")}')`, x.dot ? 'ยังไม่ได้สำรองเกิน 30 วัน' : '')).join('')}</div>
+    <div class="m-group-h">บัญชีของฉัน</div>
+    <div class="m-group">${row('user', 'ข้อมูลผู้ใช้ (ชื่อในใบตัดงบ)', "mRun('openProfileModal()')", escapeHtml(u.email || ''))}
+      ${row('logout', 'ออกจากระบบ', "mRun('logout()')", '', 'danger')}</div>
+    <div class="m-sheet-foot">คุมไม่ไหว · Budget Tracker</div>`);
+}
+
+/* ---------- พิมพ์อยู่: ซ่อนแถบล่าง ไม่ให้ลอยขึ้นมาบังช่องกรอกตอนแป้นพิมพ์เปิด ---------- */
+document.addEventListener('focusin', e => {
+  if(mOn() && e.target && e.target.matches && e.target.matches('input:not([type=checkbox]):not([type=radio]), textarea, select')) document.body.classList.add('m-typing');
+});
+document.addEventListener('focusout', () => { setTimeout(() => {
+  const a = document.activeElement;
+  if(!(a && a.matches && a.matches('input:not([type=checkbox]):not([type=radio]), textarea, select'))) document.body.classList.remove('m-typing');
+}, 60); });
+
+// ทุกครั้งที่แถบเลือกพิมพ์รวมเปลี่ยน ตัวเลขบนปุ่มพิมพ์รวมต้องเปลี่ยนตาม (บางจุดเรียกแค่ฟังก์ชันนี้ ไม่ผ่าน render)
+(function(){
+  const orig = renderSlipSelectionBar;
+  renderSlipSelectionBar = function(){ const r = orig.apply(this, arguments); mSyncTabs(); return r; };
+})();
+// ต่อจากงานเดิมของ mAfterRender (แถบบน / ปุ่มลอย) ด้วยหน้าหลักและแถบล่าง
+(function(){
+  const orig = mAfterRender;
+  mAfterRender = function(){ orig(); mRenderHome(); mSyncTabs(); };
+})();
+
+/* ---------- หน้าเปิดแอป: โลโก้ระหว่างรอระบบเช็กการล็อกอิน ---------- */
+(function(){
+  const sp = document.getElementById('mSplash');
+  if(!sp) return;
+  const src = document.querySelector('.sidebar .brand-mark img');
+  const img = document.getElementById('mSplashLogo');
+  if(src && img) img.setAttribute('src', src.getAttribute('src'));
+  if(!mOn()){ sp.remove(); return; }
+  const now = () => (window.performance && performance.now) ? performance.now() : Date.now();
+  const t0 = now();
+  const done = () => { sp.classList.add('out'); setTimeout(() => sp.remove(), 450); };
+  const iv = setInterval(() => {
+    const shell = document.getElementById('appShell');
+    const ready = shell && !shell.classList.contains('hidden');
+    // ล็อกอินค้างอยู่ → รอจนเข้าแอป / ยังไม่ล็อกอิน → ไม่มีอะไรมาบอก จึงปล่อยหน้าเข้าสู่ระบบหลังรอพอสมควร
+    if((ready && now() - t0 > 650) || now() - t0 > 2200){ clearInterval(iv); done(); }
+  }, 80);
+})();
+/* ============ เน็ตหลุด: ป้ายเตือน + กันการบันทึก ============
+   ฐานข้อมูลใช้ทรานแซกชันเกือบทุกจุด ซึ่งต้องคุยกับเซิร์ฟเวอร์สดๆ — ตอนออฟไลน์จึงบันทึกไม่ได้เลย (ไม่ได้เก็บรอส่งทีหลัง)
+   ป้ายจึงบอกตรงๆ ว่า "ดูได้ แต่ยังบันทึกไม่ได้" และถ้ากดบันทึกตอนออฟไลน์ ให้ขึ้นข้อความภาษาไทยที่เข้าใจได้
+   แทนข้อความ error ภาษาอังกฤษของระบบ (ข้อมูลที่กรอกไว้ในช่องยังอยู่ กดใหม่ได้เมื่อเน็ตกลับมา) */
+var NET_OFFLINE_MSG = 'ไม่มีอินเทอร์เน็ต — ยังบันทึกไม่ได้ ข้อมูลที่กรอกไว้ยังอยู่ ลองกดใหม่อีกครั้งเมื่อเน็ตกลับมา';
+function netIsOffline(){ return typeof navigator !== 'undefined' && navigator.onLine === false; }
+function renderNetBanner(justBack){
+  let el = document.getElementById('netBanner');
+  if(!el){ el = document.createElement('div'); el.id = 'netBanner'; el.className = 'net-banner'; el.setAttribute('role', 'status'); el.setAttribute('aria-live', 'polite'); document.body.appendChild(el); }
+  clearTimeout(renderNetBanner._t);
+  if(netIsOffline()){
+    el.className = 'net-banner show';
+    el.innerHTML = '<i></i><span>ออฟไลน์อยู่<small>ดูข้อมูลล่าสุดได้ แต่ยังบันทึก/แก้ไขไม่ได้จนกว่าเน็ตจะกลับมา</small></span>';
+  } else if(justBack){
+    el.className = 'net-banner show back';
+    el.innerHTML = '<i></i><span>กลับมาออนไลน์แล้ว</span>';
+    renderNetBanner._t = setTimeout(() => el.classList.remove('show'), 2500);
+  } else {
+    el.classList.remove('show');
+  }
+}
+window.addEventListener('offline', () => renderNetBanner(false));
+window.addEventListener('online', () => renderNetBanner(true));
+if(netIsOffline()) renderNetBanner(false);
+// ครอบเฉพาะคำสั่งที่ "เขียน" ลงฐานข้อมูล ให้หยุดทันทีพร้อมข้อความไทยตอนออฟไลน์ (การอ่าน/การติดตามข้อมูลไม่แตะ)
+var netGuardedFb = null;
+function guardFbWritesWhenOffline(){
+  const fb = window.fb;
+  if(!fb || netGuardedFb === fb) return;
+  netGuardedFb = fb;
+  Object.keys(fb).forEach(k => {
+    if(typeof fb[k] !== 'function') return;
+    if(!/^(save|add|edit|delete|softDelete|restore|purge|set|crossSplit)/.test(k) || /^deleteExpired/.test(k)) return;
+    const orig = fb[k];
+    fb[k] = function(){ if(netIsOffline()) return Promise.reject(new Error(NET_OFFLINE_MSG)); return orig.apply(this, arguments); };
+  });
+}
+if(window.__fbReady) guardFbWritesWhenOffline(); else window.addEventListener('fbready', guardFbWritesWhenOffline);
+// ด่านแรกอยู่ที่ปุ่มเลย: หลายฟอร์มล้างช่องกรอกและวาดรายการไว้ก่อน (แบบ optimistic) แล้วค่อยรอฐานข้อมูล
+// ถ้าปล่อยไปถึงฐานข้อมูลตอนออฟไลน์ รายการจะโผล่แล้วหายไป และสิ่งที่พิมพ์ไว้หายไปด้วย — จึงหยุดตั้งแต่ตอนกด
+(function(){
+  ['addEntry','addProjectEntry','addWhEntry','submitLinesEntry','submitSplitEntry','submitXSplit','submitEditEntry',
+   'submitAddItem','submitNewCc','submitNewProject','submitWhFile','submitEditCc','submitEditProject','submitAddWorkType',
+   'submitOrgSettings','submitProfileName','saveNetworkNo','updateItemBudget','updateItemMeta','updateProjectCode',
+   'removeItem','removeWorkType','restoreItem','restoreWorkType','permanentlyDeleteItem','permanentlyDeleteWorkType',
+   'deleteEntry','deleteProjectEntry','deleteWhEntry','restoreEntry','restoreProjectEntry','restoreWhEntry',
+   'permanentlyDeleteEntry','permanentlyDeleteProjectEntry','permanentlyDeleteWhEntry',
+   'deleteCc','deleteProject','deleteWhFile','restoreCc','restoreProject','restoreWhFile',
+   'permanentlyDeleteCc','permanentlyDeleteProject','permanentlyDeleteWhFile',
+   'toggleProjectClosed','toggleWhFileClosed','trSave','trDelete','commitItemOrder','commitSortOrder'
+  ].forEach(name => {
+    const orig = window[name];
+    if(typeof orig !== 'function') return;
+    window[name] = function(){
+      if(netIsOffline()){
+        alert(NET_OFFLINE_MSG);
+        // ช่องที่แก้ด้วย onchange (งบ/รหัส) ต้องวาดใหม่ให้กลับเป็นค่าเดิม ไม่งั้นจอโชว์ค่าที่ไม่ได้บันทึก
+        if(/^update|^saveNetworkNo|^commit/.test(name)) render();
+        return false;
+      }
+      return orig.apply(this, arguments);
+    };
+  });
 })();
 render();
 </script>
