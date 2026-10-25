@@ -421,6 +421,11 @@ body{
   display:flex;flex-direction:column;align-items:flex-start;gap:14px;
   padding:60px 10px;max-width:520px;
 }
+/* กำลังโหลดข้อมูลชุดแรก (แทนหน้า "ยังไม่มีข้อมูล" ที่ทำให้เข้าใจผิด) */
+.loading-state{display:flex;align-items:center;justify-content:center;gap:12px;padding:90px 20px;color:var(--text-muted);font-size:14px;font-weight:600;}
+.ls-spin{width:22px;height:22px;border-radius:50%;border:3px solid var(--border);border-top-color:var(--amber);animation:lsSpin .8s linear infinite;flex-shrink:0;}
+@keyframes lsSpin{to{transform:rotate(360deg);}}
+@media (prefers-reduced-motion: reduce){ .ls-spin{animation-duration:2.4s;} }
 .welcome h1{font-family:'Space Grotesk';font-size:26px;margin:0;}
 .welcome p{color:var(--text-muted);font-size:14.5px;line-height:1.7;margin:0;}
 
@@ -7288,14 +7293,35 @@ function renderTrashModal(){
 // filter (where('deptKey','==', ...)) instead of pulling every department's documents on every
 // load, so read cost/quota scales with how many departments are actually being looked at, not with
 // the whole organization. Called at login and again whenever the viewed department changes.
+/* ---- ยังโหลดข้อมูลไม่เสร็จ ≠ ไม่มีข้อมูล ----
+   ระหว่างรอข้อมูลชุดแรกจากเซิร์ฟเวอร์ รายการยังว่าง ถ้าปล่อยไปหน้าตาจะเหมือน "ยังไม่มีศูนย์ต้นทุน ให้สร้างใหม่"
+   ทำให้เข้าใจผิดว่าข้อมูลหาย จึงจำไว้ว่ากำลังรอ แล้วแสดง "กำลังโหลด" แทนจนกว่าข้อมูลชุดแรกจะมาถึง
+   (เผื่อเซิร์ฟเวอร์ไม่ตอบเลย หลัง 15 วินาทีปล่อยให้แสดงตามจริง จะได้ไม่หมุนค้างตลอดไป) */
+function loadingStateHtml(text){
+  return `<div class="loading-state" role="status"><span class="ls-spin" aria-hidden="true"></span><span>${escapeHtml(text || 'กำลังโหลดข้อมูล...')}</span></div>`;
+}
+let dataPendingTimer = null;
+function markDataPending(){
+  state.ccPending = true; state.projPending = true; state.whPending = true;
+  clearTimeout(dataPendingTimer);
+  dataPendingTimer = setTimeout(()=>{
+    if(state.ccPending || state.projPending || state.whPending){
+      state.ccPending = state.projPending = state.whPending = false;
+      if(state.user) render();
+    }
+  }, 15000);
+}
 function subscribeActiveDeptData(){
   if(ccUnsub){ ccUnsub(); ccUnsub = null; }
   if(projectsUnsub){ projectsUnsub(); projectsUnsub = null; }
   if(whUnsub){ whUnsub(); whUnsub = null; }
   if(!state.activeDept) return;
+  markDataPending();
+  if(!isWarehouseModeAllowed(state.activeDept)) state.whPending = false;
   // Only the warehouse department has งบซื้อของ files, so no other department pays for the listener.
   if(isWarehouseModeAllowed(state.activeDept)){
     whUnsub = window.fb.subscribeWarehouseFiles(state.activeDept, (files)=>{
+      state.whPending = false;
       state.whFiles = files;
       sweepExpiredWhTrash(null);
       const active = files.find(f=>f.id===state.activeWhFileId);
@@ -7307,6 +7333,7 @@ function subscribeActiveDeptData(){
     state.whFiles = []; state.activeWhFileId = null; state.whSlipSelection = [];
   }
   ccUnsub = window.fb.subscribeCostCenters(state.activeDept, (ccs)=>{
+    state.ccPending = false;
     state.costCenters = ccs;
     const activeCc = ccs.find(c=>c.id===state.activeCcId);
     if(state.activeCcId && (!activeCc || activeCc.deletedAt)){
@@ -7317,6 +7344,7 @@ function subscribeActiveDeptData(){
     sweepExpiredTrash();
   });
   projectsUnsub = window.fb.subscribeProjects(state.activeDept, (projects)=>{
+    state.projPending = false;
     projects.forEach(normalizeProjectBudgets);
     state.projects = projects;
     const activeProj = projects.find(p=>p.id===state.activeProjectId);
@@ -7405,6 +7433,7 @@ function renderMain(){
   const dName = deptByKey(state.activeDept);
   const deptLabel = dName ? dName.abbr+' '+dName.name : '';
   const canManage = canManageDept(state.activeDept);
+  if(!cc && state.ccPending){ main.innerHTML = loadingStateHtml('กำลังโหลดศูนย์ต้นทุน...'); return; }
   if(!cc || Number(cc.year) !== Number(state.activeYear) || cc.deptKey !== state.activeDept){
     main.innerHTML = `<div class="welcome">
       <h1>คุมไม่ไหว — ${escapeHtml(deptLabel)}</h1>
@@ -9726,6 +9755,7 @@ function renderWhMain(){
   const canManage = whCanManage();
   const f = getWhFile(state.activeWhFileId);
 
+  if(!f && state.whPending){ main.innerHTML = loadingStateHtml('กำลังโหลดแฟ้มงบซื้อของ...'); return; }
   if(!f || f.deletedAt || Number(f.year)!==Number(state.activeYear)){
     main.innerHTML = `<div class="welcome">
       <h1>คุมงบซื้อของ (WBS) — ผคพ. แผนกคลังพัสดุ</h1>
@@ -9856,6 +9886,7 @@ function renderProjectMain(){
   }
 
   const p = getProject(state.activeProjectId);
+  if(!p && state.projPending){ main.innerHTML = loadingStateHtml('กำลังโหลดแฟ้มงาน...'); return; }
   if(!p || p.deptKey !== state.activeDept){
     main.innerHTML = `<div class="welcome">
       <h1>คุมงบโครงการก่อสร้าง — ${escapeHtml(deptLabel)}</h1>
@@ -10155,6 +10186,7 @@ function initAuthListener(){
       return;
     }
     state.user = {uid:user.uid, email:user.email, displayName:'', position:'', employeeCode:''};
+    markDataPending();   // ระหว่างอ่านโปรไฟล์ยังไม่ได้เริ่มโหลดข้อมูล ห้ามโชว์หน้า "ยังไม่มีข้อมูล"
     let profile = null;
     try{ profile = await window.fb.getUserProfile(user.uid); }catch(e){ console.error(e); }
     const loadedRole = profile && profile.role;
@@ -10509,7 +10541,9 @@ function mRenderHome(){
   const main = document.getElementById('main');
   if(!main) return;
   let home = main.querySelector(':scope > .m-home');
-  const want = mOn() && state.user && mIsOverview();
+  // ระหว่างโหลดข้อมูลชุดแรก ไม่โชว์การ์ด (ไม่งั้นจะขึ้นการ์ด "สร้างศูนย์ต้นทุน" เหมือนไม่มีข้อมูล)
+  const pending = state.appMode === 'project' ? state.projPending : (state.appMode === 'warehouse' ? state.whPending : state.ccPending);
+  const want = mOn() && state.user && mIsOverview() && !pending;
   main.classList.toggle('m-homed', !!want);
   if(!want){ main.classList.remove('m-has-cards'); if(home) home.remove(); return; }
   const cards = mCards(), act = mActiveId(), tools = mHomeTiles();
@@ -10567,9 +10601,16 @@ function mSelCount(){
   return state.appMode === 'warehouse' ? state.whSlipSelection.length
     : (state.appMode === 'project' ? state.projectSlipSelection.length : state.slipSelection.length);
 }
+function mInputFocused(){
+  const a = document.activeElement;
+  // ช่องที่ถูกซ่อนหรือหลุดจากหน้าไปแล้ว (เช่น ช่องรหัสผ่านหลังล็อกอิน) ไม่นับว่ากำลังพิมพ์
+  return !!(a && a.matches && a.matches('input:not([type=checkbox]):not([type=radio]), textarea, select') && a.isConnected && a.offsetParent !== null);
+}
 function mSyncTabs(){
   const bar = document.getElementById('mTabbar');
   if(!bar) return;
+  // Safari ไม่ส่ง focusout เมื่อช่องที่กำลังพิมพ์ถูกซ่อน/ถูกวาดใหม่ทิ้ง สถานะ "กำลังพิมพ์" เลยค้าง แถบล่างหายไปเฉยๆ
+  if(document.body.classList.contains('m-typing') && !mInputFocused()) document.body.classList.remove('m-typing');
   document.body.classList.toggle('m-v2', mOn());
   const n = mSelCount();
   const b = document.getElementById('mPrintBadge'); if(b) b.textContent = n ? String(n) : '';
@@ -10711,9 +10752,13 @@ document.addEventListener('focusin', e => {
   if(mOn() && e.target && e.target.matches && e.target.matches('input:not([type=checkbox]):not([type=radio]), textarea, select')) document.body.classList.add('m-typing');
 });
 document.addEventListener('focusout', () => { setTimeout(() => {
-  const a = document.activeElement;
-  if(!(a && a.matches && a.matches('input:not([type=checkbox]):not([type=radio]), textarea, select'))) document.body.classList.remove('m-typing');
+  if(!mInputFocused()) document.body.classList.remove('m-typing');
 }, 60); });
+// กันพลาดอีกชั้น: แตะที่ไหนก็ตามขณะไม่ได้อยู่ในช่องกรอก หรือแป้นพิมพ์ปิดไปแล้ว → เอาแถบล่างกลับมา
+document.addEventListener('touchstart', () => { if(document.body.classList.contains('m-typing') && !mInputFocused()) document.body.classList.remove('m-typing'); }, { passive:true });
+if(window.visualViewport) window.visualViewport.addEventListener('resize', () => { setTimeout(() => {
+  if(document.body.classList.contains('m-typing') && (!mInputFocused() || window.visualViewport.height > window.innerHeight * 0.85)) document.body.classList.remove('m-typing');
+}, 120); });
 
 // ทุกครั้งที่แถบเลือกพิมพ์รวมเปลี่ยน ตัวเลขบนปุ่มพิมพ์รวมต้องเปลี่ยนตาม (บางจุดเรียกแค่ฟังก์ชันนี้ ไม่ผ่าน render)
 (function(){
