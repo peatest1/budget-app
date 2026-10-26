@@ -1598,11 +1598,25 @@ table.ledger .del-x:hover{color:var(--rust);}
   .net-banner{top:calc(66px + env(safe-area-inset-top));border-radius:14px;width:calc(100vw - 24px);}
 }
 @media (prefers-reduced-motion: reduce){ .net-banner{transition:none;} }
+
+/* ===== เครดิตผู้พัฒนา (ตัวเล็กสีจาง: หน้าเข้าสู่ระบบ / หน้าเปิดแอป / แถบข้าง / หน้าเพิ่มเติมของมือถือ) ===== */
+.app-credit{font-size:11px;line-height:1.6;color:var(--text-faint);}
+.app-credit b{font-weight:700;}
+.app-credit .ver{font-family:'JetBrains Mono',monospace;font-size:10.5px;}
+.auth-credit{margin-top:22px;text-align:center;color:#7C8B91;}
+.auth-credit b{color:#B7C2C6;}
+.side-credit{margin-top:12px;padding:10px 2px 0;border-top:1px dashed rgba(255,255,255,.10);color:#6F7D84;font-size:10.5px;}
+.side-credit b{color:#9AA8AE;}
+.splash-credit{display:none;}
+@media (max-width:760px), (max-width:1000px) and (pointer:coarse){
+  .splash-credit{display:block;position:absolute;left:0;right:0;bottom:calc(26px + env(safe-area-inset-bottom));text-align:center;color:#7C8B91;}
+  .splash-credit b{color:#C9D3D6;}
+}
 </style>
 </head>
 <body>
 <!-- หน้าเปิดแอปของเวอร์ชันมือถือ (จอคอมลบทิ้งทันทีตอนโหลด) -->
-<div class="m-splash" id="mSplash" aria-hidden="true"><div class="m-splash-in"><img id="mSplashLogo" alt=""><div class="t">คุมไม่ไหว</div><div class="s">BUDGET TRACKER</div><div class="m-load"><i></i><i></i><i></i></div></div></div>
+<div class="m-splash" id="mSplash" aria-hidden="true"><div class="m-splash-in"><img id="mSplashLogo" alt=""><div class="t">คุมไม่ไหว</div><div class="s">BUDGET TRACKER</div><div class="m-load"><i></i><i></i><i></i></div></div><div class="app-credit splash-credit" data-credit="1"></div></div>
 
 <!-- Auth screen -->
 <div class="center-screen" id="authScreen">
@@ -1667,6 +1681,7 @@ table.ledger .del-x:hover{color:var(--rust);}
         <button onclick="toggleAuthMode()" id="authSwitchBtn">สมัครสมาชิก</button>
       </div>
     </div>
+    <div class="app-credit auth-credit" data-credit="2"></div>
   </div>
 </div>
 
@@ -1758,6 +1773,7 @@ table.ledger .del-x:hover{color:var(--rust);}
         <span class="sti">🖨</span><span>ใบตัดงบเปล่า</span>
       </button>
       <div class="side-tool-note">กรอกเอง พิมพ์ แล้วจบ — ไม่ตัดงบ ไม่เก็บบันทึก</div>
+      <div class="app-credit side-credit" data-credit="2"></div>
     </div>
   </aside>
 
@@ -10744,7 +10760,7 @@ function mOpenMore(){
     <div class="m-group-h">บัญชีของฉัน</div>
     <div class="m-group">${row('user', 'ข้อมูลผู้ใช้ (ชื่อในใบตัดงบ)', "mRun('openProfileModal()')", escapeHtml(u.email || ''))}
       ${row('logout', 'ออกจากระบบ', "mRun('logout()')", '', 'danger')}</div>
-    <div class="m-sheet-foot">คุมไม่ไหว · Budget Tracker</div>`);
+    <div class="m-sheet-foot app-credit" data-credit="2">${appCreditHtml(2)}</div>`);
 }
 
 /* ---------- พิมพ์อยู่: ซ่อนแถบล่าง ไม่ให้ลอยขึ้นมาบังช่องกรอกตอนแป้นพิมพ์เปิด ---------- */
@@ -10853,6 +10869,15 @@ if(window.__fbReady) guardFbWritesWhenOffline(); else window.addEventListener('f
     };
   });
 })();
+/* ============ เครดิตผู้พัฒนา — แก้ข้อความที่นี่ที่เดียว ทุกจุดเปลี่ยนตาม ============ */
+var APP_CREDIT = { name:'ทีปกร ภูเมศร์', unit:'ผปบ.กฟส.เบตง', tel:'14755', year:'2569', version:'2.0' };
+function appCreditHtml(lines){
+  const c = APP_CREDIT;
+  const l1 = `พัฒนาโดย <b>${escapeHtml(c.name)}</b> · ${escapeHtml(c.unit)}`;
+  const l2 = `ติดต่อ/แจ้งปัญหา โทรภายใน ${escapeHtml(c.tel)} · © ${escapeHtml(c.year)} · <span class="ver">v${escapeHtml(c.version)}</span>`;
+  return lines === 1 ? l1 + `<br><span class="ver">v${escapeHtml(c.version)}</span>` : l1 + '<br>' + l2;
+}
+document.querySelectorAll('.app-credit[data-credit]').forEach(el => { el.innerHTML = appCreditHtml(Number(el.dataset.credit)); });
 render();
 </script>
 
