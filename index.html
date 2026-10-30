@@ -1614,6 +1614,58 @@ table.ledger .del-x:hover{color:var(--rust);}
   .splash-credit{display:block;position:absolute;left:0;right:0;bottom:calc(26px + env(safe-area-inset-bottom));text-align:center;color:#7C8B91;}
   .splash-credit b{color:#C9D3D6;}
 }
+
+/* ---------- ลงนามในนามคนอื่น ---------- */
+.sidebar > #signerWrap{z-index:5;}
+#signerWrap:empty{display:none;}
+.signer-box{position:relative;z-index:25;margin:-4px 0 2px;padding:9px 10px 10px;border:1px solid rgba(255,255,255,.12);border-radius:10px;}
+.signer-box.on{border-color:var(--amber);background:rgba(232,163,61,.12);}
+.signer-box .sg-label{font-size:10.5px;color:#8B9BA2;margin-bottom:5px;letter-spacing:.02em;}
+.sg-btn{display:flex;align-items:center;gap:7px;width:100%;background:none;border:none;padding:0;cursor:pointer;color:#fff;font:600 13px 'Noto Sans Thai',sans-serif;text-align:left;}
+.sg-btn .sg-name{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+.sg-btn .sg-tag{font-size:10.5px;font-weight:700;padding:1px 7px;border-radius:99px;background:rgba(255,255,255,.1);color:#B7C2C6;}
+.signer-box.on .sg-tag{background:var(--amber);color:var(--ink);}
+.sg-btn .caret{font-size:10px;color:#8B9BA2;}
+.head-menu.sg-menu{left:-10px;right:-10px;min-width:0;top:calc(100% + 10px);}
+.sg-menu button{white-space:normal;align-items:flex-start;}
+.sg-menu .sg-check{width:14px;flex-shrink:0;color:var(--teal);font-weight:800;}
+.sg-menu .sg-mi{display:flex;flex-direction:column;min-width:0;}
+.sg-menu .sg-mi small{font-weight:500;font-size:11px;color:var(--text-muted);}
+.sg-menu button.on{background:var(--teal-soft);}
+#proxyBar{display:none;}
+body.proxy-on #proxyBar{display:flex;position:fixed;top:0;left:280px;right:0;z-index:40;align-items:center;gap:10px;
+  min-height:36px;padding:6px 40px;box-sizing:border-box;background:var(--amber);color:var(--ink);font-size:13px;
+  box-shadow:0 2px 10px -4px rgba(22,33,43,.4);}
+#proxyBar .pb-t{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+#proxyBar small{font-size:12px;margin-left:8px;opacity:.75;}
+#proxyBar button{flex-shrink:0;background:var(--ink);color:#fff;border:none;border-radius:99px;padding:5px 12px;font:700 12px 'Noto Sans Thai',sans-serif;cursor:pointer;}
+body.proxy-on .main{padding-top:64px;}
+.pf-signers{display:flex;flex-direction:column;align-items:flex-start;gap:8px;}
+.pf-sg-empty{font-size:12px;color:var(--text-muted);line-height:1.55;}
+.pf-sg-names{display:flex;flex-wrap:wrap;gap:6px;}
+.pf-sg-names span{font-size:12.5px;padding:3px 10px;border-radius:99px;background:var(--paper);border:1px solid var(--border-soft);}
+.sg-list{display:flex;flex-direction:column;gap:6px;margin-bottom:14px;}
+.sg-row{display:flex;align-items:center;gap:8px;padding:9px 10px;border:1px solid var(--border-soft);border-radius:10px;}
+.sg-row.on{border-color:var(--amber);background:#FFF8EC;}
+.sg-row-t{flex:1;min-width:0;display:flex;flex-direction:column;}
+.sg-row-t small{font-size:11.5px;color:var(--text-muted);}
+.sg-row .sg-del{color:var(--rust);}
+.sg-empty{font-size:12.5px;color:var(--text-muted);padding:10px;border:1px dashed var(--border-soft);border-radius:10px;text-align:center;}
+.sg-form{padding:12px;border-radius:12px;background:var(--paper);}
+.sg-form-h{font-weight:700;font-size:13px;margin-bottom:8px;}
+.sg-form .field{margin-bottom:10px;}
+.sg-form-act{display:flex;justify-content:flex-end;gap:8px;}
+@media (max-width:760px), (max-width:1000px) and (pointer:coarse){
+  body.proxy-on #proxyBar{left:0;top:calc(58px + env(safe-area-inset-top));padding:6px 16px;z-index:44;}
+  body.proxy-on .main{padding-top:18px;}
+  body.proxy-on .app-shell{padding-top:calc(94px + env(safe-area-inset-top));}
+  #proxyBar small{display:none;}
+  .m-tile.amber i{background:var(--amber);color:#fff;}
+  .sg-row{flex-wrap:wrap;}
+  /* ในเมนูสไลด์: รายชื่อลอยเต็มความกว้างเหนือแถบล่าง เหมือนเมนูจัดการอื่นๆ บนมือถือ */
+  .head-menu.sg-menu{left:max(12px, env(safe-area-inset-left));right:max(12px, env(safe-area-inset-right));top:auto;}
+}
+@media print{ #proxyBar{display:none !important;} }
 </style>
 </head>
 <body>
@@ -1710,6 +1762,7 @@ table.ledger .del-x:hover{color:var(--rust);}
     </div>
     <div id="roleBadgeWrap"></div>
     <div class="account-row" id="accountRow"></div>
+    <div id="signerWrap"></div>
     <div id="deptWrap"></div>
 
     <div class="mode-switch" id="modeSwitchWrap"></div>
@@ -2281,9 +2334,35 @@ table.ledger .del-x:hover{color:var(--rust);}
       <label>รหัสพนักงาน (สำหรับใบตัดงบ)</label>
       <input type="text" id="pfCode" placeholder="เช่น 513847">
     </div>
+    <div class="field">
+      <label>ลงนามแทนคนอื่น</label>
+      <div class="pf-signers" id="pfSigners"></div>
+    </div>
     <div class="modal-actions">
       <button class="btn btn-outline" onclick="closeModal('profileModal')">ยกเลิก</button>
       <button class="btn btn-primary" onclick="submitProfileName()">บันทึก</button>
+    </div>
+  </div>
+</div>
+
+<!-- ชื่อที่ลงนามแทน -->
+<div class="modal-overlay hidden" id="signersModal">
+  <div class="modal">
+    <h2>ชื่อที่ลงนามแทน</h2>
+    <p class="modal-desc">บันทึกชื่อคนที่คุณคุมงบแทนไว้ แล้วสลับได้ในแตะเดียว — รายการที่เพิ่มและใบตัดงบจะใช้ชื่อนั้น ระบบยังจำไว้ว่าคุณเป็นคนบันทึก</p>
+    <div class="sg-list" id="sgList"></div>
+    <div class="sg-form">
+      <div class="sg-form-h" id="sgFormTitle">เพิ่มชื่อใหม่</div>
+      <div class="field"><label>ชื่อ-นามสกุล</label><input type="text" id="sgName" placeholder="เช่น นายสมชาย ใจดี"></div>
+      <div class="field"><label>ตำแหน่ง/ที่อยู่ (สำหรับใบตัดงบ)</label><input type="text" id="sgPos" placeholder="เช่น พชง.ผปบ.กฟส.เบตง" data-office-ph="เช่น พชง.ผปบ.กฟส.{o}"></div>
+      <div class="field"><label>รหัสพนักงาน</label><input type="text" id="sgCode" placeholder="เช่น 513847"></div>
+      <div class="sg-form-act">
+        <button class="btn btn-outline btn-sm hidden" id="sgCancelEdit" onclick="resetSignerForm()">ยกเลิกแก้ไข</button>
+        <button class="btn btn-primary btn-sm" id="sgSaveBtn" onclick="saveSignerForm()">+ เพิ่มชื่อนี้</button>
+      </div>
+    </div>
+    <div class="modal-actions">
+      <button class="btn btn-outline" onclick="closeModal('signersModal')">เสร็จ</button>
     </div>
   </div>
 </div>
@@ -3501,6 +3580,12 @@ function canManageDept(deptKey){
 }
 // True if the user is allowed to freely switch between all 7 departments
 // (full admins and company reps; regular members and dept_admins stay locked to their own department).
+// ส่งออก Excel: ทุกคนในหน่วยงานส่งออกแผนกที่ตัวเองดูอยู่ได้ (ไฟล์มีแค่ข้อมูลที่เห็นบนจออยู่แล้ว)
+// ยกเว้นตัวแทนบริษัท ซึ่งเป็นคนนอกที่ดูได้ทุกแผนก
+function canExportDept(deptKey){
+  if(!deptKey || isCompanyRep()) return false;
+  return isAdmin() || state.userDept === deptKey;
+}
 function canSwitchAllDepts(){
   return isAdmin() || isCompanyRep();
 }
@@ -4125,9 +4210,9 @@ async function printCombinedProjectSlip(){
   }
   // เหตุผลเดียวกับใบรวมฝั่งงบทำการ: บิลร่วมมีอีกครึ่งอยู่คนละระบบ ใบรวมจะได้ยอดไม่ครบ
   if(selectionHasXSplit(entries.map(e=>e.row))) return;
-  const payerName = state.user ? (state.user.displayName || state.user.email) : '';
-  const payerCode = state.user ? (state.user.employeeCode || '') : '';
-  const payerPosition = state.user ? (state.user.position || '') : '';
+  const payerName = state.user ? signerName() : '';
+  const payerCode = state.user ? signerCode() : '';
+  const payerPosition = state.user ? signerPos() : '';
   const docDateStr = todayStr();
   const uniqueWbsForTitle = [...new Set(entries.map(e=>e.project.wbs))];
   const docTitle = `ใบตัดงบรวม_${uniqueWbsForTitle.join('+')}_${docDateStr}`;
@@ -4414,9 +4499,9 @@ function printCombinedSlip(){
     if(!confirm('รายการที่เลือกรวมกันใช้ ' + rowsNeeded + ' แถวในตารางบน เกินที่ใบหน้าเดียวรองรับ (' + SLIP_MAX_ITEM_ROWS + ' แถว)\n'
       + 'ใบจะล้นไปหน้าที่สอง\n\nพิมพ์ต่อไหม? (หรือกดยกเลิก แล้วแบ่งพิมพ์เป็นสองใบ)')) return;
   }
-  const payerName = state.user ? (state.user.displayName || state.user.email) : '';
-  const payerCode = state.user ? (state.user.employeeCode || '') : '';
-  const payerPosition = state.user ? (state.user.position || '') : '';
+  const payerName = state.user ? signerName() : '';
+  const payerCode = state.user ? signerCode() : '';
+  const payerPosition = state.user ? signerPos() : '';
   const docDateStr = todayStr();
   // ติ๊กครบทั้งชุดของบิลเดียวกัน = บิลใบเดียว ตารางบนจึงรวมเป็นบรรทัดเดียว เหมือนกดพิมพ์จากแถวนั้นตรงๆ
   const splitIds = entries.map(e=> e.row.splitId).filter(Boolean);
@@ -4517,7 +4602,7 @@ function trDefaultLetter(p){
     intro: 'ตามอนุมัติที่ ต.3 '+office+' ผจก.'+office+' ให้ก่อสร้าง/ขยายเขต /ปรับปรุงระบบจำหน่าย',
     body: TR_DEFAULT_BODY,
     closing: 'จึงเรียนมาเพื่อโปรดพิจารณาอนุมัติ',
-    signName: u.displayName || '', signPos: u.position || '',
+    signName: (state.user ? signerName(false) : '') || '', signPos: state.user ? signerPos() : '',
     distro: '- '+head+',หผ.สน.\nอนุมัติแจ้งส่วนที่เกี่ยวข้องดำเนินการต่อไป',
     // the approving manager is the same person on every one of these letters, so it is pre-filled too
     appName: (OFFICE.approver && OFFICE.approver.name) || '', appPos: ((OFFICE.approver && OFFICE.approver.positionPrefix) || 'ผจก.')+office, appDate: '',
@@ -5726,10 +5811,10 @@ function addEntry(itemCode){
   const entry = {
     id:uid(), date, desc, amount, tax, createdAt:Date.now(),
     addedBy: state.user ? state.user.uid : null,
-    addedByName: state.user ? (state.user.displayName || state.user.email) : null,
+    addedByName: state.user ? signerName() : null,
     addedByEmail: state.user ? state.user.email : null,
-    addedByPosition: state.user ? (state.user.position || '') : '',
-    addedByCode: state.user ? (state.user.employeeCode || '') : '',
+    addedByPosition: state.user ? signerPos() : '',
+    addedByCode: state.user ? signerCode() : '', ...signerAudit(),
   };
   if(itemHasVatCreditToggle(item)){
     const vatEl = document.getElementById('entryVatCreditable');
@@ -5744,10 +5829,10 @@ function newEntryBase(){
   return {
     id:uid(), createdAt:Date.now(),
     addedBy: state.user ? state.user.uid : null,
-    addedByName: state.user ? (state.user.displayName || state.user.email) : null,
+    addedByName: state.user ? signerName() : null,
     addedByEmail: state.user ? state.user.email : null,
-    addedByPosition: state.user ? (state.user.position || '') : '',
-    addedByCode: state.user ? (state.user.employeeCode || '') : '',
+    addedByPosition: state.user ? signerPos() : '',
+    addedByCode: state.user ? signerCode() : '', ...signerAudit(),
   };
 }
 function commitNewCcEntry(cc, item, itemCode, entry){
@@ -6340,10 +6425,10 @@ async function addWhEntry(){
   const entry = {
     id: uid(), date, desc, amount,
     addedBy: state.user ? state.user.uid : null,
-    addedByName: state.user ? (state.user.displayName || '') : '',
+    addedByName: state.user ? (signerName(false) || '') : '',
     addedByEmail: state.user ? (state.user.email || '') : '',
-    addedByCode: state.user ? (state.user.employeeCode || '') : '',
-    addedByPosition: state.user ? (state.user.position || '') : '',
+    addedByCode: state.user ? signerCode() : '', ...signerAudit(),
+    addedByPosition: state.user ? signerPos() : '',
     createdAt: Date.now(),
   };
   let base;
@@ -6434,9 +6519,9 @@ function printCombinedWhSlip(){
     alert('ไม่พบรายการที่เลือกไว้ อาจถูกลบไปแล้ว');
     state.whSlipSelection = []; render(); return;
   }
-  const payerName = state.user ? (state.user.displayName || state.user.email) : '';
-  const payerCode = state.user ? (state.user.employeeCode || '') : '';
-  const payerPosition = state.user ? (state.user.position || '') : '';
+  const payerName = state.user ? signerName() : '';
+  const payerCode = state.user ? signerCode() : '';
+  const payerPosition = state.user ? signerPos() : '';
   const docDateStr = todayStr();
   openSlipPrintWindow(
     buildProjectSlipBodyHtml(entries, payerName, payerCode, payerPosition, docDateStr),
@@ -6918,10 +7003,10 @@ function addProjectEntry(workTypeKey, catKey){
   const entry = {
     id:uid(), date, desc, amount, tax, createdAt:Date.now(),
     addedBy: state.user ? state.user.uid : null,
-    addedByName: state.user ? (state.user.displayName || state.user.email) : null,
+    addedByName: state.user ? signerName() : null,
     addedByEmail: state.user ? state.user.email : null,
-    addedByPosition: state.user ? (state.user.position || '') : '',
-    addedByCode: state.user ? (state.user.employeeCode || '') : '',
+    addedByPosition: state.user ? signerPos() : '',
+    addedByCode: state.user ? signerCode() : '', ...signerAudit(),
   };
   if(projectCatHasVatCreditToggle(catKey)){
     const vatEl = document.getElementById('projEntryVatCreditable');
@@ -7119,7 +7204,7 @@ function renderRoleBadge(){
     : '';
   // Hands the year's numbers to someone outside the system (finance), unlike the .json backup,
   // which only this app can read back.
-  const exportBtn = canManageDept(state.activeDept)
+  const exportBtn = canExportDept(state.activeDept)
     // render() runs on every Firestore snapshot, so this must redraw the in-progress state too —
     // otherwise a colleague saving anything mid-export makes the button look idle again.
     ? `<button id="exportXlsxBtn" onclick="exportYearToExcel()" ${exportInFlight ? 'disabled' : ''} title="ส่งออกข้อมูลของแผนกนี้ในปีงบประมาณที่เลือก เป็นไฟล์ Excel (.xlsx) แยกชีตละแฟ้ม" style="background:none;border:1px solid rgba(255,255,255,.22);border-radius:6px;padding:3px 9px;font-size:11px;font-weight:600;color:#B7C2C6;cursor:pointer;font-family:'Noto Sans Thai',sans-serif;">${exportInFlight ? '⏳ กำลังส่งออก...' : '📊 ส่งออก Excel'}</button>`
@@ -7150,6 +7235,7 @@ function openProfileModal(){
   document.getElementById('pfEmail').value = state.user.email || '';
   document.getElementById('pfPosition').value = state.user.position || '';
   document.getElementById('pfCode').value = state.user.employeeCode || '';
+  renderPfSigners();
   openModal('profileModal');
 }
 async function submitProfileName(){
@@ -7169,6 +7255,162 @@ async function submitProfileName(){
     alert('บันทึกชื่อไม่สำเร็จ: ' + e.message);
   }
 }
+
+/* ============ ลงนามในนามคนอื่น ============
+   บางคนคุมงบแทนคนอื่นเป็นประจำ เดิมต้องแก้ชื่อในโปรไฟล์ไปมา (ชื่อบัญชีเปลี่ยนตามทั้งระบบ)
+   ตอนนี้บันทึกชื่อแทนไว้ในโปรไฟล์ (users/{uid}.signers) แล้วเลือกว่าจะใช้ชื่อไหน
+   - ชื่อที่เลือกไปอยู่ที่ "ผู้เบิก" ของรายการที่เพิ่ม ใบตัดงบ ใบรวม ใบตัดงบเปล่า และใบขอโอนงบ
+   - ชื่อบัญชีจริงไม่เปลี่ยน: ประวัติ แก้ไขโดย/ลบโดย ยังเป็นชื่อจริง และรายการที่ทำในนามคนอื่นเก็บ addedByRealName ไว้
+   - ชื่อที่เลือกจำไว้ในเครื่องนั้น (คนละเครื่องเลือกคนละชื่อได้) — ไม่มีชื่อแทน = ทุกอย่างเหมือนเดิม */
+const SIGNER_MAX = 10;
+function cleanSigners(raw){
+  if(!Array.isArray(raw)) return [];
+  const t = v => String(v == null ? '' : v).trim().slice(0, 120);
+  return raw.filter(x => x && t(x.name)).slice(0, SIGNER_MAX)
+    .map(x => ({ id: /^[A-Za-z0-9_-]{1,40}$/.test(t(x.id)) ? t(x.id) : uid(), name: t(x.name), position: t(x.position), code: t(x.code) }));
+}
+function signerList(){ return (state.user && Array.isArray(state.user.signers)) ? state.user.signers : []; }
+function signerStoreKey(){ return 'kmw-signer:' + (state.user ? state.user.uid : ''); }
+function loadActiveSignerId(){
+  let id = null;
+  try{ id = localStorage.getItem(signerStoreKey()); }catch(e){}
+  return (id && signerList().some(x => x.id === id)) ? id : null;
+}
+function activeSigner(){
+  if(!state.user || !state.activeSignerId) return null;
+  return signerList().find(x => x.id === state.activeSignerId) || null;
+}
+function signerName(withEmail){
+  const a = activeSigner(); if(a) return a.name;
+  return withEmail === false ? (state.user.displayName || '') : (state.user.displayName || state.user.email);
+}
+function signerPos(){ const a = activeSigner(); return a ? (a.position || '') : (state.user.position || ''); }
+function signerCode(){ const a = activeSigner(); return a ? (a.code || '') : (state.user.employeeCode || ''); }
+function signerAudit(){ return activeSigner() ? { addedByRealName: state.user.displayName || state.user.email || '' } : {}; }
+function shortName(n){ const w = String(n || '').replace(/^(นางสาว|นาย|นาง|น\.ส\.)\s*/, '').trim().split(/\s+/)[0]; return w || n; }
+function setActiveSigner(id){
+  state.activeSignerId = (id && signerList().some(x => x.id === id)) ? id : null;
+  try{ if(state.activeSignerId) localStorage.setItem(signerStoreKey(), state.activeSignerId); else localStorage.removeItem(signerStoreKey()); }catch(e){}
+  render();
+  const a = activeSigner();
+  if(typeof showToast === 'function') showToast(a ? 'ลงนามในนาม ' + a.name : 'กลับมาใช้ชื่อตัวเอง');
+}
+function syncProxyBar(){
+  let bar = document.getElementById('proxyBar');
+  const a = state.user ? activeSigner() : null;
+  document.body.classList.toggle('proxy-on', !!a);
+  if(!a){ if(bar) bar.innerHTML = ''; return; }
+  if(!bar){ bar = document.createElement('div'); bar.id = 'proxyBar'; bar.setAttribute('role', 'status'); document.body.appendChild(bar); }
+  bar.innerHTML = `<span class="pb-ico">✍</span><span class="pb-t">กำลังลงนามในนาม <b>${escapeHtml(a.name)}</b>${a.position ? `<small>${escapeHtml(a.position)}</small>` : ''}</span>
+    <button type="button" onclick="setActiveSigner(null)">ใช้ชื่อตัวเอง</button>`;
+}
+function signerMenuItems(){
+  const me = state.user.displayName || state.user.email || '';
+  const cur = state.activeSignerId;
+  const item = (id, name, sub) => `<button type="button" role="menuitemradio" aria-checked="${(cur || null) === id}" class="${(cur || null) === id ? 'on' : ''}"
+      onclick="closeHeadMenus();setActiveSigner(${id ? `'${id}'` : 'null'})"><span class="sg-check">${(cur || null) === id ? '✓' : ''}</span><span class="sg-mi"><b>${escapeHtml(name)}</b>${sub ? `<small>${escapeHtml(sub)}</small>` : ''}</span></button>`;
+  return item(null, me, 'ตัวเอง' + (state.user.position ? ' · ' + state.user.position : ''))
+    + signerList().map(x => item(x.id, x.name, x.position)).join('')
+    + `<div class="sep"></div><button type="button" onclick="closeHeadMenus();openSignersModal()">${headMenuIcon('pen')}จัดการรายชื่อ</button>`;
+}
+function renderSignerWrap(){
+  const el = document.getElementById('signerWrap');
+  if(!el) return;
+  if(!state.user || !signerList().length){ el.innerHTML = ''; return; }
+  const a = activeSigner();
+  el.innerHTML = `<div class="signer-box ${a ? 'on' : ''}">
+    <div class="sg-label">ชื่อผู้เบิกในใบตัดงบ</div>
+    <div class="head-menu-wrap">
+      <button type="button" class="sg-btn" onclick="if(mOn()){ mOpenSignerSheet(); } else toggleHeadMenu(this)" aria-haspopup="true" aria-expanded="false">
+        <span class="sg-name">${escapeHtml(a ? a.name : (state.user.displayName || state.user.email || ''))}</span>
+        <span class="sg-tag">${a ? 'ในนาม' : 'ตัวเอง'}</span><span class="caret">▾</span></button>
+      <div class="head-menu sg-menu" role="menu">${signerMenuItems()}</div>
+    </div></div>`;
+}
+function mOpenSignerSheet(){
+  const me = state.user.displayName || state.user.email || '';
+  const cur = state.activeSignerId || null;
+  const row = (id, name, sub) => `<button type="button" class="m-row ${cur === id ? 'on' : ''}" onclick="mCloseSheet();setActiveSigner(${id ? `'${id}'` : 'null'})">
+      <i>${mIco('user', 19)}</i><span>${escapeHtml(name)}${sub ? `<small>${escapeHtml(sub)}</small>` : ''}</span><b class="chev">${cur === id ? '✓' : ''}</b></button>`;
+  mOpenSheet(`<div class="m-group-h">ลงนามในใบตัดงบด้วยชื่อ</div>
+    <div class="m-group">${row(null, me, 'ตัวเอง' + (state.user.position ? ' · ' + state.user.position : ''))}${signerList().map(x => row(x.id, x.name, x.position)).join('')}</div>
+    <div class="m-group">
+      <button type="button" class="m-row" onclick="mRun('openSignersModal()')"><i>${mIco('pen', 19)}</i><span>จัดการรายชื่อ</span><b class="chev">›</b></button>
+      <button type="button" class="m-row" onclick="mRun('openProfileModal()')"><i>${mIco('user', 19)}</i><span>แก้ไขโปรไฟล์ของฉัน</span><b class="chev">›</b></button>
+    </div>`);
+}
+function renderPfSigners(){
+  const el = document.getElementById('pfSigners'); if(!el) return;
+  const list = signerList();
+  el.innerHTML = list.length
+    ? `<div class="pf-sg-names">${list.map(x => `<span>${escapeHtml(x.name)}</span>`).join('')}</div>
+       <button type="button" class="btn btn-outline btn-sm" onclick="closeModal('profileModal');openSignersModal()">จัดการรายชื่อ</button>`
+    : `<div class="pf-sg-empty">ถ้าต้องคุมงบในนามคนอื่นบ่อยๆ บันทึกชื่อเขาไว้ แล้วสลับได้ในแตะเดียว ไม่ต้องแก้ชื่อตัวเองไปมา</div>
+       <button type="button" class="btn btn-outline btn-sm" onclick="closeModal('profileModal');openSignersModal()">+ เพิ่มชื่อที่ลงนามแทน</button>`;
+}
+let sgEditingId = null;
+function openSignersModal(){ resetSignerForm(); renderSgList(); openModal('signersModal'); }
+function renderSgList(){
+  const list = signerList();
+  document.getElementById('sgList').innerHTML = list.length ? list.map(x => `
+    <div class="sg-row ${x.id === state.activeSignerId ? 'on' : ''}">
+      <div class="sg-row-t"><b>${escapeHtml(x.name)}</b><small>${escapeHtml([x.position, x.code ? 'รหัส ' + x.code : ''].filter(Boolean).join(' · ') || '—')}</small></div>
+      <button type="button" class="btn btn-outline btn-sm" onclick="editSigner('${x.id}')">แก้ไข</button>
+      <button type="button" class="btn btn-outline btn-sm sg-del" onclick="deleteSigner('${x.id}')">ลบ</button>
+    </div>`).join('') : `<div class="sg-empty">ยังไม่มีชื่อที่ลงนามแทน</div>`;
+}
+function resetSignerForm(){
+  sgEditingId = null;
+  ['sgName','sgPos','sgCode'].forEach(id => { document.getElementById(id).value = ''; });
+  document.getElementById('sgFormTitle').textContent = 'เพิ่มชื่อใหม่';
+  document.getElementById('sgSaveBtn').textContent = '+ เพิ่มชื่อนี้';
+  document.getElementById('sgCancelEdit').classList.add('hidden');
+}
+function editSigner(id){
+  const x = signerList().find(s => s.id === id); if(!x) return;
+  sgEditingId = id;
+  document.getElementById('sgName').value = x.name;
+  document.getElementById('sgPos').value = x.position;
+  document.getElementById('sgCode').value = x.code;
+  document.getElementById('sgFormTitle').textContent = 'แก้ไข: ' + x.name;
+  document.getElementById('sgSaveBtn').textContent = 'บันทึกการแก้ไข';
+  document.getElementById('sgCancelEdit').classList.remove('hidden');
+  document.getElementById('sgName').focus();
+}
+async function writeSigners(list){
+  const prev = state.user.signers;
+  state.user.signers = cleanSigners(list);
+  try{ await window.fb.setUserProfile(state.user.uid, { signers: state.user.signers }); }
+  catch(e){ state.user.signers = prev; alert('บันทึกไม่สำเร็จ: ' + e.message); return false; }
+  if(!activeSigner()) setActiveSigner(null); else render();
+  renderSgList();
+  return true;
+}
+async function saveSignerForm(){
+  const name = document.getElementById('sgName').value.trim();
+  const position = document.getElementById('sgPos').value.trim();
+  const code = document.getElementById('sgCode').value.trim();
+  if(!name){ alert('กรุณากรอกชื่อ-นามสกุล'); return; }
+  const list = signerList().slice();
+  if(sgEditingId){
+    const i = list.findIndex(s => s.id === sgEditingId);
+    if(i >= 0) list[i] = { ...list[i], name, position, code };
+  } else {
+    if(list.length >= SIGNER_MAX){ alert('บันทึกได้สูงสุด ' + SIGNER_MAX + ' ชื่อ'); return; }
+    list.push({ id: uid(), name, position, code });
+  }
+  if(await writeSigners(list)) resetSignerForm();
+}
+async function deleteSigner(id){
+  const x = signerList().find(s => s.id === id); if(!x) return;
+  if(!confirm('ลบ "' + x.name + '" ออกจากรายชื่อที่ลงนามแทน?\n(รายการที่บันทึกไปแล้วยังเป็นชื่อนี้เหมือนเดิม)')) return;
+  if(sgEditingId === id) resetSignerForm();
+  await writeSigners(signerList().filter(s => s.id !== id));
+}
+(function(){
+  const origRender = render;
+  render = function(){ const r = origRender.apply(this, arguments); try{ renderSignerWrap(); syncProxyBar(); }catch(e){ console.error(e); } return r; };
+})();
 
 /* ============ org settings (admin) ============ */
 function openOrgSettingsModal(){
@@ -7690,7 +7932,7 @@ function xlOrphanGroup(ws, r, cols, rows, head, moneyTo){
     const ledger = entryLedgerAmount(e);
     total += ledger;
     xlDataRow(ws, r, [e.date||'', xlDescText(e), Number(e.amount)||0, Number(e.tax)||0, ledger, '', '',
-      e.addedByName || e.addedByEmail || '', entryEditNoteText(e)], 2, moneyTo);
+      (e.addedByName || e.addedByEmail || '') + (e.addedByRealName ? ' (บันทึกโดย ' + e.addedByRealName + ')' : ''), entryEditNoteText(e)], 2, moneyTo);
     r++;
   });
   xlSubtotalRow(ws, r, cols, 'รวมรายการที่ไม่มีหมวดรองรับ', {5: total}, 2);
@@ -7925,7 +8167,7 @@ async function buildBudgetWorkbook(ExcelJS, deptLabel, year){
         running = money(running + ledger);
         xlDataRow(ws, r, [e.date||'', xlDescText(e), Number(e.amount)||0, Number(e.tax)||0,
           ledger, running, item.budget - running,
-          e.addedByName || e.addedByEmail || '', entryEditNoteText(e)], 2, 6);
+          (e.addedByName || e.addedByEmail || '') + (e.addedByRealName ? ' (บันทึกโดย ' + e.addedByRealName + ')' : ''), entryEditNoteText(e)], 2, 6);
         r++;
       });
       }
@@ -8015,7 +8257,7 @@ async function buildProjectWorkbook(ExcelJS, deptLabel, year){
           running = money(running + ledger);
           xlDataRow(ws, r, [e.date||'', xlDescText(e), Number(e.amount)||0, Number(e.tax)||0,
             ledger, running, cat.usable - running,
-            e.addedByName || e.addedByEmail || '', entryEditNoteText(e)], 2, 6);
+            (e.addedByName || e.addedByEmail || '') + (e.addedByRealName ? ' (บันทึกโดย ' + e.addedByRealName + ')' : ''), entryEditNoteText(e)], 2, 6);
           r++;
         });
         }
@@ -8078,7 +8320,7 @@ async function buildWarehouseWorkbook(ExcelJS, deptLabel, year){
     s.rows.forEach(e=>{
       running = money(running + (Number(e.amount)||0));
       xlDataRow(ws, r, [e.date||'', e.desc||'', Number(e.amount)||0, running, s.budget - running,
-        e.addedByName || e.addedByEmail || '', entryEditNoteText(e)], 2, 4);
+        (e.addedByName || e.addedByEmail || '') + (e.addedByRealName ? ' (บันทึกโดย ' + e.addedByRealName + ')' : ''), entryEditNoteText(e)], 2, 4);
       r++;
     });
     }
@@ -8366,10 +8608,10 @@ async function submitXSplit(){
 
   const who = {
     addedBy: state.user ? state.user.uid : null,
-    addedByName: state.user ? (state.user.displayName || state.user.email) : null,
+    addedByName: state.user ? signerName() : null,
     addedByEmail: state.user ? state.user.email : null,
-    addedByPosition: state.user ? (state.user.position || '') : '',
-    addedByCode: state.user ? (state.user.employeeCode || '') : '',
+    addedByPosition: state.user ? signerPos() : '',
+    addedByCode: state.user ? signerCode() : '', ...signerAudit(),
   };
   const xSplitId = uid();
   const ccEntryId = uid();
@@ -8438,9 +8680,9 @@ function openBlankSlipModal(){
   v('bsCcCode', '');
   v('bsDate', todayStr());
   v('bsDocNoOffice', ''); v('bsDocNo', '');
-  v('bsPayer', state.user ? (state.user.displayName || state.user.email || '') : '');
-  v('bsPayerCode', state.user ? (state.user.employeeCode || '') : '');
-  v('bsPayerPos', state.user ? (state.user.position || '') : '');
+  v('bsPayer', state.user ? (signerName() || '') : '');
+  v('bsPayerCode', state.user ? signerCode() : '');
+  v('bsPayerPos', state.user ? signerPos() : '');
   document.getElementById('bsUseCcTable').checked = false;
   document.getElementById('bsUseWbsTable').checked = false;
   bsAuto = {};
@@ -9092,10 +9334,10 @@ async function submitSplitEntry(){
   const splitId = uid();
   const who = {
     addedBy: state.user ? state.user.uid : null,
-    addedByName: state.user ? (state.user.displayName || state.user.email) : null,
+    addedByName: state.user ? signerName() : null,
     addedByEmail: state.user ? state.user.email : null,
-    addedByPosition: state.user ? (state.user.position || '') : '',
-    addedByCode: state.user ? (state.user.employeeCode || '') : '',
+    addedByPosition: state.user ? signerPos() : '',
+    addedByCode: state.user ? signerCode() : '', ...signerAudit(),
   };
   const payload = lines.map((l, i)=>{
     const entry = {
@@ -9604,7 +9846,7 @@ function renderItemDetail(cc, item){
           return `<tr>
             <td style="text-align:center;"><input type="checkbox" title="เลือกรวมพิมพ์ใบตัดงบ" ${checked?'checked':''} onchange="toggleSlipSelection('${escapeJsStr(item.code)}','${r.id}')"></td>
             <td class="mono">${escapeHtml(r.date)}</td>
-            <td>${escapeHtml(r.desc)}${linesLedgerHtml(r)}${splitBadgeHtml(r)}${xSplitBadgeHtml(r)}${(r.addedByName || r.addedByEmail) ? `<div style="font-size:10.5px;color:var(--text-faint);margin-top:2px;">เพิ่มโดย ${escapeHtml(r.addedByName || r.addedByEmail)}</div>` : ''}${entryEditNoteHtml(r)}${vatBadge}</td>
+            <td>${escapeHtml(r.desc)}${linesLedgerHtml(r)}${splitBadgeHtml(r)}${xSplitBadgeHtml(r)}${(r.addedByName || r.addedByEmail) ? `<div style="font-size:10.5px;color:var(--text-faint);margin-top:2px;">เพิ่มโดย ${escapeHtml(r.addedByName || r.addedByEmail)}${r.addedByRealName ? ' (บันทึกโดย ' + escapeHtml(r.addedByRealName) + ')' : ''}</div>` : ''}${entryEditNoteHtml(r)}${vatBadge}</td>
             <td class="num">${fmt(paidThisTime)}</td>
             <td class="num">${fmt(r.cumulative)}</td>
             <td class="num ${rowRemaining<0?'neg':''}">${fmt(rowRemaining)}</td>
@@ -9841,7 +10083,7 @@ function renderWhMain(){
           return `<tr>
             <td style="text-align:center;"><input type="checkbox" title="เลือกรวมพิมพ์ใบตัดงบ" ${isWhEntrySelected(r.id)?'checked':''} onchange="toggleWhSlipSelection('${r.id}')"></td>
             <td class="mono">${escapeHtml(r.date)}</td>
-            <td>${escapeHtml(r.desc)}${(r.addedByName || r.addedByEmail) ? `<div style="font-size:10.5px;color:var(--text-faint);margin-top:2px;">เพิ่มโดย ${escapeHtml(r.addedByName || r.addedByEmail)}</div>` : ''}${entryEditNoteHtml(r)}</td>
+            <td>${escapeHtml(r.desc)}${(r.addedByName || r.addedByEmail) ? `<div style="font-size:10.5px;color:var(--text-faint);margin-top:2px;">เพิ่มโดย ${escapeHtml(r.addedByName || r.addedByEmail)}${r.addedByRealName ? ' (บันทึกโดย ' + escapeHtml(r.addedByRealName) + ')' : ''}</div>` : ''}${entryEditNoteHtml(r)}</td>
             <td class="num">${fmt(r.amount)}</td>
             <td class="num">${fmt(r.cumulative)}</td>
             <td class="num ${rowRemaining<0?'neg':''}">${fmt(rowRemaining)}</td>
@@ -10139,7 +10381,7 @@ function renderProjectCatDetail(p, workTypeKey, wtName, networkNo, catKey, cat, 
           return `<tr>
             <td style="text-align:center;"><input type="checkbox" title="เลือกรวมพิมพ์ใบตัดงบ (เลือกข้ามแฟ้มงานได้)" ${checked?'checked':''} onchange="toggleProjectSlipSelection('${p.id}','${workTypeKey}','${catKey}','${r.id}')"></td>
             <td class="mono">${escapeHtml(r.date)}</td>
-            <td>${escapeHtml(r.desc)}${xSplitBadgeHtml(r)}${(r.addedByName || r.addedByEmail) ? `<div style="font-size:10.5px;color:var(--text-faint);margin-top:2px;">เพิ่มโดย ${escapeHtml(r.addedByName || r.addedByEmail)}</div>` : ''}${entryEditNoteHtml(r)}${vatBadge}</td>
+            <td>${escapeHtml(r.desc)}${xSplitBadgeHtml(r)}${(r.addedByName || r.addedByEmail) ? `<div style="font-size:10.5px;color:var(--text-faint);margin-top:2px;">เพิ่มโดย ${escapeHtml(r.addedByName || r.addedByEmail)}${r.addedByRealName ? ' (บันทึกโดย ' + escapeHtml(r.addedByRealName) + ')' : ''}</div>` : ''}${entryEditNoteHtml(r)}${vatBadge}</td>
             <td class="num">${fmt(paidThisTime)}</td>
             <td class="num">${fmt(r.cumulative)}</td>
             <td class="num ${rowRemaining<0?'neg':''}">${fmt(rowRemaining)}</td>
@@ -10243,6 +10485,8 @@ function initAuthListener(){
     state.user.displayName = (profile && profile.displayName) ? profile.displayName : '';
     state.user.position = (profile && profile.position) ? profile.position : '';
     state.user.employeeCode = (profile && profile.employeeCode) ? profile.employeeCode : '';
+    state.user.signers = cleanSigners(profile && profile.signers);
+    state.activeSignerId = loadActiveSignerId();
     state.userDept = (profile && profile.deptKey) ? profile.deptKey : null;
     state.activeDept = canSwitchAllDepts() ? (state.activeDept || DEPARTMENTS[0].key) : state.userDept;
     subscribeActiveDeptData();
@@ -10516,7 +10760,7 @@ function mTools(){
   }
   t.push({ l:'ใบตัดงบเปล่า', i:'doc', f:'openBlankSlipModal()', c:'ink' });
   if(cm) t.push({ l:'ถังขยะ', i:'trash', f:'openTrashModal()', c:'ink' });
-  if(cm) t.push({ l:'ส่งออก Excel', i:'sheet', f:'exportYearToExcel()', c:'ink' });
+  if(canExportDept(state.activeDept)) t.push({ l:'ส่งออก Excel', i:'sheet', f:'exportYearToExcel()', c:'ink' });
   if(isAdmin()) t.push({ l:'สำรองข้อมูล', i:'save', f:'downloadBackup()', c:'ink', dot:isBackupOverdue() });
   if(isAdmin()) t.push({ l:'ตั้งค่าหน่วยงาน', i:'gear', f:'openOrgSettingsModal()', c:'ink' });
   return t;
@@ -10525,7 +10769,9 @@ function mTools(){
 function mHomeTiles(){
   // "แก้ไขชื่อ" = ชื่อ ตำแหน่ง รหัสพนักงานของผู้ใช้เอง (ที่พิมพ์ลงใบตัดงบ) ทุกคนแก้ของตัวเองได้
   const cm = canManageDept(state.activeDept), t = [];
-  const me = { l:'แก้ไขชื่อ', i:'user', f:'openProfileModal()' };
+  const me = signerList().length
+    ? { l: activeSigner() ? 'ในนาม ' + shortName(activeSigner().name) : 'ลงนามในนาม', i:'user', f:'mOpenSignerSheet()', c: activeSigner() ? 'amber' : '' }
+    : { l:'แก้ไขชื่อ', i:'user', f:'openProfileModal()' };
   if(state.appMode === 'project'){
     const p = mActiveProject();
     if(p && cm) t.push({ l:'ขอโอนงบ', i:'transfer', f:'openTransferModal()', c:'teal' });
@@ -10792,6 +11038,7 @@ function mOpenMore(){
     <div class="m-group">${mTools().map(x => row(x.i, x.l, `mRun('${x.f.replace(/'/g, "\\'")}')`, x.dot ? 'ยังไม่ได้สำรองเกิน 30 วัน' : '')).join('')}</div>
     <div class="m-group-h">บัญชีของฉัน</div>
     <div class="m-group">${row('user', 'ข้อมูลผู้ใช้ (ชื่อในใบตัดงบ)', "mRun('openProfileModal()')", escapeHtml(u.email || ''))}
+      ${row('swap', 'ชื่อที่ลงนามแทน', "mRun('openSignersModal()')", signerList().length ? signerList().length + ' ชื่อ' + (activeSigner() ? ' · ตอนนี้ใช้ ' + escapeHtml(activeSigner().name) : '') : 'สำหรับคนที่คุมงบในนามคนอื่น')}
       ${row('logout', 'ออกจากระบบ', "mRun('logout()')", '', 'danger')}</div>
     <div class="m-sheet-foot app-credit" data-credit="2">${appCreditHtml(2)}</div>`);
 }
@@ -10903,7 +11150,7 @@ if(window.__fbReady) guardFbWritesWhenOffline(); else window.addEventListener('f
   });
 })();
 /* ============ เครดิตผู้พัฒนา — แก้ข้อความที่นี่ที่เดียว ทุกจุดเปลี่ยนตาม ============ */
-var APP_CREDIT = { name:'ทีปกร ภูเมศร์', unit:'ผปบ.กฟส.เบตง', tel:'14755', year:'2569', version:'2.2' };
+var APP_CREDIT = { name:'ทีปกร ภูเมศร์', unit:'ผปบ.กฟส.เบตง', tel:'14755', year:'2569', version:'2.3' };
 function appCreditHtml(lines){
   const c = APP_CREDIT;
   const l1 = `พัฒนาโดย <b>${escapeHtml(c.name)}</b> · ${escapeHtml(c.unit)}`;
