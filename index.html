@@ -4186,7 +4186,7 @@ async function printCombinedProjectSlip(){
   const neededProjectIds = new Set(
     state.projectSlipSelection
       .map(sel=>sel.projectId)
-      .filter(pid=>pid !== state.activeProjectId)
+      .filter(pid=>pid !== state.activeProjectId || projectEntriesLoadedFor !== state.activeProjectId)
   );
   for(const pid of neededProjectIds){
     try{ otherEntriesByProject[pid] = await window.fb.getProjectEntriesOnce(pid); }
@@ -4200,7 +4200,8 @@ async function printCombinedProjectSlip(){
     if(!workType) continue;
     const cat = workType.budgets[sel.catKey];
     if(!cat) continue;
-    const entriesOverride = sel.projectId === state.activeProjectId ? undefined : (otherEntriesByProject[sel.projectId] || []);
+    // แฟ้มที่เปิดอยู่แต่รายการยังโหลดไม่เสร็จ ใช้ชุดที่เพิ่งดึงมา (กันยอดคงเหลือในใบผิด)
+    const entriesOverride = (sel.projectId === state.activeProjectId && projectEntriesLoadedFor === state.activeProjectId) ? undefined : (otherEntriesByProject[sel.projectId] || []);
     const t = projCatTotals(cat, sel.workTypeKey, sel.catKey, entriesOverride);
     const row = t.rows.find(r=>r.id===sel.entryId);
     if(!row) continue;
@@ -4466,6 +4467,7 @@ function downloadWithdrawalSlip(itemCode, entryId){
 function printCombinedSlip(){
   const cc = getCc(state.activeCcId);
   if(!cc || !state.slipSelection.length) return;
+  if(ccEntriesLoadedFor !== cc.id){ alert('กำลังโหลดรายการจ่ายของศูนย์ต้นทุนนี้ ลองใหม่อีกครั้งในอีกสักครู่'); return; }
   // บิลที่ตัดงบร่วมกับงบหมายเลขงาน มีอีกครึ่งอยู่คนละระบบ ใบรวมจะโชว์แค่ครึ่งเดียวและยอด
   // "รวมเงินที่เบิก" จะน้อยกว่าบิลจริง จึงไม่ยอมพิมพ์ ให้ใช้ปุ่มพิมพ์ของบรรทัดนั้นแทน
   if(selectionHasXSplit(state.slipSelection.map(sel=>findActiveCcEntry(cc, sel.itemCode, sel.entryId)))) return;
@@ -5207,8 +5209,22 @@ function entryLedgerAmount(e){
   if(e.vatCreditable === false) return amount + (Number(e.tax)||0);
   return amount;
 }
+// ระหว่างรอรายการของศูนย์ต้นทุน/แฟ้มงานที่เพิ่งเปิดโหลดเสร็จ: เดิมแสดงยอดจากรายการชุดเก่าที่ค้างในเอกสาร
+// (ซึ่งไม่ครบ) แล้วกระโดดเป็นยอดจริงเมื่อโหลดเสร็จ — ตัวเลขจึงกระตุก ตอนนี้ระหว่างรอใช้ยอดสะสมที่เก็บไว้
+// ในเอกสาร (ตัวเดียวกับที่แถบซ้ายใช้ ซึ่งถูกต้องอยู่แล้ว) และยังไม่โชว์ตารางรายการ จนกว่าจะโหลดครบ
+// เอกสารรุ่นเก่ามากที่ยังไม่มียอดสะสม ใช้วิธีเดิม
+function itemEntriesPending(item){
+  return !!state.activeCcId && ccEntriesLoadedFor !== state.activeCcId && typeof item.totalPaid === 'number';
+}
+function catEntriesPending(cat){
+  return !!state.activeProjectId && projectEntriesLoadedFor !== state.activeProjectId && typeof cat.totalPaid === 'number';
+}
 function itemTotals(item){
   const budget = Number(item.budget)||0;
+  if(itemEntriesPending(item)){
+    const paid = money(item.totalPaid);
+    return {budget, totalPaid: paid, remaining: money(budget - paid), rows: [], loading: true};
+  }
   const source = itemEntriesSource(item.code) || (item.entries || []);
   // Soft-deleted entries stay around (so they can be restored from the trash section) but
   // never count toward the running totals or show up in the ledger.
@@ -5224,6 +5240,7 @@ function itemTotals(item){
 }
 // Soft-deleted entries for one budget item — shown in a small trash section under its ledger.
 function trashedEntriesOfItem(item){
+  if(itemEntriesPending(item)) return [];
   const source = itemEntriesSource(item.code) || (item.entries || []);
   return [...source].filter(e=>e.deletedAt).sort((a,b)=> b.deletedAt-a.deletedAt);
 }
@@ -6640,6 +6657,10 @@ function catEntriesSource(workTypeKey, catKey, cat, entriesOverride){
 function projCatTotals(cat, workTypeKey, catKey, entriesOverride){
   const amount100 = Number(cat.amount100)||0;
   const usable80 = money(amount100 * USABLE_RATIO);
+  if(!entriesOverride && catEntriesPending(cat)){
+    const paid = money(cat.totalPaid);
+    return {amount100, usable80, totalPaid: paid, remaining: money(usable80 - paid), rows: [], loading: true};
+  }
   // Soft-deleted entries stay around (so they can be restored) but never count toward totals.
   const sortedEntries = [...catEntriesSource(workTypeKey, catKey, cat, entriesOverride)].filter(e=>!e.deletedAt).sort((a,b)=> (a.date||'').localeCompare(b.date||'') || a.createdAt-b.createdAt);
   let running = 0;
@@ -6655,6 +6676,7 @@ function projCatTotals(cat, workTypeKey, catKey, entriesOverride){
 }
 // Soft-deleted entries for one WBS category — shown in a small trash section under its ledger.
 function trashedEntriesOfCat(cat, workTypeKey, catKey){
+  if(catEntriesPending(cat)) return [];
   return [...catEntriesSource(workTypeKey, catKey, cat)].filter(e=>e.deletedAt).sort((a,b)=> b.deletedAt-a.deletedAt);
 }
 function projTotals(project){
@@ -9828,7 +9850,9 @@ function renderItemDetail(cc, item){
   const admin = canManageDept(cc.deptKey);
 
   let rowsHtml = '';
-  if(!t.rows.length){
+  if(t.loading){
+    rowsHtml = `<div class="ledger-empty">กำลังโหลดรายการจ่าย...</div>`;
+  } else if(!t.rows.length){
     rowsHtml = `<div class="ledger-empty">ยังไม่มีรายการจ่าย เพิ่มรายการแรกด้านบน</div>`;
   } else {
     rowsHtml = `<table class="ledger">
@@ -10363,7 +10387,9 @@ function renderProjectCatDetail(p, workTypeKey, wtName, networkNo, catKey, cat, 
   const remainCls = t.remaining<0?'neg':'pos';
 
   let rowsHtml = '';
-  if(!t.rows.length){
+  if(t.loading){
+    rowsHtml = `<div class="ledger-empty">กำลังโหลดรายการจ่าย...</div>`;
+  } else if(!t.rows.length){
     rowsHtml = `<div class="ledger-empty">ยังไม่มีรายการจ่าย เพิ่มรายการแรกด้านบน</div>`;
   } else {
     rowsHtml = `<table class="ledger">
@@ -11155,7 +11181,7 @@ if(window.__fbReady) guardFbWritesWhenOffline(); else window.addEventListener('f
   });
 })();
 /* ============ เครดิตผู้พัฒนา — แก้ข้อความที่นี่ที่เดียว ทุกจุดเปลี่ยนตาม ============ */
-var APP_CREDIT = { name:'ทีปกร ภูเมศร์', unit:'ผปบ.กฟส.เบตง', tel:'14755', year:'2569', version:'2.4' };
+var APP_CREDIT = { name:'ทีปกร ภูเมศร์', unit:'ผปบ.กฟส.เบตง', tel:'14755', year:'2569', version:'2.5' };
 function appCreditHtml(lines){
   const c = APP_CREDIT;
   const l1 = `พัฒนาโดย <b>${escapeHtml(c.name)}</b> · ${escapeHtml(c.unit)}`;
