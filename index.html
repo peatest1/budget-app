@@ -1666,6 +1666,58 @@ body.proxy-on .main{padding-top:64px;}
   .head-menu.sg-menu{left:max(12px, env(safe-area-inset-left));right:max(12px, env(safe-area-inset-right));top:auto;}
 }
 @media print{ #proxyBar{display:none !important;} }
+
+/* ---------- อนุมัติสมาชิก ---------- */
+.mb-btn{background:none;border:1px solid rgba(255,255,255,.22);border-radius:6px;padding:3px 9px;font-size:11px;font-weight:600;color:#B7C2C6;cursor:pointer;font-family:'Noto Sans Thai',sans-serif;display:inline-flex;align-items:center;gap:5px;}
+.mb-btn.has{border-color:var(--amber);color:#F4C97E;}
+.mb-btn b{background:var(--rust);color:#fff;border-radius:99px;min-width:17px;height:17px;padding:0 5px;box-sizing:border-box;display:inline-flex;align-items:center;justify-content:center;font-size:10.5px;}
+.mb-modal{max-width:620px;}
+.mb-sec{margin-bottom:16px;}
+.mb-h{font-weight:700;font-size:13px;margin-bottom:8px;display:flex;align-items:center;gap:6px;}
+.mb-h span{font-size:11px;font-weight:700;padding:1px 8px;border-radius:99px;background:var(--paper);border:1px solid var(--border-soft);color:var(--text-muted);}
+.mb-row{display:flex;align-items:center;gap:10px;padding:10px 12px;border:1px solid var(--border-soft);border-radius:10px;margin-bottom:6px;}
+.mb-row.me{background:var(--paper);}
+.mb-t{flex:1;min-width:0;display:flex;flex-direction:column;gap:1px;}
+.mb-t b{font-size:13.5px;}
+.mb-t b small{font-weight:500;color:var(--text-muted);}
+.mb-t small{font-size:11.5px;color:var(--text-muted);overflow-wrap:anywhere;}
+.mb-t .mb-meta{color:var(--text-faint);}
+.mb-role{align-self:flex-start;font-size:10.5px;font-weight:700;padding:1px 8px;border-radius:99px;background:var(--teal-soft);color:var(--teal);margin:2px 0;}
+.mb-act{display:flex;gap:6px;flex-shrink:0;}
+.mb-no{color:var(--rust);}
+.mb-empty{font-size:12.5px;color:var(--text-muted);padding:12px;border:1px dashed var(--border-soft);border-radius:10px;text-align:center;}
+#accessGate{position:fixed;inset:0;z-index:300;background:var(--paper);display:flex;align-items:center;justify-content:center;padding:24px 16px;box-sizing:border-box;overflow:auto;}
+.ag-card{max-width:440px;width:100%;background:#fff;border:1px solid var(--border-soft);border-radius:18px;padding:30px 26px;text-align:center;box-shadow:0 18px 40px -24px rgba(22,33,43,.35);}
+.ag-ico{font-size:38px;line-height:1;margin-bottom:12px;}
+.ag-card h2{font-size:20px;margin:0 0 10px;}
+.ag-card p{font-size:13.5px;line-height:1.7;color:var(--text-muted);margin:0 0 18px;}
+.ag-who{display:flex;flex-direction:column;gap:2px;padding:12px;border-radius:12px;background:var(--paper);margin-bottom:18px;font-size:12.5px;color:var(--text-muted);}
+.ag-who b{color:var(--ink);font-size:14px;}
+body.access-gated #mTabbar, body.access-gated #proxyBar{display:none !important;}
+@media (max-width:760px), (max-width:1000px) and (pointer:coarse){
+  .mb-row{flex-wrap:wrap;}
+  .mb-act{width:100%;justify-content:flex-end;}
+}
+
+/* ---------- เมนูจัดการระบบ ---------- */
+.sidebar > #roleBadgeWrap{z-index:6;}
+.sys-btn{background:none;border:1px solid rgba(255,255,255,.22);border-radius:6px;padding:3px 9px;font-size:11px;font-weight:600;color:#B7C2C6;cursor:pointer;font-family:'Noto Sans Thai',sans-serif;display:inline-flex;align-items:center;gap:5px;}
+.sys-btn.has{border-color:var(--amber);color:#F4C97E;}
+.sys-btn b{background:var(--rust);color:#fff;border-radius:99px;min-width:17px;height:17px;padding:0 5px;box-sizing:border-box;display:inline-flex;align-items:center;justify-content:center;font-size:10.5px;}
+.sys-btn i{font-style:normal;color:#F2B8A2;}
+.sys-btn .caret{font-size:9px;opacity:.7;}
+#roleBadgeWrap > div{position:relative;}
+.head-menu-wrap.sys-wrap{position:static;}
+.head-menu.sys-menu{left:0;right:0;min-width:0;top:calc(100% + 8px);}
+.sys-menu button{align-items:center;}
+.sys-menu .sm-ico{width:20px;text-align:center;flex-shrink:0;}
+.sys-menu .sm-l{flex:1;display:flex;flex-direction:column;}
+.sys-menu .sm-l small{font-size:11px;font-weight:500;color:var(--text-muted);}
+.sys-menu .sm-badge{background:var(--rust);color:#fff;border-radius:99px;min-width:19px;height:19px;padding:0 6px;box-sizing:border-box;display:inline-flex;align-items:center;justify-content:center;font-size:11px;}
+.sys-menu .sm-warn{font-style:normal;color:var(--rust);}
+.m-cnt{font-style:normal;background:var(--rust);color:#fff;border-radius:99px;min-width:20px;height:20px;padding:0 6px;box-sizing:border-box;display:inline-flex;align-items:center;justify-content:center;font-size:11.5px;font-weight:700;}
+.m-tab.has-dot{position:relative;}
+.m-tab.has-dot::after{content:'';position:absolute;top:6px;left:calc(50% + 8px);width:9px;height:9px;border-radius:50%;background:var(--rust);box-shadow:0 0 0 2px var(--ink, #16212B);}
 </style>
 </head>
 <body>
@@ -2345,6 +2397,17 @@ body.proxy-on .main{padding-top:64px;}
   </div>
 </div>
 
+<!-- สมาชิก: อนุมัติ/ระงับ (ผู้ดูแลแผนก = แผนกตัวเอง, แอดมิน = ทุกแผนก) -->
+<div class="modal-overlay hidden" id="membersModal">
+  <div class="modal mb-modal">
+    <h2>สมาชิก</h2>
+    <p class="modal-desc" id="mbDesc"></p>
+    <div class="field hidden" id="mbDeptWrap"><label>แผนก</label><select id="mbDept" onchange="renderMembersModal()"></select></div>
+    <div id="mbBody"></div>
+    <div class="modal-actions"><button class="btn btn-outline" onclick="closeModal('membersModal')">ปิด</button></div>
+  </div>
+</div>
+
 <!-- ชื่อที่ลงนามแทน -->
 <div class="modal-overlay hidden" id="signersModal">
   <div class="modal">
@@ -2506,6 +2569,17 @@ body.proxy-on .main{padding-top:64px;}
     },
     setUserProfile: (uid, data) =>
       setDoc(doc(db, 'users', uid), data, { merge: true }),
+    // อนุมัติสมาชิก: ฟังโปรไฟล์ตัวเอง (หน้ารออนุมัติจะเปิดเองเมื่อได้รับอนุมัติ) และรายชื่อสมาชิก
+    subscribeUserProfile: (uid, cb) =>
+      onSnapshot(doc(db, 'users', uid), (snap) => cb(snap.exists() ? snap.data() : null),
+        (err) => console.error('subscribeUserProfile', err)),
+    subscribeUsers: (deptKey, cb) =>
+      onSnapshot(deptKey ? query(collection(db, 'users'), where('deptKey', '==', deptKey)) : collection(db, 'users'),
+        (snap) => cb(snap.docs.map(d => ({ uid: d.id, ...d.data() }))),
+        (err) => { console.error('subscribeUsers', err); cb(null, err); }),
+    // กฎความปลอดภัยให้ผู้ดูแลแผนกแก้ได้แค่ 3 ช่องนี้ของสมาชิกในแผนกตัวเอง
+    setUserStatus: (uid, status, byUid) =>
+      setDoc(doc(db, 'users', uid), { status, statusBy: byUid, statusAt: Date.now() }, { merge: true }),
     // Scoped to the one department currently being viewed (server-side filter via where()), instead
     // of pulling every department's cost centers on every load. Year is still filtered client-side
     // (ccsForYear) since a dept admin needs to see every year's cost centers to populate the year
@@ -3519,6 +3593,7 @@ let state = {
 };
 let ccUnsub = null;
 let orgUnsub = null;
+let signupInFlight = false;
 let projectsUnsub = null;
 // ccEntriesUnsub/ccEntriesSubscribedFor track the live subscription itself (which cost center it's
 // currently attached to, so switching cost centers doesn't pile up listeners). ccEntriesLoadedFor is
@@ -5048,11 +5123,14 @@ async function submitAuth(){
         errEl.classList.add('show');
         return;
       }
+      signupInFlight = true;   // ตัวฟังล็อกอินอาจทำงานก่อนบันทึกโปรไฟล์เสร็จ — ให้ขั้นตอนสมัครเป็นคนเปิดแอปเอง
       const cred = await window.fb.signUp(email, password);
       const profile = { email, displayName, role };
       if(position) profile.position = position;
       if(employeeCode) profile.employeeCode = employeeCode;
       if(role === 'member' || role === 'dept_admin') profile.deptKey = deptKey;
+      // สมาชิกทั่วไปต้องรอผู้ดูแลแผนก/แอดมินอนุมัติก่อน (บทบาทอื่นมีรหัสยืนยันสิทธิ์อยู่แล้ว)
+      if(role === 'member'){ profile.status = 'pending'; profile.requestedAt = Date.now(); }
       await window.fb.setUserProfile(cred.user.uid, profile);
       // ตัวฟังสถานะล็อกอินทำงานทันทีที่สร้างบัญชีเสร็จ ซึ่งอาจอ่านโปรไฟล์ก่อนบรรทัดบนจะเขียนเสร็จ
       // ถ้าเป็นแบบนั้น ผู้ใช้ใหม่จะได้สิทธิ์ "สมาชิก" ไม่มีแผนก หน้าแอปว่างจนกว่าจะรีเฟรช
@@ -5064,13 +5142,20 @@ async function submitAuth(){
         state.user.employeeCode = employeeCode || '';
         state.userDept = profile.deptKey || null;
         state.activeDept = canSwitchAllDepts() ? (state.activeDept || DEPARTMENTS[0].key) : state.userDept;
-        subscribeActiveDeptData();
+        state.userStatus = userStatusOf(profile);
+        if(userBlocked()) watchOwnStatus();
+        else {
+          subscribeActiveDeptData(); watchMembers();
+          if(!orgUnsub) orgUnsub = window.fb.subscribeOrgSettings((settings)=>{ state.orgSettings = settings || {}; render(); });
+        }
         render();
       }
+      signupInFlight = false;
     } else {
       await window.fb.signIn(email, password);
     }
   }catch(e){
+    signupInFlight = false;
     errEl.textContent = translateAuthError(e);
     errEl.classList.add('show');
   }
@@ -7213,12 +7298,26 @@ function renderModeSwitcher(){
   `;
 }
 
+// งานดูแลระบบ (นานๆ ใช้ที) — ใช้ทั้งเมนู "จัดการระบบ" บนคอม และหัวข้อ "จัดการระบบ" บนมือถือ
+function sysToolItems(){
+  const t = [];
+  if(canApproveMembers()){ const n = pendingMembersCount(); t.push({ e:'👥', i:'user', l:'สมาชิก', f:'openMembersModal()', count:n, sub: n ? 'รออนุมัติ ' + n + ' คน' : '' }); }
+  if(canManageDept(state.activeDept)) t.push({ e:'🗑', i:'trash', l:'ถังขยะ', f:'openTrashModal()' });
+  if(canExportDept(state.activeDept)) t.push({ e:'📊', i:'sheet', l: exportInFlight ? 'กำลังส่งออก...' : 'ส่งออก Excel', f:'exportYearToExcel()', id:'exportXlsxBtn', disabled: exportInFlight });
+  if(isAdmin()){ const od = isBackupOverdue(); t.push({ e:'💾', i:'save', l:'สำรองข้อมูล', f:'downloadBackup()', warn: od, sub: od ? 'ยังไม่ได้สำรองเกิน 30 วัน' : '' }); }
+  if(isAdmin()) t.push({ e:'🏢', i:'gear', l:'ตั้งค่าหน่วยงาน', f:'openOrgSettingsModal()' });
+  return t;
+}
+function mOpenSysSheet(){
+  const sys = sysToolItems();
+  mOpenSheet(`<div class="m-group-h">จัดการระบบ</div>
+    <div class="m-group">${sys.map(x => `<button type="button" class="m-row" onclick="mRun('${x.f.replace(/'/g, "\\'")}')"><i>${mIco(x.i, 19)}</i><span>${x.l}${x.sub ? `<small>${x.sub}</small>` : ''}</span><b class="chev">${x.count ? `<em class="m-cnt">${x.count}</em>` : '›'}</b></button>`).join('')}</div>`);
+}
 function renderRoleBadge(){
   const el = document.getElementById('roleBadgeWrap');
   let badgeHtml;
   if(isAdmin()){
-    badgeHtml = `<span class="role-badge admin">★ ${ROLE_LABELS.admin}</span>
-        <button onclick="openOrgSettingsModal()" style="background:none;border:1px solid rgba(255,255,255,.22);border-radius:6px;padding:3px 9px;font-size:11px;font-weight:600;color:#B7C2C6;cursor:pointer;font-family:'Noto Sans Thai',sans-serif;">ตั้งค่าหน่วยงาน</button>`;
+    badgeHtml = `<span class="role-badge admin">★ ${ROLE_LABELS.admin}</span>`;
   } else if(isDeptAdmin()){
     badgeHtml = `<span class="role-badge deptadmin">◆ ${ROLE_LABELS.dept_admin}</span>`;
   } else if(isCompanyRep()){
@@ -7244,7 +7343,25 @@ function renderRoleBadge(){
     const title = overdue ? 'ยังไม่ได้สำรองข้อมูลเกิน 30 วันแล้ว — แนะนำให้ดาวน์โหลดสำรองไว้' : 'ดาวน์โหลดข้อมูลทั้งหมดเป็นไฟล์สำรอง (.json)';
     backupBtn = `<button onclick="downloadBackup()" title="${title}" style="background:none;border:1px solid ${backupBorder};border-radius:6px;padding:3px 9px;font-size:11px;font-weight:600;color:${backupColor};cursor:pointer;font-family:'Noto Sans Thai',sans-serif;">💾 สำรองข้อมูล${overdue ? ' ⚠' : ''}</button>`;
   }
-  el.innerHTML = `<div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">${badgeHtml}${trashBtn}${exportBtn}${backupBtn}</div>`;
+  const nPend = canApproveMembers() ? pendingMembersCount() : 0;
+  const membersBtn = canApproveMembers()
+    ? `<button onclick="openMembersModal()" class="mb-btn ${nPend ? 'has' : ''}" title="${nPend ? 'มีผู้สมัครรออนุมัติ ' + nPend + ' คน' : 'รายชื่อสมาชิก'}">👥 สมาชิก${nPend ? `<b>${nPend}</b>` : ''}</button>`
+    : '';
+  // งานดูแลระบบรวมไว้ในเมนู "จัดการระบบ" — มีแค่อย่างเดียว (สมาชิกทั่วไป = ส่งออก Excel) ให้เป็นปุ่มเดี่ยวเหมือนเดิม
+  const sys = sysToolItems();
+  if(sys.length <= 1){
+    el.innerHTML = `<div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">${badgeHtml}${membersBtn}${trashBtn}${exportBtn}${backupBtn}</div>`;
+    return;
+  }
+  const overdue = sys.some(x => x.warn);
+  el.innerHTML = `<div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">${badgeHtml}
+    <div class="head-menu-wrap sys-wrap">
+      <button type="button" class="sys-btn ${nPend || overdue ? 'has' : ''}" onclick="if(mOn()){ mOpenSysSheet(); } else toggleHeadMenu(this)" aria-haspopup="true" aria-expanded="false"
+        title="${[nPend ? 'มีผู้สมัครรออนุมัติ ' + nPend + ' คน' : '', overdue ? 'ยังไม่ได้สำรองข้อมูลเกิน 30 วัน' : ''].filter(Boolean).join(' · ') || 'งานดูแลระบบ'}">
+        ⚙ จัดการระบบ${nPend ? `<b>${nPend}</b>` : ''}${overdue ? '<i>⚠</i>' : ''}<span class="caret">▾</span></button>
+      <div class="head-menu sys-menu" role="menu">${sys.map(x => `<button type="button" role="menuitem" ${x.id ? `id="${x.id}"` : ''} ${x.disabled ? 'disabled' : ''} onclick="closeHeadMenus();${x.f}">
+          <span class="sm-ico">${x.e}</span><span class="sm-l">${x.l}${x.sub ? `<small>${x.sub}</small>` : ''}</span>${x.count ? `<b class="sm-badge">${x.count}</b>` : ''}${x.warn ? '<i class="sm-warn">⚠</i>' : ''}</button>`).join('')}</div>
+    </div></div>`;
 }
 function renderAccountRow(){
   const el = document.getElementById('accountRow');
@@ -7282,6 +7399,135 @@ async function submitProfileName(){
     alert('บันทึกชื่อไม่สำเร็จ: ' + e.message);
   }
 }
+
+/* ============ อนุมัติสมาชิก ============
+   สมาชิกทั่วไปที่สมัครใหม่ได้ status:'pending' — เห็นแค่หน้ารออนุมัติ ยังอ่าน/บันทึกข้อมูลไม่ได้
+   ผู้ดูแลแผนก (แผนกตัวเอง) และแอดมิน (ทุกแผนก) อนุมัติ / ไม่อนุมัติ / ระงับ / เปิดใช้อีกครั้ง ได้จากปุ่ม "สมาชิก"
+   ผู้ใช้เดิมที่ไม่มี status ถือว่าอนุมัติแล้ว จึงใช้งานได้เหมือนเดิมทุกคน */
+const MEMBER_BLOCKED = ['pending', 'rejected', 'suspended'];
+function userStatusOf(profile){ const st = profile && profile.status; return MEMBER_BLOCKED.includes(st) ? st : 'approved'; }
+function userBlocked(){ return !!state.user && MEMBER_BLOCKED.includes(state.userStatus); }
+function canApproveMembers(){ return !!state.user && !userBlocked() && (isAdmin() || state.userRole === 'dept_admin'); }
+function canActOnMember(u){
+  if(!state.user || !u || u.uid === state.user.uid) return false;
+  if(isAdmin()) return true;
+  return state.userRole === 'dept_admin' && u.deptKey === state.userDept && (u.role || 'member') === 'member';
+}
+function pendingMembersCount(){ return (state.members || []).filter(u => userStatusOf(u) === 'pending' && canActOnMember(u)).length; }
+let membersUnsub = null, selfStatusUnsub = null;
+function stopMemberWatchers(){
+  if(membersUnsub){ membersUnsub(); membersUnsub = null; }
+  if(selfStatusUnsub){ selfStatusUnsub(); selfStatusUnsub = null; }
+  state.members = [];
+}
+function watchMembers(){
+  if(membersUnsub){ membersUnsub(); membersUnsub = null; }
+  if(!canApproveMembers() || !window.fb.subscribeUsers) return;
+  membersUnsub = window.fb.subscribeUsers(isAdmin() ? null : state.userDept, (list) => {
+    state.members = Array.isArray(list) ? list : [];
+    render();
+    if(isModalOpenNow('membersModal')) renderMembersModal();
+  });
+}
+// หน้ารออนุมัติ: พอผู้ดูแลกดอนุมัติ โหลดแอปใหม่ทั้งหน้าให้เข้าสู่การใช้งานปกติ
+function watchOwnStatus(){
+  if(selfStatusUnsub || !state.user || !window.fb.subscribeUserProfile) return;
+  const uid = state.user.uid;
+  selfStatusUnsub = window.fb.subscribeUserProfile(uid, (profile) => {
+    if(!state.user || state.user.uid !== uid || !profile) return;
+    const st = userStatusOf(profile);
+    if(st === 'approved' && userBlocked()){ appReload(); return; }
+    if(st !== state.userStatus){ state.userStatus = st; render(); }
+  });
+}
+function syncMoreTabDot(){
+  const tab = document.querySelector('#mTabbar [data-tab="more"]');
+  if(!tab) return;
+  const need = !!state.user && ((canApproveMembers() && pendingMembersCount() > 0) || (isAdmin() && isBackupOverdue()));
+  tab.classList.toggle('has-dot', need);
+}
+function appReload(){ location.reload(); }
+function isModalOpenNow(id){ const m = document.getElementById(id); return !!m && !m.classList.contains('hidden'); }
+function syncAccessGate(){
+  let g = document.getElementById('accessGate');
+  const on = userBlocked();
+  document.body.classList.toggle('access-gated', on);
+  if(!on){ if(g) g.remove(); return; }
+  if(!g){ g = document.createElement('div'); g.id = 'accessGate'; g.setAttribute('role', 'dialog'); g.setAttribute('aria-modal', 'true'); document.body.appendChild(g); }
+  const d = deptByKey(state.userDept);
+  const dname = d ? ((d.abbr ? d.abbr + ' ' : '') + d.name) : '';
+  const T = {
+    pending:  { ico:'⏳', h:'รอการอนุมัติ', p:`สมัครสมาชิกเรียบร้อยแล้ว รอผู้ดูแลแผนก${d ? (d.abbr ? ' ' + escapeHtml(d.abbr) : '') : ''} หรือแอดมินอนุมัติก่อนเริ่มใช้งาน<br>เมื่ออนุมัติแล้ว หน้านี้จะเข้าแอปให้เอง ไม่ต้องสมัครใหม่` },
+    rejected: { ico:'✋', h:'คำขอสมัครไม่ได้รับอนุมัติ', p:'ถ้าคิดว่าไม่ถูกต้อง ติดต่อผู้ดูแลแผนกหรือแอดมินของหน่วยงาน' },
+    suspended:{ ico:'⛔', h:'บัญชีนี้ถูกระงับการใช้งาน', p:'ติดต่อผู้ดูแลแผนกหรือแอดมินของหน่วยงาน เพื่อขอเปิดใช้งานอีกครั้ง' },
+  }[state.userStatus];
+  g.innerHTML = `<div class="ag-card">
+      <div class="ag-ico">${T.ico}</div>
+      <h2>${T.h}</h2>
+      <p>${T.p}</p>
+      <div class="ag-who"><b>${escapeHtml(state.user.displayName || '')}</b><span>${escapeHtml(state.user.email || '')}</span>${dname ? `<span>${escapeHtml(dname)}</span>` : ''}</div>
+      <button type="button" class="btn btn-outline" onclick="logout()">ออกจากระบบ</button>
+    </div>`;
+}
+function openMembersModal(){
+  if(!canApproveMembers()) return;
+  const wrap = document.getElementById('mbDeptWrap'), sel = document.getElementById('mbDept');
+  if(isAdmin()){
+    wrap.classList.remove('hidden');
+    const cur = sel.value;
+    sel.innerHTML = `<option value="">ทุกแผนก</option>` + DEPARTMENTS.map(d => `<option value="${d.key}">${escapeHtml((d.abbr ? d.abbr + ' ' : '') + d.name)}</option>`).join('');
+    sel.value = cur || '';
+  } else wrap.classList.add('hidden');
+  renderMembersModal();
+  openModal('membersModal');
+}
+function renderMembersModal(){
+  const deptFilter = isAdmin() ? document.getElementById('mbDept').value : state.userDept;
+  const list = (state.members || []).filter(u => !deptFilter || u.deptKey === deptFilter);
+  const d = deptByKey(state.userDept);
+  document.getElementById('mbDesc').textContent = isAdmin()
+    ? 'อนุมัติผู้สมัครใหม่ และระงับบัญชีที่ไม่ควรใช้งานแล้ว ได้ทุกแผนก'
+    : 'อนุมัติผู้สมัครใหม่ของ ' + (d ? (d.abbr || d.name) : 'แผนกนี้') + ' และระงับบัญชีที่ไม่ควรใช้งานแล้ว';
+  const by = st => list.filter(u => userStatusOf(u) === st).sort((a, b) => (b.requestedAt || 0) - (a.requestedAt || 0) || String(a.displayName || '').localeCompare(String(b.displayName || ''), 'th'));
+  const pend = by('pending'), act = by('approved'), off = [...by('rejected'), ...by('suspended')];
+  const row = (u, btns) => {
+    const dd = deptByKey(u.deptKey);
+    const sub = [u.email, u.position, u.employeeCode ? 'รหัส ' + u.employeeCode : ''].filter(Boolean).map(escapeHtml).join(' · ');
+    const tag = (u.role && u.role !== 'member') ? `<span class="mb-role">${escapeHtml(ROLE_LABELS[u.role] || u.role)}</span>` : '';
+    const st = userStatusOf(u);
+    const when = st === 'pending' ? (u.requestedAt ? 'สมัครเมื่อ ' + thaiDateLabel(u.requestedAt) : '')
+               : (st !== 'approved' ? (st === 'rejected' ? 'ไม่อนุมัติ' : 'ระงับ') + (u.statusAt ? ' ' + thaiDateLabel(u.statusAt) : '') : '');
+    const me = u.uid === state.user.uid;
+    return `<div class="mb-row ${me ? 'me' : ''}">
+      <div class="mb-t"><b>${escapeHtml(u.displayName || u.email || '—')}${me ? ' <small>(คุณ)</small>' : ''}</b>${tag}
+        <small>${sub}</small>
+        <small class="mb-meta">${dd ? escapeHtml(dd.abbr || dd.name) : (u.role === 'admin' || u.role === 'rep' ? 'ทุกแผนก' : '—')}${when ? ' · ' + when : ''}</small></div>
+      ${canActOnMember(u) ? `<div class="mb-act">${btns(u)}</div>` : ''}
+    </div>`;
+  };
+  const sec = (h, arr, btns, empty) => `<div class="mb-sec"><div class="mb-h">${h} <span>${arr.length}</span></div>
+    ${arr.length ? arr.map(u => row(u, btns)).join('') : `<div class="mb-empty">${empty}</div>`}</div>`;
+  document.getElementById('mbBody').innerHTML =
+      sec('รออนุมัติ', pend, u => `<button class="btn btn-primary btn-sm" onclick="setMemberStatus('${u.uid}','approved')">อนุมัติ</button><button class="btn btn-outline btn-sm mb-no" onclick="setMemberStatus('${u.uid}','rejected')">ไม่อนุมัติ</button>`, 'ไม่มีผู้สมัครรออนุมัติ')
+    + sec('ใช้งานอยู่', act, u => `<button class="btn btn-outline btn-sm mb-no" onclick="setMemberStatus('${u.uid}','suspended')">ระงับ</button>`, 'ยังไม่มีสมาชิก')
+    + (off.length ? sec('ระงับ / ไม่อนุมัติ', off, u => `<button class="btn btn-outline btn-sm" onclick="setMemberStatus('${u.uid}','approved')">เปิดใช้งาน</button>`, '') : '');
+}
+async function setMemberStatus(uid, status){
+  const u = (state.members || []).find(x => x.uid === uid);
+  if(!u || !canActOnMember(u)){ alert('คุณไม่มีสิทธิ์จัดการบัญชีนี้'); return; }
+  const name = u.displayName || u.email || 'บัญชีนี้';
+  if(status === 'rejected' && !confirm('ไม่อนุมัติ "' + name + '"?\n\nบัญชีนี้จะเข้าใช้งานแอปไม่ได้ (เปิดใช้งานภายหลังได้)')) return;
+  if(status === 'suspended' && !confirm('ระงับการใช้งาน "' + name + '"?\n\nเข้าแอปไม่ได้จนกว่าจะเปิดใช้งานอีกครั้ง รายการที่เคยบันทึกไว้ยังอยู่ครบ')) return;
+  const prev = { status: u.status, statusBy: u.statusBy, statusAt: u.statusAt };
+  Object.assign(u, { status, statusBy: state.user.uid, statusAt: Date.now() });
+  render(); renderMembersModal();
+  try{ await window.fb.setUserStatus(uid, status, state.user.uid); flashSaved(false); }
+  catch(e){ Object.assign(u, prev); render(); renderMembersModal(); alert('บันทึกไม่สำเร็จ: ' + e.message); }
+}
+(function(){
+  const origRender = render;
+  render = function(){ const r = origRender.apply(this, arguments); try{ syncAccessGate(); syncMoreTabDot(); }catch(e){ console.error(e); } return r; };
+})();
 
 /* ============ ลงนามในนามคนอื่น ============
    บางคนคุมงบแทนคนอื่นเป็นประจำ เดิมต้องแก้ชื่อในโปรไฟล์ไปมา (ชื่อบัญชีเปลี่ยนตามทั้งระบบ)
@@ -8101,7 +8347,7 @@ async function exportYearToExcel(){
   exportInFlight = true;
   const label = '📊 ส่งออก Excel';
   const busy = (t)=>{ const b = document.getElementById('exportXlsxBtn'); if(b){ b.disabled = true; b.innerHTML = t; } };
-  const done = ()=>{ exportInFlight = false; const b = document.getElementById('exportXlsxBtn'); if(b){ b.disabled = false; b.innerHTML = label; } };
+  const done = ()=>{ exportInFlight = false; const b = document.getElementById('exportXlsxBtn'); if(b){ b.disabled = false; b.innerHTML = label; } try{ renderRoleBadge(); }catch(e){} };
   try{
     busy('⏳ กำลังโหลด...');
     const ExcelJS = await loadExcelLib();
@@ -10498,8 +10744,9 @@ function initAuthListener(){
     if(orgUnsub){ orgUnsub(); orgUnsub = null; }
     if(projectsUnsub){ projectsUnsub(); projectsUnsub = null; }
     if(whUnsub){ whUnsub(); whUnsub = null; }
+    stopMemberWatchers();
     if(!user){
-      state.user = null; state.userRole = 'member';
+      state.user = null; state.userRole = 'member'; state.userStatus = 'approved';
       state.costCenters = []; state.activeCcId = null; state.activeItemKey = null; state.slipSelection = [];
       state.orgSettings = {};
       state.projects = []; state.activeProjectId = null; state.activeWorkTypeKey = null; state.activeProjectCatKey = null; state.projectSlipSelection = [];
@@ -10511,6 +10758,9 @@ function initAuthListener(){
     markDataPending();   // ระหว่างอ่านโปรไฟล์ยังไม่ได้เริ่มโหลดข้อมูล ห้ามโชว์หน้า "ยังไม่มีข้อมูล"
     let profile = null;
     try{ profile = await window.fb.getUserProfile(user.uid); }catch(e){ console.error(e); }
+    // เพิ่งสมัคร โปรไฟล์ยังบันทึกไม่เสร็จ: ยังไม่เปิดข้อมูลใดๆ (คนที่ต้องรออนุมัติจะได้ไม่เห็นข้อมูลแวบหนึ่ง)
+    // ขั้นตอนสมัครใน submitAuth() จะตั้งสถานะและเปิดแอปต่อเองเมื่อบันทึกโปรไฟล์เสร็จ
+    if(!profile && signupInFlight){ render(); return; }
     const loadedRole = profile && profile.role;
     state.userRole = (loadedRole === 'admin' || loadedRole === 'dept_admin' || loadedRole === 'rep') ? loadedRole : 'member';
     state.user.displayName = (profile && profile.displayName) ? profile.displayName : '';
@@ -10520,7 +10770,10 @@ function initAuthListener(){
     state.activeSignerId = loadActiveSignerId();
     state.userDept = (profile && profile.deptKey) ? profile.deptKey : null;
     state.activeDept = canSwitchAllDepts() ? (state.activeDept || DEPARTMENTS[0].key) : state.userDept;
+    state.userStatus = userStatusOf(profile);
+    if(userBlocked()){ watchOwnStatus(); render(); return; }   // รออนุมัติ/ถูกระงับ: ไม่โหลดข้อมูลใดๆ
     subscribeActiveDeptData();
+    watchMembers();
     orgUnsub = window.fb.subscribeOrgSettings((settings)=>{
       state.orgSettings = settings || {};
       render();
@@ -10790,10 +11043,9 @@ function mTools(){
     if(cm) t.push({ l:'ศูนย์ต้นทุนใหม่', i:'newfile', f:'openNewCcModal()' });
   }
   t.push({ l:'ใบตัดงบเปล่า', i:'doc', f:'openBlankSlipModal()', c:'ink' });
-  if(cm) t.push({ l:'ถังขยะ', i:'trash', f:'openTrashModal()', c:'ink' });
-  if(canExportDept(state.activeDept)) t.push({ l:'ส่งออก Excel', i:'sheet', f:'exportYearToExcel()', c:'ink' });
-  if(isAdmin()) t.push({ l:'สำรองข้อมูล', i:'save', f:'downloadBackup()', c:'ink', dot:isBackupOverdue() });
-  if(isAdmin()) t.push({ l:'ตั้งค่าหน่วยงาน', i:'gear', f:'openOrgSettingsModal()', c:'ink' });
+  // งานดูแลระบบอยู่หัวข้อ "จัดการระบบ" แยกต่างหาก — ถ้ามีอย่างเดียว (ส่งออก Excel ของสมาชิกทั่วไป) ให้อยู่ตรงนี้
+  const sys = sysToolItems();
+  if(sys.length === 1) t.push({ l: sys[0].l, i: sys[0].i, f: sys[0].f, c:'ink' });
   return t;
 }
 // ไอคอนบนหน้าหลัก: คัดไว้แค่ที่ใช้บ่อยไม่เกิน 4 อัน (ที่เหลือยังอยู่ในแผ่น "เพิ่มเติม" ครบ)
@@ -11067,6 +11319,8 @@ function mOpenMore(){
       ${row('swap', 'เปลี่ยนแผนก / ปีงบประมาณ', 'mCloseSheet();mOpenDrawer()', 'อยู่ในเมนูรายการงบ')}</div>
     <div class="m-group-h">เครื่องมือ</div>
     <div class="m-group">${mTools().map(x => row(x.i, x.l, `mRun('${x.f.replace(/'/g, "\\'")}')`, x.dot ? 'ยังไม่ได้สำรองเกิน 30 วัน' : '')).join('')}</div>
+    ${(() => { const sys = sysToolItems(); return sys.length > 1 ? `<div class="m-group-h">จัดการระบบ</div>
+    <div class="m-group">${sys.map(x => `<button type="button" class="m-row" onclick="mRun('${x.f.replace(/'/g, "\\'")}')"><i>${mIco(x.i, 19)}</i><span>${x.l}${x.sub ? `<small>${x.sub}</small>` : ''}</span><b class="chev">${x.count ? `<em class="m-cnt">${x.count}</em>` : '›'}</b></button>`).join('')}</div>` : ''; })()}
     <div class="m-group-h">บัญชีของฉัน</div>
     <div class="m-group">${row('user', 'ข้อมูลผู้ใช้ (ชื่อในใบตัดงบ)', "mRun('openProfileModal()')", escapeHtml(u.email || ''))}
       ${row('swap', 'ชื่อที่ลงนามแทน', "mRun('openSignersModal()')", signerList().length ? signerList().length + ' ชื่อ' + (activeSigner() ? ' · ตอนนี้ใช้ ' + escapeHtml(activeSigner().name) : '') : 'สำหรับคนที่คุมงบในนามคนอื่น')}
@@ -11181,7 +11435,7 @@ if(window.__fbReady) guardFbWritesWhenOffline(); else window.addEventListener('f
   });
 })();
 /* ============ เครดิตผู้พัฒนา — แก้ข้อความที่นี่ที่เดียว ทุกจุดเปลี่ยนตาม ============ */
-var APP_CREDIT = { name:'ทีปกร ภูเมศร์', unit:'ผปบ.กฟส.เบตง', tel:'14755', year:'2569', version:'2.5' };
+var APP_CREDIT = { name:'ทีปกร ภูเมศร์', unit:'ผปบ.กฟส.เบตง', tel:'14755', year:'2569', version:'2.6' };
 function appCreditHtml(lines){
   const c = APP_CREDIT;
   const l1 = `พัฒนาโดย <b>${escapeHtml(c.name)}</b> · ${escapeHtml(c.unit)}`;
