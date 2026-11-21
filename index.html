@@ -1718,6 +1718,20 @@ body.access-gated #mTabbar, body.access-gated #proxyBar{display:none !important;
 .m-cnt{font-style:normal;background:var(--rust);color:#fff;border-radius:99px;min-width:20px;height:20px;padding:0 6px;box-sizing:border-box;display:inline-flex;align-items:center;justify-content:center;font-size:11.5px;font-weight:700;}
 .m-tab.has-dot{position:relative;}
 .m-tab.has-dot::after{content:'';position:absolute;top:6px;left:calc(50% + 8px);width:9px;height:9px;border-radius:50%;background:var(--rust);box-shadow:0 0 0 2px var(--ink, #16212B);}
+
+/* ---------- ผู้ควบคุมงบ ---------- */
+.pf-ctrl-desc{font-size:11.5px;line-height:1.5;color:var(--text-muted);margin:-2px 0 8px;}
+.pf-ctrl-row{display:flex;gap:8px;align-items:center;margin-bottom:8px;}
+.pf-ctrl-row input{flex:1;min-width:0;}
+.pf-ctrl #pfCtrlPreview{margin-top:10px;}
+/* ตัวอย่างใช้ตารางโครงเดียวกับใบตัดงบจริง (3 คอลัมน์) ชื่อกับตำแหน่งจึงอยู่กึ่งกลาง
+   ใต้เส้นลายเซ็นพอดีเหมือนที่พิมพ์ออกมา ไม่ต้องเดาระยะเยื้องเอง */
+.ct-pv-paper{background:#fff;border:1px solid var(--border-soft);border-radius:10px;padding:14px 10px;font-size:13px;color:#1a1a1a;overflow-x:auto;}
+.ct-pv-tbl{border-collapse:collapse;margin:0 auto;white-space:nowrap;}
+.ct-pv-tbl td{border:none;padding:2px 4px;}
+.ct-pv-tbl .ct-pv-line{text-align:center;letter-spacing:.5px;color:#666;}
+.ct-pv-tbl .ct-pv-mid{text-align:center;}
+.ct-pv-tbl .ct-pv-pos{text-align:center;font-size:12px;color:#444;}
 </style>
 </head>
 <body>
@@ -2151,6 +2165,8 @@ body.access-gated #mTabbar, body.access-gated #proxyBar{display:none !important;
         <div class="field" style="flex:1.4 1 200px;"><label>ผู้เบิก</label><input type="text" id="bsPayer"></div>
         <div class="field" style="flex:0 0 120px;"><label>รหัสพนักงาน</label><input type="text" id="bsPayerCode"></div>
         <div class="field" style="flex:1.2 1 180px;"><label>ตำแหน่ง/ที่อยู่</label><input type="text" id="bsPayerPos"></div>
+        <div class="field" style="flex:1 1 180px;"><label>ผู้ควบคุมงบ</label><input type="text" id="bsCtrlName" placeholder="เว้นว่าง = ไม่พิมพ์ชื่อ"></div>
+        <div class="field" style="flex:1 1 180px;"><label>ตำแหน่งผู้ควบคุมงบ</label><input type="text" id="bsCtrlPos"></div>
       </div>
     </div>
 
@@ -2385,6 +2401,16 @@ body.access-gated #mTabbar, body.access-gated #proxyBar{display:none !important;
     <div class="field">
       <label>รหัสพนักงาน (สำหรับใบตัดงบ)</label>
       <input type="text" id="pfCode" placeholder="เช่น 513847">
+    </div>
+    <div class="field pf-ctrl">
+      <label>ผู้ควบคุมงบ (ชื่อที่พิมพ์ในช่องลงชื่อของใบตัดงบ)</label>
+      <p class="pf-ctrl-desc">ตั้งไว้ครั้งเดียว ใบตัดงบที่คุณพิมพ์จะมีชื่อนี้ให้เลย ไม่ต้องเขียนมือ · เว้นว่าง = เว้นช่องไว้เหมือนเดิม</p>
+      <div class="pf-ctrl-row">
+        <input type="text" id="pfCtrlName" oninput="renderPfCtrlPreview()" placeholder="ชื่อ-นามสกุล" data-person-ph>
+        <button type="button" class="btn btn-outline btn-sm" onclick="pfCtrlUseMe()">ใช้ชื่อฉัน</button>
+      </div>
+      <input type="text" id="pfCtrlPos" oninput="renderPfCtrlPreview()" placeholder="ตำแหน่ง (ถ้ามี จะพิมพ์ใต้ชื่อ)" data-office-ph="ตำแหน่ง เช่น หผ.ปบ.กฟส.{o}">
+      <div id="pfCtrlPreview"></div>
     </div>
     <div class="field">
       <label>ลงนามแทนคนอื่น</label>
@@ -4046,18 +4072,7 @@ function buildSlipBodyHtml(cc, entries, payerName, payerCode, payerPosition, doc
         หมายเหตุ - การระบุจำนวนเงินไม่เครดิตภาษีซื้อ ให้ใช้ยอดเงินรวมภาษี<br>
         &nbsp;&nbsp;&nbsp;&nbsp; - กรณีค่าใช้จ่ายที่เครดิตภาษีซื้อ ให้ใช้ยอดมูลค่าสินค้าไม่รวมภาษี
       </div>
-      <table class="sig-block">
-        <tr>
-          <td class="sig-label">ลงชื่อ</td>
-          <td class="sig-blank">________________________</td>
-          <td class="sig-label">ผู้ควบคุมงบ</td>
-        </tr>
-        <tr>
-          <td></td>
-          <td class="ctr">( &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; )</td>
-          <td></td>
-        </tr>
-      </table>
+      ${slipSignerHtml()}
     </div>
     ${w.length ? '</div>' : ''}
   `;
@@ -4215,18 +4230,7 @@ function buildProjectSlipBodyHtml(entries, payerName, payerCode, payerPosition, 
         หมายเหตุ - การระบุจำนวนเงินไม่เครดิตภาษีซื้อ ให้ใช้ยอดเงินรวมภาษี<br>
         &nbsp;&nbsp;&nbsp;&nbsp; - กรณีค่าใช้จ่ายที่เครดิตภาษีซื้อ ให้ใช้ยอดมูลค่าสินค้าไม่รวมภาษี
       </div>
-      <table class="sig-block">
-        <tr>
-          <td class="sig-label">ลงชื่อ</td>
-          <td class="sig-blank">________________________</td>
-          <td class="sig-label">ผู้ควบคุมงบ</td>
-        </tr>
-        <tr>
-          <td></td>
-          <td class="ctr">( &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; )</td>
-          <td></td>
-        </tr>
-      </table>
+      ${slipSignerHtml()}
     </div>
   `;
 }
@@ -4433,6 +4437,10 @@ function wrapSlipDocument(bodyHtml, docTitle, opts){
   .sig-block td{ border:none; padding:2px 4px; white-space:nowrap; }
   .sig-block .sig-label{ text-align:left; }
   .sig-block .sig-blank{ text-align:center; }
+  /* ชื่อและตำแหน่งผู้ควบคุมงบต้องอยู่กึ่งกลางของช่องลายเซ็นพอดี ประกาศซ้ำในขอบเขต .sig-block
+     เพื่อไม่ให้ .sig-block .sig-label (ที่ชิดซ้าย) หรือกฎอื่นที่เจาะจงกว่ามาแทนที่ .ctr */
+  .sig-block .ctr{ text-align:center; }
+  .sig-block .sig-pos{ font-size:12px; }
   @media print{
     body{ padding:0; margin:0; }
   }
@@ -7379,6 +7387,9 @@ function openProfileModal(){
   document.getElementById('pfEmail').value = state.user.email || '';
   document.getElementById('pfPosition').value = state.user.position || '';
   document.getElementById('pfCode').value = state.user.employeeCode || '';
+  document.getElementById('pfCtrlName').value = state.user.controllerName || '';
+  document.getElementById('pfCtrlPos').value = state.user.controllerPosition || '';
+  renderPfCtrlPreview();
   renderPfSigners();
   openModal('profileModal');
 }
@@ -7386,18 +7397,61 @@ async function submitProfileName(){
   const name = document.getElementById('pfName').value.trim();
   const position = document.getElementById('pfPosition').value.trim();
   const employeeCode = document.getElementById('pfCode').value.trim();
+  const controllerName = document.getElementById('pfCtrlName').value.trim();
+  const controllerPosition = controllerName ? document.getElementById('pfCtrlPos').value.trim() : '';
   if(!name){ alert('กรุณากรอกชื่อ-นามสกุล'); return; }
   try{
-    await window.fb.setUserProfile(state.user.uid, { displayName: name, position, employeeCode });
+    await window.fb.setUserProfile(state.user.uid, { displayName: name, position, employeeCode, controllerName, controllerPosition });
     state.user.displayName = name;
     state.user.position = position;
     state.user.employeeCode = employeeCode;
+    state.user.controllerName = controllerName;
+    state.user.controllerPosition = controllerPosition;
     closeModal('profileModal');
     flashSaved(false);
     render();
   }catch(e){
     alert('บันทึกชื่อไม่สำเร็จ: ' + e.message);
   }
+}
+
+/* ============ ผู้ควบคุมงบ (ชื่อที่พิมพ์ในช่องลงชื่อของใบตัดงบ) ============
+   เดิมใบตัดงบเว้นช่องไว้ให้เขียนมือทุกใบ ตอนนี้ตั้งชื่อ/ตำแหน่งไว้ในโปรไฟล์ของตัวเองได้ แล้วพิมพ์ออกมาเลย
+   เก็บไว้กับบัญชีผู้ใช้ (users/{uid}.controllerName / controllerPosition) — แต่ละคนตั้งของตัวเอง
+   ไม่ได้ตั้ง = เว้นช่องว่างเหมือนเดิมทุกประการ */
+function myController(){
+  if(!state.user) return null;
+  const name = String(state.user.controllerName || '').trim();
+  return name ? { name, position: String(state.user.controllerPosition || '').trim() } : null;
+}
+const SIG_LINE = '________________________';
+// ช่องว่างในวงเล็บตอนยังไม่ได้ตั้งค่าผู้ควบคุมงบ ต้องเป็น &nbsp; 36 ตัวเท่าของเดิมเป๊ะ ๆ
+// (ไม่ใช่ขีดล่าง) ใบที่ยังไม่ตั้งค่าจะได้พิมพ์ออกมาเหมือนเวอร์ชันก่อนทุกจุด
+const SIG_PAREN = '&nbsp;'.repeat(36);
+// ctrl: ไม่ส่ง = ใช้ของผู้ใช้ที่ล็อกอิน · ส่งมาแต่ไม่มีชื่อ = เว้นว่าง (ใบตัดงบเปล่าที่ผู้ใช้ล้างช่องเอง)
+function slipSignerHtml(ctrl){
+  const c = (ctrl === undefined) ? myController() : (ctrl && String(ctrl.name || '').trim() ? { name: String(ctrl.name).trim(), position: String(ctrl.position || '').trim() } : null);
+  const nameCell = c ? `( ${escapeHtml(c.name)} )` : `( ${SIG_PAREN} )`;
+  const posRow = (c && c.position)
+    ? `<tr><td></td><td class="ctr sig-pos">${escapeHtml(c.position)}</td><td></td></tr>` : '';
+  return `<table class="sig-block">
+        <tr><td class="sig-label">ลงชื่อ</td><td class="sig-blank">${SIG_LINE}</td><td class="sig-label">ผู้ควบคุมงบ</td></tr>
+        <tr><td></td><td class="ctr">${nameCell}</td><td></td></tr>${posRow}
+      </table>`;
+}
+function renderPfCtrlPreview(){
+  const name = document.getElementById('pfCtrlName').value.trim();
+  const pos = document.getElementById('pfCtrlPos').value.trim();
+  document.getElementById('pfCtrlPreview').innerHTML = `<div class="ct-pv-paper"><table class="ct-pv-tbl">
+    <tr><td>ลงชื่อ</td><td class="ct-pv-line">${SIG_LINE}</td><td>ผู้ควบคุมงบ</td></tr>
+    <tr><td></td><td class="ct-pv-mid">( ${name ? escapeHtml(name) : SIG_PAREN} )</td><td></td></tr>
+    ${name && pos ? `<tr><td></td><td class="ct-pv-pos">${escapeHtml(pos)}</td><td></td></tr>` : ''}
+  </table></div>`;
+}
+function pfCtrlUseMe(){
+  document.getElementById('pfCtrlName').value = document.getElementById('pfName').value.trim();
+  document.getElementById('pfCtrlPos').value = document.getElementById('pfPosition').value.trim();
+  renderPfCtrlPreview();
 }
 
 /* ============ อนุมัติสมาชิก ============
@@ -8956,6 +9010,8 @@ function openBlankSlipModal(){
   v('bsPayer', state.user ? (signerName() || '') : '');
   v('bsPayerCode', state.user ? signerCode() : '');
   v('bsPayerPos', state.user ? signerPos() : '');
+  const ctl = myController() || { name:'', position:'' };
+  v('bsCtrlName', ctl.name); v('bsCtrlPos', ctl.position);
   document.getElementById('bsUseCcTable').checked = false;
   document.getElementById('bsUseWbsTable').checked = false;
   bsAuto = {};
@@ -9105,6 +9161,7 @@ function blankSlipData(){
     date: bsVal('bsDate') || todayStr(),
     docNoOffice: bsVal('bsDocNoOffice'), docNo: bsVal('bsDocNo'),
     payer: bsVal('bsPayer'), payerCode: bsVal('bsPayerCode'), payerPos: bsVal('bsPayerPos'),
+    controller: { name: bsVal('bsCtrlName'), position: bsVal('bsCtrlPos') },
     rows,
     useCc: document.getElementById('bsUseCcTable').checked,
     ccLeftLabel: bsVal('bsCcRowLabel'),
@@ -9322,10 +9379,7 @@ function buildBlankSlipBodyHtml(d){
         หมายเหตุ - การระบุจำนวนเงินไม่เครดิตภาษีซื้อ ให้ใช้ยอดเงินรวมภาษี<br>
         &nbsp;&nbsp;&nbsp;&nbsp; - กรณีค่าใช้จ่ายที่เครดิตภาษีซื้อ ให้ใช้ยอดมูลค่าสินค้าไม่รวมภาษี
       </div>
-      <table class="sig-block">
-        <tr><td class="sig-label">ลงชื่อ</td><td class="sig-blank">________________________</td><td class="sig-label">ผู้ควบคุมงบ</td></tr>
-        <tr><td></td><td class="ctr">( &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; )</td><td></td></tr>
-      </table>
+      ${slipSignerHtml(d.controller)}
     </div>
   </div>`;
 }
@@ -10766,6 +10820,8 @@ function initAuthListener(){
     state.user.displayName = (profile && profile.displayName) ? profile.displayName : '';
     state.user.position = (profile && profile.position) ? profile.position : '';
     state.user.employeeCode = (profile && profile.employeeCode) ? profile.employeeCode : '';
+    state.user.controllerName = (profile && profile.controllerName) ? profile.controllerName : '';
+    state.user.controllerPosition = (profile && profile.controllerPosition) ? profile.controllerPosition : '';
     state.user.signers = cleanSigners(profile && profile.signers);
     state.activeSignerId = loadActiveSignerId();
     state.userDept = (profile && profile.deptKey) ? profile.deptKey : null;
@@ -11435,7 +11491,7 @@ if(window.__fbReady) guardFbWritesWhenOffline(); else window.addEventListener('f
   });
 })();
 /* ============ เครดิตผู้พัฒนา — แก้ข้อความที่นี่ที่เดียว ทุกจุดเปลี่ยนตาม ============ */
-var APP_CREDIT = { name:'ทีปกร ภูเมศร์', unit:'ผปบ.กฟส.เบตง', tel:'14755', year:'2569', version:'2.6' };
+var APP_CREDIT = { name:'BETONG TECH.', unit:'ผปบ.กฟส.เบตง', tel:'14755', year:'2569', version:'2.7' };
 function appCreditHtml(lines){
   const c = APP_CREDIT;
   const l1 = `พัฒนาโดย <b>${escapeHtml(c.name)}</b> · ${escapeHtml(c.unit)}`;
