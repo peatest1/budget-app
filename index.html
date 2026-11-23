@@ -709,6 +709,12 @@ body.sort-active .drag-handle{cursor:grabbing;}
   border-radius:6px;font-size:13.5px;font-weight:700;color:var(--amber-dark);background:#FCEED2;text-align:center;
 }
 .budget-input-row{display:flex;gap:22px;flex-wrap:wrap;align-items:flex-end;margin-bottom:14px;}
+/* ปุ่มดินสอแก้ชื่อบัญชี: เล็ก จาง อยู่ท้ายชื่อ — ไม่ใช่ช่องกรอกตรงๆ จะได้ไม่เผลอแก้โดยไม่ตั้งใจ */
+/* ขอบบน/ล่างติดลบ ปุ่มจึงไม่ดันความสูงของบรรทัดชื่อ หน้าบัญชีไม่ขยับแม้แต่พิกเซลเดียว */
+.label-edit-btn{display:inline-flex;align-items:center;justify-content:center;width:30px;height:30px;margin:-8px 0 -8px 6px;vertical-align:middle;
+  border:1px solid transparent;border-radius:8px;background:transparent;color:var(--text-faint);cursor:pointer;padding:0;}
+.label-edit-btn:hover{border-color:var(--border);background:#fff;color:var(--text);}
+.label-edit-btn:focus-visible{outline:2px solid var(--amber);outline-offset:2px;}
 .summary-card{
   display:flex;align-items:center;gap:26px;flex-wrap:wrap;
   background:var(--paper);border:1px solid var(--border-soft);border-radius:var(--radius);
@@ -871,8 +877,26 @@ table.ledger .del-x:hover{color:var(--rust);}
 .xs-warn{display:none;align-items:baseline;gap:6px;margin-top:10px;font-size:12.5px;
   font-weight:700;color:var(--rust);}
 .xs-warn.show{display:flex;}
+/* หมายเลขงาน (WBS) ซ้ำกับแฟ้มที่มีอยู่แล้ว — ขึ้นใต้ช่องกรอกทันทีที่พิมพ์ตรง ไม่ต้องรอกดสร้าง */
+.wbs-dup{display:none;font-size:12.5px;font-weight:600;color:var(--rust);line-height:1.45;}
+.wbs-dup.show{display:block;}
 .xs-warn .v{font-family:'JetBrains Mono';letter-spacing:-.2px;}
 .xs-wbs-line{border:1px solid var(--border-soft);border-radius:8px;padding:12px;margin-bottom:10px;background:#FBFCFC;}
+/* ===== เพิ่มหลายรายการ หลายบัญชี (ของตัวเอง 1 ครั้งเดินทาง) =====
+   พิมพ์ "ชื่อ ลว." ครั้งเดียว แล้วแตกลงหลายบัญชี: ค่าเบี้ยเลี้ยง นายอเมริกาโน่ฯ ลว.. / ค่าที่พัก นายอเมริกาโน่ฯ ลว.. / ...
+   หน้าตาเหมือนรายการแยกบัญชี (ผู้ใช้คุ้นอยู่แล้ว) ต่างกันที่แต่ละบัญชีได้ชื่อรายการของตัวเอง */
+.ml-head{display:flex;gap:12px;flex-wrap:wrap;}
+.ml-line{border:1px solid var(--border-soft);border-radius:8px;padding:10px 12px;margin-bottom:10px;background:#FBFCFC;}
+.ml-line .se-row{display:flex;gap:8px;align-items:flex-end;}
+.ml-line .se-row > .field{margin-bottom:0;}
+/* ชื่อรายการที่จะบันทึกจริง: คำขึ้นต้นแก้ได้ ต่อด้วยชื่อ/ลว. ที่พิมพ์ไว้ข้างบน (สีจาง แก้ที่ข้างบนที่เดียว) */
+.ml-name{display:flex;align-items:center;gap:6px;margin-top:9px;font-size:13px;min-width:0;}
+.ml-name > span:first-child{font-size:11.5px;color:var(--text-muted);font-weight:600;white-space:nowrap;}
+.ml-name input{width:150px;flex:0 0 auto;font:inherit;font-size:13.5px;padding:5px 8px;border:1px solid var(--border);border-radius:6px;background:#fff;}
+.ml-name input:focus{outline:none;border-color:var(--amber);box-shadow:0 0 0 3px rgba(232,163,61,.18);}
+.ml-shared{color:var(--text);min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+.ml-shared.empty{color:var(--text-faint);font-style:italic;}
+.ml-line .se-vat{display:none;align-items:center;gap:6px;font-size:12px;height:36px;cursor:pointer;white-space:nowrap;}
 /* ปุ่มเอาออกอยู่ท้ายแถวเดียวกัน ไม่ตกลงไปกินพื้นที่อีกบรรทัด */
 /* ===== ฟอร์มใบตัดงบเปล่า ===== */
 .bs-sheet{border:1px solid var(--border-soft);border-radius:10px;padding:13px 14px;margin-bottom:12px;background:#FCFDFD;}
@@ -1312,6 +1336,15 @@ table.ledger .del-x:hover{color:var(--rust);}
   .se-line > .field:first-child{flex:1 1 100% !important;min-width:0 !important;}
   .se-line > .field:nth-child(2), .se-line > .field:nth-child(3){flex:1 1 0 !important;width:auto !important;}
   .se-line > .btn-danger-ghost{position:absolute;top:6px;right:8px;height:26px !important;padding:0 10px;}
+  /* หลายรายการ: บัญชีเต็มแถว (เว้นที่ให้ปุ่มเอาออก) / เงินคู่ภาษี / ชื่อรายการ */
+  .ml-line{position:relative;}
+  .ml-line .se-row{flex-wrap:wrap;}
+  .ml-line .se-row > .field:first-child{flex:1 1 100% !important;min-width:0 !important;padding-right:44px;}
+  .ml-line .se-row > .field:nth-child(2), .ml-line .se-row > .field:nth-child(3){flex:1 1 0 !important;width:auto !important;}
+  .ml-line .xs-del{position:absolute;top:30px;right:12px;height:44px;width:38px;}
+  .ml-name{flex-wrap:wrap;}
+  .ml-name input{flex:1 1 130px;min-height:40px;font-size:16px;}
+  .ml-shared{flex:1 1 100%;white-space:normal;}
   /* เบิกร่วม: ช่องเลือกศูนย์ต้นทุนบนจอคอมกว้าง 190px พอเห็นแค่รหัส บนมือถือให้เต็มแถว */
   #xsCcField{width:100% !important;}
   /* ---------- กันของล้นจอ (iPhone ใช้ WebKit: ช่องเลือก/ช่องวันที่ไม่ยอมหดตามกล่อง ทำให้ทั้งหน้ากว้างเกินจอ) ---------- */
@@ -1397,7 +1430,8 @@ table.ledger .del-x:hover{color:var(--rust);}
   /* ปุ่มบนหัวหน้า (แก้ไข ปิดงาน ขอโอน ลบ ...) ย้ายไปอยู่ในไอคอนเครื่องมือกับแผ่น "จัดการ" หมดแล้ว */
   #main.m-homed .page-header{display:none;}
   /* ซ้ำกับไอคอน "แยกหลายบัญชี" / ปุ่ม "เพิ่มรายการบัญชี" อยู่ในแผ่นจัดการ / คำอธิบายการลากรกเกินไปบนจอเล็ก */
-  #main.m-homed > :not(.m-home) button[onclick="openSplitEntryModal()"]{display:none;}
+  #main.m-homed > :not(.m-home) button[onclick="openSplitEntryModal()"],
+  #main.m-homed > :not(.m-home) button[onclick="openMultiEntryModal()"]{display:none;}
   #itemListContainer button[onclick="openAddItemModal()"]{display:none;}
   #main .sort-hint{display:none;}
   #main div:has(> #itemSearchInput){flex:1 1 auto !important;width:auto !important;max-width:none !important;}
@@ -1522,18 +1556,18 @@ table.ledger .del-x:hover{color:var(--rust);}
   .m-empty{padding:22px 12px;text-align:center;font-size:13px;color:var(--text-muted);}
 
   /* ---------- หน้าต่างเล็กๆ เป็นแผ่นเลื่อนขึ้นจากด้านล่าง (ฟอร์มยาวยังเต็มจอเหมือนเดิม) ---------- */
-  :is(#editEntryModal,#addItemModal,#profileModal,#editCcModal,#addWorkTypeModal,#orgSettingsModal,#editProjectModal,#whFileModal,#newProjectModal,#trashModal).modal-overlay{
+  :is(#editEntryModal,#addItemModal,#profileModal,#editCcModal,#addWorkTypeModal,#orgSettingsModal,#editProjectModal,#whFileModal,#newProjectModal,#trashModal,#editItemLabelModal).modal-overlay{
     align-items:flex-end;animation:mFade .2s ease;
   }
-  :is(#editEntryModal,#addItemModal,#profileModal,#editCcModal,#addWorkTypeModal,#orgSettingsModal,#editProjectModal,#whFileModal,#newProjectModal,#trashModal).modal-overlay::before{display:none;}
-  :is(#editEntryModal,#addItemModal,#profileModal,#editCcModal,#addWorkTypeModal,#orgSettingsModal,#editProjectModal,#whFileModal,#newProjectModal,#trashModal) > .modal{
+  :is(#editEntryModal,#addItemModal,#profileModal,#editCcModal,#addWorkTypeModal,#orgSettingsModal,#editProjectModal,#whFileModal,#newProjectModal,#trashModal,#editItemLabelModal).modal-overlay::before{display:none;}
+  :is(#editEntryModal,#addItemModal,#profileModal,#editCcModal,#addWorkTypeModal,#orgSettingsModal,#editProjectModal,#whFileModal,#newProjectModal,#trashModal,#editItemLabelModal) > .modal{
     position:relative;min-height:0 !important;max-height:calc(100% - env(safe-area-inset-top) - 30px);overflow-y:auto;
     border-radius:22px 22px 0 0;padding-top:28px;animation:mSheetUp .3s cubic-bezier(.2,.8,.2,1);
   }
-  :is(#editEntryModal,#addItemModal,#profileModal,#editCcModal,#addWorkTypeModal,#orgSettingsModal,#editProjectModal,#whFileModal,#newProjectModal,#trashModal) > .modal::before{
+  :is(#editEntryModal,#addItemModal,#profileModal,#editCcModal,#addWorkTypeModal,#orgSettingsModal,#editProjectModal,#whFileModal,#newProjectModal,#trashModal,#editItemLabelModal) > .modal::before{
     content:"";position:absolute;top:10px;left:50%;width:40px;height:5px;margin-left:-20px;border-radius:3px;background:#C9D0D3;
   }
-  :is(#editEntryModal,#addItemModal,#profileModal,#editCcModal,#addWorkTypeModal,#orgSettingsModal,#editProjectModal,#whFileModal,#newProjectModal,#trashModal) .modal-actions{margin-top:16px;}
+  :is(#editEntryModal,#addItemModal,#profileModal,#editCcModal,#addWorkTypeModal,#orgSettingsModal,#editProjectModal,#whFileModal,#newProjectModal,#trashModal,#editItemLabelModal) .modal-actions{margin-top:16px;}
 
   /* ---------- หน้าเปิดแอป ---------- */
   .m-splash{
@@ -1998,12 +2032,30 @@ body.access-gated #mTabbar, body.access-gated #proxyBar{display:none !important;
 </div>
 
 <!-- New WBS project modal -->
+<!-- แก้ไขชื่อบัญชี (เปิดจากปุ่มดินสอท้ายชื่อบัญชี) -->
+<div class="modal-overlay hidden" id="editItemLabelModal">
+  <div class="modal">
+    <h2>แก้ไขชื่อบัญชี</h2>
+    <p class="modal-desc" id="eilDesc"></p>
+    <div class="field">
+      <label for="eilLabel">ชื่อบัญชี</label>
+      <input type="text" id="eilLabel" maxlength="80" onkeydown="if(event.key==='Enter'){event.preventDefault();submitEditItemLabel();}">
+    </div>
+    <p class="modal-desc" style="margin:-4px 0 0;">ยอดเงินและรายการจ่ายไม่เปลี่ยน · ใบตัดงบที่พิมพ์หลังจากนี้ (รวมพิมพ์ซ้ำรายการเก่า) จะใช้ชื่อใหม่</p>
+    <div class="modal-actions">
+      <button class="btn btn-outline" onclick="closeModal('editItemLabelModal')">ยกเลิก</button>
+      <button class="btn btn-primary" onclick="submitEditItemLabel()">บันทึก</button>
+    </div>
+  </div>
+</div>
+
 <div class="modal-overlay hidden" id="newProjectModal">
   <div class="modal">
     <h2>สร้างแฟ้มงานใหม่ (WBS)</h2>
     <div class="field">
       <label>หมายเลขงาน (WBS)</label>
-      <input type="text" id="npWbs" placeholder="เช่น WBS-2569-001">
+      <input type="text" id="npWbs" placeholder="เช่น WBS-2569-001" oninput="showWbsDupHint('npWbs','npWbsDup',null)">
+      <div class="wbs-dup" id="npWbsDup" role="status" aria-live="polite"></div>
     </div>
     <div class="field">
       <label>ชื่องาน</label>
@@ -2136,6 +2188,44 @@ body.access-gated #mTabbar, body.access-gated #proxyBar{display:none !important;
     <div class="modal-actions">
       <button class="btn btn-outline" onclick="closeModal('splitEntryModal')">ยกเลิก</button>
       <button class="btn btn-primary" onclick="submitSplitEntry()">บันทึกทั้งชุด</button>
+    </div>
+  </div>
+</div>
+
+<!-- ===== เพิ่มหลายรายการ หลายบัญชี =====
+     ต่างจาก "รายการแยกบัญชี" ข้างบน: นั่นคือบิลใบเดียวชื่อเดียวแบ่งเงินหลายบัญชี
+     ส่วนนี่คือหลายรายการ (เบี้ยเลี้ยง / ที่พัก / ค่าพาหนะ) ของการเดินทางครั้งเดียว ใช้ "ชื่อ ลว." ร่วมกัน -->
+<div class="modal-overlay hidden" id="multiEntryModal">
+  <div class="modal" style="max-width:720px;">
+    <h2>เพิ่มหลายรายการ หลายบัญชี</h2>
+    <p class="modal-desc" id="mlDesc"></p>
+    <div class="ml-head">
+      <div class="field" style="width:160px;">
+        <label for="mlDate">วันที่</label>
+        <input type="date" id="mlDate">
+      </div>
+      <div class="field" style="flex:1;min-width:240px;">
+        <label for="mlShared">รายการ</label>
+        <input type="text" id="mlShared" placeholder="เช่น นายอเมริกาโน่ฯ ลว.23-24 พ.ย. 69" oninput="mlRefreshNames()">
+      </div>
+    </div>
+    <div class="eyebrow" style="margin:4px 0 8px;color:var(--text-faint);">ลงบัญชี</div>
+    <div id="mlLines"></div>
+    <button class="btn btn-outline btn-sm" id="mlAddLineBtn" onclick="addMultiLine()" style="margin-top:2px;">+ เพิ่มบัญชี</button>
+    <div style="display:flex;justify-content:flex-end;gap:22px;margin-top:16px;padding-top:12px;border-top:1px solid var(--border-soft);">
+      <div style="text-align:right;">
+        <div style="font-size:11.5px;color:var(--text-muted);">รวมยอดตัดงบ</div>
+        <div id="mlTotalLedger" style="font-family:'JetBrains Mono';font-size:19px;font-weight:700;">0.00</div>
+      </div>
+      <div style="text-align:right;">
+        <div style="font-size:11.5px;color:var(--text-muted);">รวมเงินที่เบิก (รวมภาษี)</div>
+        <div id="mlTotalGross" style="font-family:'JetBrains Mono';font-size:19px;font-weight:700;">0.00</div>
+      </div>
+    </div>
+    <div class="modal-actions">
+      <button class="btn btn-outline" onclick="closeModal('multiEntryModal')">ยกเลิก</button>
+      <button class="btn btn-outline" onclick="submitMultiEntry(false)">บันทึก</button>
+      <button class="btn btn-primary" onclick="submitMultiEntry(true)">บันทึก + พิมพ์ใบตัดงบ</button>
     </div>
   </div>
 </div>
@@ -2364,7 +2454,8 @@ body.access-gated #mTabbar, body.access-gated #proxyBar{display:none !important;
     <h2>แก้ไขแฟ้มงาน</h2>
     <div class="field">
       <label>หมายเลขงาน (WBS)</label>
-      <input type="text" id="epWbs">
+      <input type="text" id="epWbs" oninput="showWbsDupHint('epWbs','epWbsDup',state.activeProjectId)">
+      <div class="wbs-dup" id="epWbsDup" role="status" aria-live="polite"></div>
     </div>
     <div class="field">
       <label>ชื่องาน</label>
@@ -5868,6 +5959,28 @@ function updateItemBudget(itemCode, value){
   item.budget = Math.max(0, Number(value)||0);
   saveCc(cc); render();
 }
+const ITEM_LABEL_MAX = 80;
+let eilItemCode = null;
+function openEditItemLabelModal(itemCode){
+  const cc = getCc(state.activeCcId);
+  if(!cc || !canManageDept(cc.deptKey)){ alert('แก้ไขชื่อบัญชีได้เฉพาะผู้ดูแลแผนกหรือแอดมิน'); return; }
+  const item = (cc.items || []).find(i=> i.code === itemCode);
+  if(!item) return;
+  eilItemCode = itemCode;
+  document.getElementById('eilDesc').textContent = 'รหัสบัญชี ' + item.code + ' · ' + cc.code;
+  const inp = document.getElementById('eilLabel');
+  inp.value = item.label || '';
+  openModal('editItemLabelModal');
+  setTimeout(()=>{ inp.focus(); inp.select(); }, 50);
+}
+function submitEditItemLabel(){
+  if(!eilItemCode) return;
+  const next = document.getElementById('eilLabel').value.replace(/\s+/g, ' ').trim();
+  if(!next){ alert('ชื่อบัญชีว่างไม่ได้'); return; }
+  closeModal('editItemLabelModal');
+  updateItemMeta(eilItemCode, 'label', next);
+  eilItemCode = null;
+}
 function updateItemMeta(itemCode, field, value){
   const cc = getCc(state.activeCcId);
   if(!cc || !canManageDept(cc.deptKey)){ alert('คุณไม่มีสิทธิ์แก้ไขรายการนี้'); render(); return; }
@@ -5896,6 +6009,16 @@ function updateItemMeta(itemCode, field, value){
     }
     item.code = next;
     if(state.activeItemKey === itemCode) state.activeItemKey = next;
+    saveCc(cc); render();
+    return;
+  }
+  if(field === 'label'){
+    // ชื่อบัญชีแก้ได้อิสระ รายการจ่ายผูกกับรหัสบัญชี ไม่ได้ผูกกับชื่อ ยอดเงินจึงไม่กระทบ
+    // (ใบตัดงบที่พิมพ์หลังจากนี้ รวมถึงพิมพ์ซ้ำรายการเก่า จะใช้ชื่อใหม่)
+    const next = String(value == null ? '' : value).replace(/\s+/g, ' ').trim().slice(0, ITEM_LABEL_MAX);
+    if(next === item.label){ render(); return; }
+    if(!next){ alert('ชื่อบัญชีว่างไม่ได้'); render(); return; }
+    item.label = next;
     saveCc(cc); render();
     return;
   }
@@ -6831,6 +6954,36 @@ function switchAppMode(mode){
 }
 
 /* ============ WBS project mode: project CRUD ============ */
+// หมายเลขงานซ้ำ: แฟ้มงาน WBS หนึ่งหมายเลขควรมีแฟ้มเดียว ถ้าสร้างซ้ำ รายการจ่ายจะกระจายอยู่สองแฟ้ม
+// ยอดคงเหลือของงานเดียวกันจะผิดทั้งคู่ — เทียบกับแฟ้มทุกปีของแผนกนี้ (รวมในถังขยะ) ไม่สนช่องว่าง/ตัวพิมพ์เล็กใหญ่
+// แค่เตือน ไม่ห้าม (เผื่อกรณีจำเป็นจริง) ผู้ใช้ตัดสินใจเอง
+function normWbs(s){ return String(s || '').replace(/\s+/g, '').toUpperCase(); }
+function findDuplicateWbs(wbs, exceptId){
+  const k = normWbs(wbs);
+  if(!k) return [];
+  return state.projects
+    .filter(p=> p.deptKey === state.activeDept && p.id !== exceptId && normWbs(p.wbs) === k)
+    .sort((a,b)=> (a.deletedAt ? 1 : 0) - (b.deletedAt ? 1 : 0));
+}
+function wbsDupLine(p){
+  const y = projectYearOf(p);
+  return '"' + (p.name || p.wbs) + '"' + (y ? ' (ปี ' + y + ')' : '')
+    + (p.deletedAt ? ' — อยู่ในถังขยะ กู้คืนแทนการสร้างใหม่ได้' : (p.closed ? ' — ปิดงานแล้ว' : ''));
+}
+function showWbsDupHint(inputId, hintId, exceptId){
+  const el = document.getElementById(hintId);
+  if(!el) return;
+  const dups = findDuplicateWbs(document.getElementById(inputId).value, exceptId);
+  el.textContent = dups.length ? '⚠ หมายเลขงานนี้ซ้ำกับแฟ้ม ' + dups.map(wbsDupLine).join(', ') : '';
+  el.classList.toggle('show', dups.length > 0);
+}
+function confirmDuplicateWbs(wbs, exceptId, doing){
+  const dups = findDuplicateWbs(wbs, exceptId);
+  if(!dups.length) return true;
+  return confirm('หมายเลขงาน ' + wbs + ' ซ้ำกับแฟ้มงานที่มีอยู่แล้ว\n\n'
+    + dups.map(p=> '• ' + wbsDupLine(p)).join('\n')
+    + '\n\nถ้ามีสองแฟ้ม รายการจ่ายของงานเดียวกันจะแยกกันอยู่ ยอดคงเหลือจะไม่ตรง\n\nยังต้องการ' + doing + 'ต่อไหม?');
+}
 function openNewProjectModal(){
   if(!isProjectModeAllowed(state.activeDept) || !canManageDept(state.activeDept)){
     alert('สร้างแฟ้มงาน WBS ได้เฉพาะผู้ดูแลแผนก/แอดมินของแผนก ผปบ., ผกส., หรือ ผมต. เท่านั้น');
@@ -6838,6 +6991,7 @@ function openNewProjectModal(){
   }
   document.getElementById('npWbs').value='';
   document.getElementById('npName').value='';
+  showWbsDupHint('npWbs', 'npWbsDup', null);
   openModal('newProjectModal');
   setTimeout(()=>document.getElementById('npWbs').focus(),50);
 }
@@ -6845,6 +6999,7 @@ async function submitNewProject(){
   const wbs = document.getElementById('npWbs').value.trim();
   const name = document.getElementById('npName').value.trim();
   if(!wbs || !name){ alert('กรุณากรอกหมายเลขงานและชื่องานให้ครบ'); return; }
+  if(!confirmDuplicateWbs(wbs, null, 'สร้างแฟ้มใหม่')) return;
   const project = {
     id: uid(), wbs, name, deptKey: state.activeDept,
     // บันทึกปีงบไว้ตั้งแต่สร้าง เพื่อให้ตัวกรองปีในแถบข้างไม่ต้องเดาจากวันที่สร้าง (แก้ได้ทีหลังในหน้าแก้ไข)
@@ -6878,6 +7033,7 @@ function openEditProjectModal(){
   if(!p || !canManageDept(p.deptKey)){ alert('คุณไม่มีสิทธิ์แก้ไขแฟ้มงานนี้'); return; }
   document.getElementById('epWbs').value = p.wbs;
   document.getElementById('epName').value = p.name;
+  showWbsDupHint('epWbs', 'epWbsDup', p.id);
   // ปีที่เลือกไว้ = ปีที่ตั้งเอง หรือปีที่ระบบเดาจากวันที่สร้าง ถ้าไม่รู้เลยก็ใช้ปีงบปัจจุบัน
   const cur = projectYearOf(p) ?? Number(state.activeYear);
   const years = [...new Set([...projectYearOptions(), cur])].filter(Boolean).sort((a,b)=>b-a);
@@ -6891,6 +7047,8 @@ function submitEditProject(){
   const wbs = document.getElementById('epWbs').value.trim();
   const name = document.getElementById('epName').value.trim();
   if(!wbs || !name){ alert('กรุณากรอกให้ครบ'); return; }
+  // เตือนเฉพาะตอนเปลี่ยนหมายเลขงาน — แก้แค่ชื่อ/ปีของแฟ้มที่ซ้ำอยู่แล้วไม่ต้องถามทุกครั้ง
+  if(normWbs(wbs) !== normWbs(p.wbs) && !confirmDuplicateWbs(wbs, p.id, 'เปลี่ยนเป็นหมายเลขนี้')) return;
   const yr = Number(document.getElementById('epYear').value);
   p.wbs = wbs; p.name = name;
   if(yr) p.year = yr;   // ตั้งปีไว้ชัดเจน ระบบจะไม่เดาจากวันที่สร้างอีก
@@ -8104,6 +8262,7 @@ function renderMain(){
           <input type="text" id="itemSearchInput" placeholder="ค้นหารายการบัญชี (รหัสหรือชื่อ)" value="${escapeHtml(state.itemSearchQuery||'')}" oninput="onItemSearchInput(this.value)" style="border:none;outline:none;background:transparent;font-family:inherit;font-size:13px;width:100%;color:var(--text);">
         </div>
         <button class="btn btn-outline btn-sm" onclick="openSplitEntryModal()" title="บิลใบเดียวที่ต้องตัดงบหลายบัญชี เช่น ค่าโทรศัพท์ (ค่าใช้บริการ + ค่าบำรุงรักษาคู่สาย)" style="height:38px;white-space:nowrap;">⇄ รายการแยกบัญชี</button>
+        <button class="btn btn-outline btn-sm" onclick="openMultiEntryModal()" title="พิมพ์ชื่อและ ลว. ครั้งเดียว แล้วลงหลายบัญชีพร้อมกัน เช่น ค่าเบี้ยเลี้ยง + ค่าที่พัก + ค่าพาหนะ" style="height:38px;white-space:nowrap;">☰ หลายรายการ หลายบัญชี</button>
       </div>`;
       html += `<div id="itemListContainer">${buildItemListInnerHtml(cc)}</div>`;
     }
@@ -9684,6 +9843,247 @@ async function submitSplitEntry(){
   }
 }
 
+/* ============ เพิ่มหลายรายการ หลายบัญชี ============
+   เบิกค่าเดินทางของตัวเองครั้งหนึ่ง ต้องลงหลายบัญชี (เบี้ยเลี้ยง / ที่พัก / ค่าพาหนะ) ชื่อรายการต่างกันแค่คำขึ้นต้น
+     ค่าเบี้ยเลี้ยง นายอเมริกาโน่ฯ ลว.23-24 พ.ย. 69
+     ค่าที่พัก นายอเมริกาโน่ฯ ลว.23-24 พ.ย. 69
+   เดิมต้องเข้าบัญชี → เพิ่ม → ออก → บัญชีถัดไป → ... → ติ๊กทีละบัญชี → พิมพ์รวม
+   ตอนนี้พิมพ์ "ชื่อ ลว." ครั้งเดียว ใส่เงินแต่ละบัญชี กดบันทึก (+พิมพ์) จบในหน้าเดียว
+   เบื้องหลังเป็นรายการจ่ายปกติของแต่ละบัญชี (สมุดคุมงบ แก้ไข ลบ ส่งออก เหมือนกรอกทีละรายการทุกอย่าง)
+   เขียนในทรานแซกชันเดียวกับรายการแยกบัญชี — ไม่มีทางบันทึกเข้าไปครึ่งเดียว */
+// ชุดตั้งต้นครั้งแรก (ผังบัญชีของ กฟภ. ใช้รหัสเดียวกันทุกการไฟฟ้า) ศูนย์ต้นทุนไหนไม่มีบัญชีก็ข้ามไป
+const ML_PRESETS = {
+  emp: ['52022020', '52022030', '52022010'],   // เบี้ยเลี้ยง / ที่พัก / ค่าพาหนะ — พนักงาน
+  lab: ['52022070', '52022080', '52022060'],   // เบี้ยเลี้ยง / ที่พัก / ค่าพาหนะ — ลูกจ้าง
+};
+// คำขึ้นต้นชื่อรายการของแต่ละบัญชี (แบบที่ผู้ใช้พิมพ์กันจริงในสมุด) บัญชีอื่นใช้ชื่อบัญชีตัดท้าย -พนักงาน/-ลูกจ้าง ออก
+const ML_WORDS = {
+  '52022020':'ค่าเบี้ยเลี้ยง', '52022070':'ค่าเบี้ยเลี้ยง',
+  '52022030':'ค่าที่พัก',     '52022080':'ค่าที่พัก',
+  '52022010':'ค่าพาหนะ',     '52022060':'ค่าพาหนะ',   '52022050':'ค่าพาหนะ',
+  '53039010':'ค่าน้ำมันรถ',
+};
+let mlLineSeq = 0, mlSaving = false;
+function mlWordOf(item){
+  if(!item) return '';
+  return ML_WORDS[item.code] || String(item.label || '').replace(/\s*-\s*(พนักงาน|ลูกจ้าง|พนง\.?|ล)$/, '').trim();
+}
+function mlLineHtml(idx, code){
+  const opts = splitSelectableItems().map(it=>
+    `<option value="${escapeHtml(it.code)}" ${it.code===code?'selected':''}>${escapeHtml(it.code)} — ${escapeHtml(it.label)}</option>`).join('');
+  return `<div class="ml-line" data-idx="${idx}">
+    <div class="se-row">
+      <div class="field" style="flex:1;min-width:230px;">
+        <label>รายการบัญชี</label>
+        <select id="mlItem${idx}" onchange="onMultiLineChange(${idx})" style="width:100%;">
+          <option value="">— เลือกรายการบัญชี —</option>${opts}
+        </select>
+      </div>
+      <div class="field" style="width:130px;">
+        <label>จำนวนเงิน</label>
+        <input type="number" id="mlAmount${idx}" min="0" step="0.01" placeholder="0.00" style="width:100%;" oninput="recalcMultiTotals()">
+      </div>
+      <div class="field" style="width:110px;">
+        <label>ภาษี (ถ้ามี)</label>
+        <input type="number" id="mlTax${idx}" min="0" step="0.01" placeholder="0.00" style="width:100%;" oninput="recalcMultiTotals()">
+      </div>
+      <label class="se-vat" id="mlVatWrap${idx}">
+        <input type="checkbox" id="mlVat${idx}" checked style="width:auto;margin:0;" onchange="recalcMultiTotals()">
+        <span>เครดิตภาษีซื้อได้</span>
+      </label>
+      <button type="button" class="xs-del" onclick="removeMultiLine(${idx})" title="เอาบัญชีนี้ออก" aria-label="เอาบัญชีนี้ออก">×</button>
+    </div>
+    <div class="ml-name">
+      <span>ชื่อรายการ</span>
+      <input type="text" id="mlWord${idx}" data-auto="1" aria-label="คำขึ้นต้นชื่อรายการ" oninput="this.dataset.auto='';">
+      <span class="ml-shared" id="mlSharedOut${idx}"></span>
+    </div>
+    <div class="xs-warn" id="mlWarn${idx}">เกินงบ <span class="v"></span></div>
+  </div>`;
+}
+function mlLineIdxs(){ return [...document.querySelectorAll('#mlLines .ml-line')].map(el=> el.getAttribute('data-idx')); }
+function onMultiLineChange(idx){
+  const code = document.getElementById('mlItem'+idx).value;
+  const item = splitSelectableItems().find(it=> it.code === code);
+  document.getElementById('mlVatWrap'+idx).style.display = itemHasVatCreditToggle(item) ? 'flex' : 'none';
+  // คำขึ้นต้นเปลี่ยนตามบัญชีให้เอง จนกว่าผู้ใช้จะพิมพ์แก้เอง
+  const w = document.getElementById('mlWord'+idx);
+  if(w.dataset.auto) w.value = mlWordOf(item);
+  recalcMultiTotals();
+}
+function mlRefreshNames(){
+  const shared = document.getElementById('mlShared').value.trim();
+  mlLineIdxs().forEach(idx=>{
+    const out = document.getElementById('mlSharedOut'+idx);
+    out.textContent = shared || '(รายการที่พิมพ์ข้างบน)';
+    out.classList.toggle('empty', !shared);
+  });
+}
+function multiLineValues(){
+  return mlLineIdxs().map(idx=>{
+    const code = document.getElementById('mlItem'+idx).value;
+    const item = splitSelectableItems().find(it=> it.code === code) || null;
+    const line = { idx, itemCode: code, item,
+      word: document.getElementById('mlWord'+idx).value.trim(),
+      amount: money(Number(document.getElementById('mlAmount'+idx).value) || 0),
+      tax: money(Number(document.getElementById('mlTax'+idx).value) || 0) };
+    if(itemHasVatCreditToggle(item)) line.vatCreditable = !!document.getElementById('mlVat'+idx).checked;
+    return line;
+  });
+}
+function recalcMultiTotals(){
+  const lines = multiLineValues();
+  document.getElementById('mlTotalLedger').textContent = fmt(lines.reduce((s,l)=> s + entryLedgerAmount(l), 0));
+  document.getElementById('mlTotalGross').textContent = fmt(lines.reduce((s,l)=> s + l.amount + l.tax, 0));
+  // เตือนเฉพาะบัญชีที่ใส่เงินแล้วจะเกินงบ ปกติไม่ขึ้นอะไร (แบบเดียวกับฟอร์มเบิกร่วมงบทำการ)
+  lines.forEach(l=>{
+    const el = document.getElementById('mlWarn'+l.idx);
+    const after = l.item ? money(itemTotals(l.item).remaining - entryLedgerAmount(l)) : 0;
+    el.classList.toggle('show', !!l.item && l.amount > 0 && after < 0);
+    el.querySelector('.v').textContent = after < 0 ? fmt(-after) + ' บาท' : '';
+  });
+  document.getElementById('mlAddLineBtn').classList.toggle('hidden', lines.length >= MAX_SPLIT_LINES);
+}
+function addMultiLine(code){
+  if(mlLineIdxs().length >= MAX_SPLIT_LINES) return;
+  const idx = mlLineSeq++;
+  document.getElementById('mlLines').insertAdjacentHTML('beforeend', mlLineHtml(idx, code || ''));
+  onMultiLineChange(idx);
+  mlRefreshNames();
+}
+function removeMultiLine(idx){
+  if(mlLineIdxs().length <= 1){ alert('ต้องมีอย่างน้อย 1 บัญชี'); return; }
+  const el = document.querySelector(`#mlLines .ml-line[data-idx="${idx}"]`);
+  if(el) el.remove();
+  recalcMultiTotals();
+}
+// บัญชีตั้งต้นตอนเปิดหน้าต่าง = ชุดบัญชีที่ผู้ใช้คนนี้เบิกครั้งล่าสุด (พร้อมคำขึ้นต้นที่เคยแก้ไว้)
+// 1) หาจากรายการในศูนย์ต้นทุนนี้ที่เคยบันทึกผ่านหน้าต่างนี้ (เก็บในฐานข้อมูล ใช้ได้ทุกเครื่อง)
+// 2) ไม่เจอ (เช่น ศูนย์ต้นทุนปีใหม่) ใช้ชุดที่จำไว้ในเครื่องนี้
+// 3) ยังไม่เคยใช้เลย = เบี้ยเลี้ยง / ที่พัก / ค่าพาหนะ ของพนักงาน (ไม่มีก็ของลูกจ้าง)
+// บัญชีที่ไม่มีในศูนย์ต้นทุนนี้แล้วจะถูกข้ามไปเอง
+function mlMemKey(){ return 'kmw-mlset:' + (state.user ? state.user.uid : ''); }
+function mlDefaultSet(){
+  const have = splitSelectableItems().map(i=> i.code);
+  const ok = list => (list || []).filter(x=> x && have.includes(x.code)).slice(0, MAX_SPLIT_LINES);
+  const me = state.user && state.user.uid;
+  const mine = (state.activeCcEntries || []).filter(e=> e.batchId && e.batchWord !== undefined && e.addedBy === me && !e.deletedAt);
+  if(mine.length){
+    const last = mine.reduce((a,b)=> ((b.createdAt||0) > (a.createdAt||0) ? b : a));
+    const set = ok(mine.filter(e=> e.batchId === last.batchId)
+      .sort((a,b)=> (a.batchSeq||0) - (b.batchSeq||0)).map(e=> ({ code: e.itemCode, word: e.batchWord })));
+    if(set.length) return set;
+  }
+  try{
+    const set = ok(JSON.parse(localStorage.getItem(mlMemKey()) || 'null'));
+    if(set.length) return set;
+  }catch(e){}
+  for(const kind of ['emp', 'lab']){
+    const set = ok(ML_PRESETS[kind].map(code=> ({ code })));
+    if(set.length) return set;
+  }
+  return [];
+}
+function openMultiEntryModal(){
+  const cc = getCc(state.activeCcId);
+  if(!cc) return;
+  if(!splitSelectableItems().length){ alert('ศูนย์ต้นทุนนี้ยังไม่มีรายการบัญชี'); return; }
+  document.getElementById('mlDesc').textContent = `${cc.code} — ${cc.name} · ปีงบประมาณ ${cc.year}`;
+  document.getElementById('mlDate').value = todayStr();
+  document.getElementById('mlShared').value = '';
+  document.getElementById('mlLines').innerHTML = '';
+  mlLineSeq = 0;
+  const set = mlDefaultSet();
+  if(set.length){
+    set.forEach(x=>{
+      addMultiLine(x.code);
+      // คำขึ้นต้นที่เคยแก้เอง (เช่น "ค่าเบี้ยเลี้ยงเดินทาง") ใช้ต่อ — ถ้ายังเป็นคำตั้งต้นของบัญชีก็ปล่อยให้เปลี่ยนตามบัญชีได้
+      const idx = mlLineIdxs().pop();
+      const w = document.getElementById('mlWord'+idx);
+      if(x.word != null && x.word !== w.value){ w.value = x.word; w.dataset.auto = ''; }
+    });
+  } else { addMultiLine(''); }
+  mlRefreshNames();
+  recalcMultiTotals();
+  openModal('multiEntryModal');
+  setTimeout(()=> document.getElementById('mlShared').focus(), 50);
+}
+async function submitMultiEntry(andPrint){
+  const cc = getCc(state.activeCcId);
+  if(!cc) return;
+  const date = document.getElementById('mlDate').value || todayStr();
+  const shared = document.getElementById('mlShared').value.trim();
+  if(!shared){ alert('กรุณากรอกรายการ (เช่น นายอเมริกาโน่ฯ ลว.23-24 พ.ย. 69)'); document.getElementById('mlShared').focus(); return; }
+  const lines = multiLineValues();
+  if(!lines.length){ alert('ต้องมีอย่างน้อย 1 บัญชี'); return; }
+  if(lines.some(l=> !l.item)){ alert('กรุณาเลือกรายการบัญชีให้ครบทุกบรรทัด'); return; }
+  const codes = lines.map(l=> l.itemCode);
+  if(new Set(codes).size !== codes.length){ alert('เลือกรายการบัญชีซ้ำกัน กรุณาเลือกบัญชีที่ต่างกันในแต่ละบรรทัด'); return; }
+  const noAmt = lines.find(l=> !(l.amount > 0));
+  if(noAmt){ alert('กรุณากรอกจำนวนเงินของ ' + noAmt.item.label + ' ให้มากกว่า 0'); document.getElementById('mlAmount'+noAmt.idx).focus(); return; }
+  const over = lines.map(l=>{
+    const after = money(itemTotals(l.item).remaining - entryLedgerAmount(l));
+    return after < 0 ? '• ' + l.item.label + ' เกินงบ ' + fmt(-after) + ' บาท' : '';
+  }).filter(Boolean);
+  if(over.length && !confirm('บัญชีต่อไปนี้จะเกินงบหลังบันทึก\n\n' + over.join('\n') + '\n\nบันทึกต่อไหม?')) return;
+
+  const batchId = uid();
+  const base = newEntryBase();
+  delete base.id; delete base.createdAt;
+  const now = Date.now();
+  const payload = lines.map((l, i)=>{
+    const entry = { id: uid(), date, desc: (l.word ? l.word + ' ' : '') + shared, amount: l.amount, tax: l.tax,
+      createdAt: now + i, batchId, batchSeq: i, batchCount: lines.length, batchWord: l.word, ...base };
+    if('vatCreditable' in l) entry.vatCreditable = l.vatCreditable;
+    return { itemCode: l.itemCode, entry };
+  });
+  // หน้าต่างยังเปิดค้างระหว่างบันทึก และล็อกปุ่มไว้: กดซ้ำจะไม่ได้รายการซ้ำ
+  // ถ้าบันทึกไม่สำเร็จ ข้อมูลที่กรอกยังอยู่ครบ กดบันทึกใหม่ได้เลยไม่ต้องพิมพ์ใหม่
+  if(mlSaving) return;
+  mlSaving = true;
+  const btns = [...document.querySelectorAll('#multiEntryModal .modal-actions .btn')];
+  btns.forEach(b=> b.disabled = true);
+  try{
+    await window.fb.addSplitCcEntriesTx(cc.id, payload);
+  }catch(e){
+    console.error(e); flashSaved(true);
+    alert('บันทึกไม่สำเร็จ ไม่มีรายการใดถูกบันทึก\n\n' + e.message);
+    return;
+  }finally{
+    mlSaving = false;
+    btns.forEach(b=> b.disabled = false);
+  }
+  try{ localStorage.setItem(mlMemKey(), JSON.stringify(lines.map(l=> ({ code: l.itemCode, word: l.word })))); }catch(e){}
+  closeModal('multiEntryModal');
+  // ใส่ลงจอทันที ไม่ต้องรอข้อมูลจากเซิร์ฟเวอร์ จะได้พิมพ์ใบต่อได้เลย — ข้อมูลจริงที่ตามมาจะมาแทนที่เอง
+  if(ccEntriesActiveHere(cc)){
+    const have = new Set(state.activeCcEntries.map(e=> e.id));
+    payload.forEach(p=>{ if(!have.has(p.entry.id)) state.activeCcEntries.push({ ...p.entry, itemCode: p.itemCode }); });
+  }
+  flashSaved(false);
+  render();
+  if(andPrint) printMultiEntrySlip(cc, payload.map(p=> ({ itemCode: p.itemCode, entryId: p.entry.id })));
+}
+// ใบตัดงบใบเดียวของชุดนี้ = ใบตัดงบรวมแบบเดิม (ติ๊กทีละบัญชีแล้วพิมพ์รวม) แค่ระบบติ๊กให้
+// ผู้เบิกใช้ชื่อจากรายการ (คนที่บันทึก/ลงนามในนาม) แบบเดียวกับปุ่มพิมพ์ของแต่ละแถว
+function printMultiEntrySlip(cc, sels){
+  const entries = [];
+  for(const sel of sels){
+    const item = (cc.items || []).find(i=> i.code === sel.itemCode);
+    if(!item) continue;
+    const t = itemTotals(item);
+    const row = t.rows.find(r=> r.id === sel.entryId);
+    if(row) entries.push({ item, row, rowRemaining: t.budget - row.cumulative });
+  }
+  if(entries.length !== sels.length){
+    alert('บันทึกเรียบร้อยแล้ว แต่ยังโหลดรายการไม่ครบ จึงยังพิมพ์ไม่ได้\nติ๊กรายการทั้ง ' + sels.length + ' บัญชีแล้วกด "พิมพ์รวม" ได้เลย');
+    return;
+  }
+  const r0 = entries[0].row;
+  const html = buildSlipBodyHtml(cc, entries, r0.addedByName || r0.addedByEmail || '', r0.addedByCode || '', r0.addedByPosition || '', r0.date);
+  openSlipPrintWindow(html, `ใบตัดงบ_${r0.date}`);
+}
+
 /* ============ แก้ไขรายการจ่ายที่บันทึกไปแล้ว (ใช้ร่วมกันทั้ง 3 โหมด) ============ */
 // Correcting a typo used to mean deleting the row and re-entering it, which left a delete in the
 // history and renumbered every ใบตัดงบ printed after it. Editing in place keeps the row (and its
@@ -10193,7 +10593,7 @@ function renderItemDetail(cc, item){
     <div class="detail-head">
       <div class="detail-title-row">
         <div>
-          <div class="detail-title">${escapeHtml(item.label)}</div>
+          <div class="detail-title">${escapeHtml(item.label)}${admin ? `<button type="button" class="label-edit-btn" onclick="openEditItemLabelModal('${escapeJsStr(item.code)}')" title="แก้ไขชื่อบัญชี" aria-label="แก้ไขชื่อบัญชี"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg></button>` : ''}</div>
           <div class="detail-sub">${escapeHtml(cc.code)} — ${escapeHtml(cc.name)}</div>
         </div>
         <div class="detail-code-edit">
@@ -11094,6 +11494,7 @@ function mTools(){
     if(cm) t.push({ l:'แฟ้มงบซื้อของใหม่', i:'newfile', f:'openNewWhFileModal()' });
   } else {
     const cc = mActiveCc();
+    if(cc) t.push({ l:'หลายรายการ', i:'addlist', f:'openMultiEntryModal()', c:'teal' });
     if(cc) t.push({ l:'แยกหลายบัญชี', i:'split', f:'openSplitEntryModal()', c:'teal' });
     if(cc && cm) t.push({ l:'เพิ่มบัญชี', i:'addlist', f:'openAddItemModal()' });
     if(cm) t.push({ l:'ศูนย์ต้นทุนใหม่', i:'newfile', f:'openNewCcModal()' });
@@ -11122,10 +11523,12 @@ function mHomeTiles(){
     if(cm) t.push({ l:'ถังขยะ', i:'trash', f:'openTrashModal()', c:'ink' });
     t.push(me);
   } else {
+    // หน้าหลักมีที่ 4 ช่อง: "หลายรายการ" เข้ามาแทน "ถังขยะ" (ถังขยะยังอยู่ใน "จัดการระบบ" ของแผ่นเพิ่มเติม)
+    if(mActiveCc()) t.push({ l:'หลายรายการ', i:'addlist', f:'openMultiEntryModal()', c:'teal' });
     if(mActiveCc()) t.push({ l:'แยกหลายบัญชี', i:'split', f:'openSplitEntryModal()', c:'teal' });
     t.push({ l:'ใบตัดงบเปล่า', i:'doc', f:'openBlankSlipModal()', c:'ink' });
-    if(cm) t.push({ l:'ถังขยะ', i:'trash', f:'openTrashModal()', c:'ink' });
     t.push(me);
+    if(cm) t.push({ l:'ถังขยะ', i:'trash', f:'openTrashModal()', c:'ink' });
   }
   return t.slice(0, 4);
 }
@@ -11491,7 +11894,7 @@ if(window.__fbReady) guardFbWritesWhenOffline(); else window.addEventListener('f
   });
 })();
 /* ============ เครดิตผู้พัฒนา — แก้ข้อความที่นี่ที่เดียว ทุกจุดเปลี่ยนตาม ============ */
-var APP_CREDIT = { name:'BETONG TECH.', unit:'ผปบ.กฟส.เบตง', tel:'14755', year:'2569', version:'2.7' };
+var APP_CREDIT = { name:'BETONG TECH.', unit:'ผปบ.กฟส.เบตง', tel:'14755', year:'2569', version:'2.8' };
 function appCreditHtml(lines){
   const c = APP_CREDIT;
   const l1 = `พัฒนาโดย <b>${escapeHtml(c.name)}</b> · ${escapeHtml(c.unit)}`;
