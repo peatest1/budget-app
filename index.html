@@ -407,6 +407,19 @@ body{
 .cc-progress-fill.ok{background:var(--teal);}
 .cc-progress-fill.warn{background:var(--amber);}
 .cc-progress-fill.over{background:var(--rust);}
+/* ===== ภาพรวมงบของศูนย์ต้นทุน: แคปซูลสีเข้ม ท้ายแถวค้นหา (หน้ารวมบัญชี บนคอม) =====
+   วงแหวนส้ม = จ่ายแล้ว / เขียว = คงเหลือ (ชี้เมาส์บอก %) · ทั้งหมด ตัวขาว · คงเหลือ ตัวเขียว (ติดลบเป็นสีแดงส้ม)
+   มือถือ/แท็บเล็ตไม่แสดง เพราะหน้าหลักมือถือมีการ์ดภาพรวมอยู่แล้ว (ใช้เงื่อนไขเดียวกับ M_MQ) */
+.cc-ov-pill{display:inline-flex;align-items:center;gap:8px;height:38px;padding:0 15px 0 7px;margin-left:auto;border-radius:999px;
+  white-space:nowrap;background:#16212B;color:#F3F4F1;box-shadow:0 6px 16px rgba(22,33,43,.18);}
+.cc-ov-pill-ring{width:24px;height:24px;border-radius:50%;display:inline-flex;align-items:center;justify-content:center;flex-shrink:0;}
+.cc-ov-pill-ring i{width:14px;height:14px;border-radius:50%;background:#16212B;}
+.cc-ov-pill-lbl{font-size:11.5px;color:#8FA3A8;font-weight:600;}
+.cc-ov-pill-all{font-family:'JetBrains Mono';font-size:14.5px;font-weight:600;color:#F3F4F1;letter-spacing:-.3px;}
+.cc-ov-pill-left{font-family:'JetBrains Mono';font-size:14.5px;font-weight:700;color:#7FD3B9;letter-spacing:-.3px;}
+.cc-ov-pill-left.neg{color:#F08A6C;}
+.cc-ov-pill-sep{width:1px;height:14px;margin:0 2px;background:#2B3A46;}
+@media (max-width:760px), (max-width:1000px) and (pointer:coarse){ .cc-ov-pill{display:none;} }
 .list-empty{color:#7C8A90;font-size:12.5px;padding:16px 4px;text-align:center;}
 
 /* main */
@@ -1666,6 +1679,34 @@ table.ledger .del-x:hover{color:var(--rust);}
 .sg-menu .sg-mi{display:flex;flex-direction:column;min-width:0;}
 .sg-menu .sg-mi small{font-weight:500;font-size:11px;color:var(--text-muted);}
 .sg-menu button.on{background:var(--teal-soft);}
+/* ===== สิทธิ์ตัดงบข้ามแผนก ===== */
+/* แถบบอกว่ากำลังอยู่ในแผนกอื่น — อยู่บนสุดของเนื้อหาทุกโหมด กันเผลอตัดงบผิดแผนก */
+.xd-strip{display:flex;align-items:center;gap:12px;margin:0 0 18px;padding:10px 16px;border-radius:10px;
+  background:#FFF4E0;border:1px solid #F1D29B;color:var(--ink);font-size:13px;}
+.xd-strip b{font-weight:700;}
+.xd-strip .xd-t{flex:1;min-width:0;}
+.xd-strip button{flex-shrink:0;}
+.xd-sec{margin-top:16px;}
+.xd-h{font-size:12px;font-weight:700;color:var(--text-muted);margin-bottom:8px;display:flex;gap:6px;align-items:center;}
+.xd-h span{background:var(--paper);border-radius:99px;padding:0 8px;font-size:11px;}
+.xd-row{display:flex;align-items:center;gap:10px;padding:10px 12px;border:1px solid var(--border-soft);border-radius:10px;margin-bottom:6px;}
+.xd-row-t{flex:1;min-width:0;display:flex;flex-direction:column;gap:2px;}
+.xd-row-t b{font-size:13.5px;}
+.xd-row-t small{font-size:11.5px;color:var(--text-muted);}
+.xd-row-t q{font-size:12px;color:var(--text);quotes:"“" "”";}
+.xd-row-act{display:flex;gap:6px;flex-shrink:0;}
+.xd-chip{display:inline-block;font-size:11px;font-weight:700;border-radius:99px;padding:1px 9px;margin-left:6px;vertical-align:1px;}
+.xd-chip.pending{background:#FFF4E0;color:#9A6413;}
+.xd-chip.approved{background:var(--teal-soft);color:var(--teal);}
+.xd-chip.rejected, .xd-chip.revoked{background:#F7E4DE;color:var(--rust);}
+.xd-empty{font-size:12.5px;color:var(--text-muted);padding:10px;border:1px dashed var(--border-soft);border-radius:10px;text-align:center;}
+.xd-form{padding:12px;border-radius:12px;background:var(--paper);}
+.xd-form .field{margin-bottom:10px;}
+.xd-form-act{display:flex;justify-content:flex-end;}
+@media (max-width:760px), (max-width:1000px) and (pointer:coarse){
+  .xd-row{flex-wrap:wrap;} .xd-row-act{width:100%;justify-content:flex-end;}
+  .xd-strip{flex-wrap:wrap;}
+}
 #proxyBar{display:none;}
 body.proxy-on #proxyBar{display:flex;position:fixed;top:0;left:280px;right:0;z-index:40;align-items:center;gap:10px;
   min-height:36px;padding:6px 40px;box-sizing:border-box;background:var(--amber);color:var(--ink);font-size:13px;
@@ -2525,6 +2566,31 @@ body.access-gated #mTabbar, body.access-gated #proxyBar{display:none !important;
   </div>
 </div>
 
+<!-- ขอสิทธิ์ตัดงบแผนกอื่น (ผู้ขอ) -->
+<div class="modal-overlay hidden" id="xdReqModal">
+  <div class="modal">
+    <h2>ขอสิทธิ์ตัดงบแผนกอื่น</h2>
+    <p class="modal-desc">คำขอจะส่งไปที่ผู้ดูแลของแผนกนั้น เมื่ออนุมัติแล้ว แผนกนั้นจะขึ้นในช่องเลือกแผนกที่เมนูซ้าย (เพิ่มรายการได้ แก้/ลบได้เฉพาะรายการที่คุณบันทึก)</p>
+    <div class="xd-form" id="xdForm">
+      <div class="field"><label for="xdDept">แผนกที่ต้องการตัดงบ</label><select id="xdDept"></select></div>
+      <div class="xd-form-act"><button class="btn btn-primary btn-sm" id="xdSendBtn" onclick="submitDeptAccessRequest()">ส่งคำขอ</button></div>
+    </div>
+    <div class="xd-sec"><div class="xd-h">คำขอของฉัน</div><div id="xdMine"></div></div>
+    <div class="modal-actions"><button class="btn btn-outline" onclick="closeModal('xdReqModal')">ปิด</button></div>
+  </div>
+</div>
+
+<!-- คำขอสิทธิ์ข้ามแผนก (ผู้ดูแลแผนก / แอดมิน) -->
+<div class="modal-overlay hidden" id="xdAdminModal">
+  <div class="modal mb-modal">
+    <h2>สิทธิ์ตัดงบข้ามแผนก</h2>
+    <p class="modal-desc" id="xdAdminDesc"></p>
+    <div class="field hidden" id="xdAdminDeptWrap"><label for="xdAdminDept">แผนก</label><select id="xdAdminDept" onchange="renderDeptAccessAdmin()"></select></div>
+    <div id="xdAdminBody"></div>
+    <div class="modal-actions"><button class="btn btn-outline" onclick="closeModal('xdAdminModal')">ปิด</button></div>
+  </div>
+</div>
+
 <!-- ชื่อที่ลงนามแทน -->
 <div class="modal-overlay hidden" id="signersModal">
   <div class="modal">
@@ -2694,6 +2760,19 @@ body.access-gated #mTabbar, body.access-gated #proxyBar{display:none !important;
       onSnapshot(deptKey ? query(collection(db, 'users'), where('deptKey', '==', deptKey)) : collection(db, 'users'),
         (snap) => cb(snap.docs.map(d => ({ uid: d.id, ...d.data() }))),
         (err) => { console.error('subscribeUsers', err); cb(null, err); }),
+    // สิทธิ์ตัดงบข้ามแผนก: เอกสารเดียวต่อ (แผนกปลายทาง, ผู้ขอ) → deptAccess/{แผนก}__{uid}
+    subscribeMyDeptAccess: (uid, cb) =>
+      onSnapshot(query(collection(db, 'deptAccess'), where('uid', '==', uid)),
+        (snap) => cb(snap.docs.map(d => ({ id: d.id, ...d.data() }))),
+        (err) => { console.error('subscribeMyDeptAccess', err); cb(null, err); }),
+    subscribeDeptAccessFor: (deptKey, cb) =>
+      onSnapshot(deptKey ? query(collection(db, 'deptAccess'), where('targetDept', '==', deptKey)) : collection(db, 'deptAccess'),
+        (snap) => cb(snap.docs.map(d => ({ id: d.id, ...d.data() }))),
+        (err) => { console.error('subscribeDeptAccessFor', err); cb(null, err); }),
+    requestDeptAccess: (id, data) => setDoc(doc(db, 'deptAccess', id), data),
+    cancelDeptAccess: (id) => deleteDoc(doc(db, 'deptAccess', id)),
+    decideDeptAccess: (id, status, byUid, byName) =>
+      setDoc(doc(db, 'deptAccess', id), { status, decidedBy: byUid, decidedByName: byName, decidedAt: Date.now() }, { merge: true }),
     // กฎความปลอดภัยให้ผู้ดูแลแผนกแก้ได้แค่ 3 ช่องนี้ของสมาชิกในแผนกตัวเอง
     setUserStatus: (uid, status, byUid) =>
       setDoc(doc(db, 'users', uid), { status, statusBy: byUid, statusAt: Date.now() }, { merge: true }),
@@ -3676,6 +3755,8 @@ let state = {
   userRole: 'member',      // 'admin' | 'member'
   userDept: null,          // department key saved on the user's profile (member only)
   activeDept: null,        // department key currently being viewed
+  myDeptAccess: [],        // คำขอสิทธิ์ข้ามแผนกของฉัน (deptAccess)
+  deptAccessReqs: [],      // คำขอที่ผู้ดูแลแผนก/แอดมินต้องพิจารณา
   costCenters: [],         // all cost centers across all years (raw docs)
   years: [DEFAULT_YEAR],   // ปีที่มีให้เลือก — คำนวณใหม่ทุกครั้งใน recomputeYears()
   activeYear: DEFAULT_YEAR,
@@ -4545,6 +4626,43 @@ ${(opts && opts.preview) ? `<sty` + `le>
 <body>
 ${bodyHtml}
 ${(opts && opts.preview) ? '' : `<sc` + `ript>
+  // ใบตัดงบต้องจบในกระดาษ A4 หน้าเดียว แต่เนื้อหาเต็มหน้าเกือบพอดีอยู่แล้ว (เหลือที่ว่างราว 2–4%)
+  // ถ้าบางครั้งตัวหนังสือสูงขึ้น เช่น โหลดฟอนต์ Sarabun ไม่ทัน (ใบแรกของวัน/เน็ตสำนักงานหลุด) แล้วเบราว์เซอร์ใช้ฟอนต์สำรอง
+  // หรือมีบรรทัดตำแหน่งผู้ควบคุมงบเพิ่ม ใบจะล้นไปหน้า 2 — วัดความสูงก่อนพิมพ์ ถ้าเกินหน้าก็ย่อทั้งใบลงเท่าที่จำเป็น
+  // ใบที่พอดีหน้าอยู่แล้วไม่ถูกแตะเลยแม้แต่จุดเดียว / ถ้าวัดไม่ได้หรือมี error ก็พิมพ์แบบเดิม
+  // ย่อได้ไม่ต่ำกว่า 82% (ตัวหนังสือยังอ่านชัด) — เกินกว่านั้นแปลว่าไม่ใช่แค่ล้นนิดเดียว ปล่อยตามเดิม
+  function fitOnePage(){
+    try{
+      var b = document.body;
+      var probe = document.createElement('div');
+      probe.style.cssText = 'position:absolute;left:0;top:0;visibility:hidden;width:188mm;height:275mm;';
+      b.appendChild(probe);
+      var box = probe.getBoundingClientRect();
+      b.removeChild(probe);
+      var pageW = box.width, pageH = box.height;           // พื้นที่พิมพ์ A4 = 210×297 มม. ลบขอบ 11 มม. รอบด้าน
+      if(!(pageW > 0 && pageH > 0)) return;
+      var oldW = b.style.width;
+      b.style.width = pageW + 'px';                         // วัดที่ความกว้างเท่ากระดาษจริง (กรอบพิมพ์บนจอกว้าง 0)
+      var hOf = function(){ return b.getBoundingClientRect().height; };   // ความสูงที่เห็นจริง (คิดการย่อแล้ว)
+      var h = hOf();
+      // พอดีหน้าอยู่แล้ว หรือเกินมากจนย่อไม่ไหว → คืนค่าเดิมทุกอย่าง พิมพ์เหมือนเดิมเป๊ะ
+      // (เผื่อ 2px: ทดสอบแล้วใบที่สูงเกินพื้นที่ไม่ถึง 1px เบราว์เซอร์ยังพิมพ์ได้หน้าเดียว ไม่ต้องไปย่อ)
+      if(!(h > pageH + 2) || h * 0.82 > pageH){ b.style.width = oldW; return; }
+      // การย่อตัวหนังสือไม่ได้ลดความสูงตรงตามสัดส่วนเป๊ะ (ขนาดตัวอักษรถูกปัดเศษ) จึงย่อแล้ววัดซ้ำจนกว่าจะพอดี
+      var target = pageH - 4;
+      var z = Math.floor(target / h * 1000) / 1000;
+      b.style.margin = '0 auto';
+      for(var i = 0; i < 20; i++){
+        b.style.zoom = String(z);
+        if(hOf() <= target || z <= 0.82) break;
+        z = Math.round((z - 0.01) * 1000) / 1000;
+      }
+      // ย่อสุดแล้วยังไม่พอ → ไม่ย่อเลยดีกว่า (ได้ใบขนาดปกติเหมือนเดิม)
+      if(hOf() > target){ b.style.zoom = ''; b.style.margin = ''; b.style.width = oldW; }
+    }catch(e){
+      try{ document.body.style.zoom = ''; document.body.style.width = ''; document.body.style.margin = ''; }catch(e2){}
+    }
+  }
   window.onload = function(){
     function doPrint(){ window.print(); }
     // Explicitly request BOTH weights actually used on this page (regular body text + the
@@ -4564,6 +4682,7 @@ ${(opts && opts.preview) ? '' : `<sc` + `ript>
       : Promise.resolve();
     var safetyTimeout = new Promise(function(resolve){ setTimeout(resolve, 4000); });
     Promise.race([fontsReady, safetyTimeout]).then(function(){
+      fitOnePage();
       setTimeout(doPrint, 50);
     });
   };
@@ -5244,7 +5363,7 @@ async function submitAuth(){
         state.userStatus = userStatusOf(profile);
         if(userBlocked()) watchOwnStatus();
         else {
-          subscribeActiveDeptData(); watchMembers();
+          subscribeActiveDeptData(); watchMembers(); watchDeptAccess();
           if(!orgUnsub) orgUnsub = window.fb.subscribeOrgSettings((settings)=>{ state.orgSettings = settings || {}; render(); });
         }
         render();
@@ -5476,6 +5595,21 @@ function syncActiveWhEntriesSubscription(){
     render();
     sweepExpiredWhTrash(targetId);
   });
+}
+// ภาพรวมงบของศูนย์ต้นทุนที่เปิดอยู่ ใช้ยอดรวมที่เก็บไว้ในแต่ละบัญชี (ตัวเดียวกับแถบในเมนูซ้าย)
+// จึงขึ้นทันทีไม่ต้องรอโหลดรายการจ่าย และตัวเลขไม่กระพริบตอนสลับศูนย์ต้นทุน
+function ccOverviewHtml(cc){
+  const t = ccTotals(cc);
+  const pct = t.budget > 0 ? t.totalPaid / t.budget * 100 : 0;
+  const fill = Math.min(Math.max(pct, 0), 100).toFixed(1);
+  return `<div class="cc-ov-pill" role="group" aria-label="ภาพรวมงบประมาณของศูนย์ต้นทุนนี้">
+    <span class="cc-ov-pill-ring" title="ใช้ไปแล้ว ${pct.toFixed(1)}%" style="background:conic-gradient(#E8A33D 0% ${fill}%, #2E7D6B ${fill}% 100%);"><i></i></span>
+    <span class="cc-ov-pill-lbl">ทั้งหมด</span>
+    <b class="cc-ov-pill-all">${fmt(t.budget)}</b>
+    <span class="cc-ov-pill-sep"></span>
+    <span class="cc-ov-pill-lbl">คงเหลือ</span>
+    <b class="cc-ov-pill-left${t.remaining < 0 ? ' neg' : ''}">${fmt(t.remaining)}</b>
+  </div>`;
 }
 function ccTotals(cc){
   let budget=0, totalPaid=0;
@@ -6070,7 +6204,7 @@ function newEntryBase(){
     addedByName: state.user ? signerName() : null,
     addedByEmail: state.user ? state.user.email : null,
     addedByPosition: state.user ? signerPos() : '',
-    addedByCode: state.user ? signerCode() : '', ...signerAudit(),
+    addedByCode: state.user ? signerCode() : '', ...signerAudit(), ...crossDeptAudit(),
   };
 }
 function commitNewCcEntry(cc, item, itemCode, entry){
@@ -7468,6 +7602,7 @@ function renderModeSwitcher(){
 function sysToolItems(){
   const t = [];
   if(canApproveMembers()){ const n = pendingMembersCount(); t.push({ e:'👥', i:'user', l:'สมาชิก', f:'openMembersModal()', count:n, sub: n ? 'รออนุมัติ ' + n + ' คน' : '' }); }
+  if(canApproveDeptAccess()){ const n = pendingDeptAccessCount(); t.push({ e:'🔁', i:'swap', l:'สิทธิ์ข้ามแผนก', f:'openDeptAccessAdmin()', count:n, sub: n ? 'รออนุมัติ ' + n + ' คำขอ' : '' }); }
   if(canManageDept(state.activeDept)) t.push({ e:'🗑', i:'trash', l:'ถังขยะ', f:'openTrashModal()' });
   if(canExportDept(state.activeDept)) t.push({ e:'📊', i:'sheet', l: exportInFlight ? 'กำลังส่งออก...' : 'ส่งออก Excel', f:'exportYearToExcel()', id:'exportXlsxBtn', disabled: exportInFlight });
   if(isAdmin()){ const od = isBackupOverdue(); t.push({ e:'💾', i:'save', l:'สำรองข้อมูล', f:'downloadBackup()', warn: od, sub: od ? 'ยังไม่ได้สำรองเกิน 30 วัน' : '' }); }
@@ -7628,6 +7763,7 @@ function canActOnMember(u){
 function pendingMembersCount(){ return (state.members || []).filter(u => userStatusOf(u) === 'pending' && canActOnMember(u)).length; }
 let membersUnsub = null, selfStatusUnsub = null;
 function stopMemberWatchers(){
+  stopDeptAccessWatchers();
   if(membersUnsub){ membersUnsub(); membersUnsub = null; }
   if(selfStatusUnsub){ selfStatusUnsub(); selfStatusUnsub = null; }
   state.members = [];
@@ -7655,7 +7791,7 @@ function watchOwnStatus(){
 function syncMoreTabDot(){
   const tab = document.querySelector('#mTabbar [data-tab="more"]');
   if(!tab) return;
-  const need = !!state.user && ((canApproveMembers() && pendingMembersCount() > 0) || (isAdmin() && isBackupOverdue()));
+  const need = !!state.user && ((canApproveMembers() && pendingMembersCount() > 0) || (canApproveDeptAccess() && pendingDeptAccessCount() > 0) || (isAdmin() && isBackupOverdue()));
   tab.classList.toggle('has-dot', need);
 }
 function appReload(){ location.reload(); }
@@ -7738,8 +7874,193 @@ async function setMemberStatus(uid, status){
 }
 (function(){
   const origRender = render;
-  render = function(){ const r = origRender.apply(this, arguments); try{ syncAccessGate(); syncMoreTabDot(); }catch(e){ console.error(e); } return r; };
+  render = function(){ const r = origRender.apply(this, arguments); try{ syncAccessGate(); syncMoreTabDot(); syncCrossDeptStrip(); }catch(e){ console.error(e); } return r; };
 })();
+
+/* ============ สิทธิ์ตัดงบข้ามแผนก ============
+   สมาชิก/ผู้ดูแลแผนกปกติเห็นได้แค่แผนกตัวเอง ถ้าต้องไปตัดงบให้แผนกอื่น ส่งคำขอไปที่ผู้ดูแลของแผนกนั้น
+   - คำขอ = deptAccess/{แผนกปลายทาง}__{uid}  status: pending → approved / rejected, approved → revoked
+   - อนุมัติได้: ผู้ดูแลของแผนกปลายทาง และแอดมิน · สิทธิ์ถาวรจนกว่าจะยกเลิก (ผู้ดูแลยกเลิก หรือผู้ได้สิทธิ์เลิกใช้เอง)
+   - ได้สิทธิ์แล้วทำได้เหมือนสมาชิกของแผนกนั้น: เพิ่มรายการ (งบทั่วไป + งบโครงการถ้าแผนกนั้นเปิด WBS)
+     แก้/ลบได้เฉพาะรายการที่ตัวเองบันทึก · จัดการโครงสร้าง/ถังขยะ/ส่งออกไม่ได้
+   - รายการที่บันทึกข้ามแผนกเก็บ addedFromDept ไว้ ย้อนดูได้ว่ามาจากแผนกไหน
+   - แอดมินและตัวแทนบริษัทดูได้ทุกแผนกอยู่แล้ว จึงไม่มีปุ่มขอสิทธิ์ */
+const XD_STATUS = { pending:'รออนุมัติ', approved:'อนุมัติแล้ว', rejected:'ไม่อนุมัติ', revoked:'ยกเลิกสิทธิ์แล้ว' };
+let xdMineUnsub = null, xdAdminUnsub = null;
+function xdDocId(deptKey, uidStr){ return deptKey + '__' + uidStr; }
+function deptLabel(k){ const d = deptByKey(k); return d ? ((d.abbr ? d.abbr + ' ' : '') + d.name) : (k || '—'); }
+function deptShort(k){ const d = deptByKey(k); return d ? (d.abbr || d.name) : (k || '—'); }
+function canRequestDeptAccess(){ return !!state.user && !userBlocked() && !canSwitchAllDepts() && !!state.userDept && !!deptByKey(state.userDept); }
+function canApproveDeptAccess(){ return !!state.user && !userBlocked() && (isAdmin() || isDeptAdmin()); }
+function grantedDepts(){
+  if(!state.user || canSwitchAllDepts()) return [];
+  return [...new Set((state.myDeptAccess || [])
+    .filter(r => r.status === 'approved' && r.uid === state.user.uid && r.targetDept !== state.userDept && deptByKey(r.targetDept))
+    .map(r => r.targetDept))];
+}
+function isCrossDeptNow(){ return !!state.user && !canSwitchAllDepts() && !!state.activeDept && state.activeDept !== state.userDept; }
+function crossDeptAudit(){ return isCrossDeptNow() ? { addedFromDept: state.userDept } : {}; }
+function canDecideDeptAccess(r){
+  if(!r || !state.user || r.uid === state.user.uid) return false;
+  if(isAdmin()) return true;
+  return isDeptAdmin() && r.targetDept === state.userDept;
+}
+function pendingDeptAccessCount(){ return (state.deptAccessReqs || []).filter(r => r.status === 'pending' && canDecideDeptAccess(r)).length; }
+function stopDeptAccessWatchers(){
+  if(xdMineUnsub){ xdMineUnsub(); xdMineUnsub = null; }
+  if(xdAdminUnsub){ xdAdminUnsub(); xdAdminUnsub = null; }
+  state.myDeptAccess = []; state.deptAccessReqs = [];
+}
+function watchDeptAccess(){
+  stopDeptAccessWatchers();
+  if(!state.user || userBlocked() || !window.fb.subscribeMyDeptAccess) return;
+  if(canRequestDeptAccess()){
+    xdMineUnsub = window.fb.subscribeMyDeptAccess(state.user.uid, (list) => {
+      state.myDeptAccess = Array.isArray(list) ? list : [];
+      // ถูกยกเลิกสิทธิ์ระหว่างเปิดดูแผนกนั้นอยู่ → พากลับแผนกตัวเอง
+      if(isCrossDeptNow() && !grantedDepts().includes(state.activeDept)){
+        const lost = deptLabel(state.activeDept);
+        switchDept(state.userDept);
+        setTimeout(() => alert('สิทธิ์ตัดงบข้ามแผนก ' + lost + ' ถูกยกเลิกแล้ว\nกลับมาที่แผนกของคุณ'), 0);
+      } else render();
+      if(isModalOpenNow('xdReqModal')) renderDeptAccessRequest();
+    });
+  }
+  if(canApproveDeptAccess()){
+    xdAdminUnsub = window.fb.subscribeDeptAccessFor(isAdmin() ? null : state.userDept, (list) => {
+      state.deptAccessReqs = Array.isArray(list) ? list : [];
+      render();
+      if(isModalOpenNow('xdAdminModal')) renderDeptAccessAdmin();
+    });
+  }
+}
+// ตัวเลือกพิเศษท้ายช่องเลือกแผนก: เลือกแล้วเปิดหน้าขอสิทธิ์ และคืนค่าช่องเป็นแผนกเดิม
+const XD_REQ_OPT = '__xdreq';
+function xdReqOptionLabel(){
+  const pend = (state.myDeptAccess || []).filter(r => r.status === 'pending').length;
+  return '＋ ขอสิทธิ์ตัดงบแผนกอื่น' + (pend ? ' (รออนุมัติ ' + pend + ')' : '…');
+}
+function onDeptSelect(sel){
+  if(sel.value === XD_REQ_OPT){
+    sel.value = state.activeDept;
+    openDeptAccessRequest();
+    return;
+  }
+  switchDept(sel.value);
+}
+function syncCrossDeptStrip(){
+  const main = document.getElementById('main');
+  if(!main) return;
+  const old = main.querySelector(':scope > .xd-strip');
+  if(!isCrossDeptNow() || userBlocked()){ if(old) old.remove(); return; }
+  const html = `<div class="xd-strip" role="status"><span class="xd-t">กำลังตัดงบข้ามแผนก: <b>${escapeHtml(deptLabel(state.activeDept))}</b> · รายการที่บันทึกจะเป็นชื่อคุณ และระบุว่ามาจาก ${escapeHtml(deptShort(state.userDept))}</span></div>`;
+  if(old) old.outerHTML = html; else main.insertAdjacentHTML('afterbegin', html);
+}
+function openDeptAccessRequest(){
+  if(!canRequestDeptAccess()) return;
+  renderDeptAccessRequest();
+  openModal('xdReqModal');
+}
+function renderDeptAccessRequest(preselect){
+  const mine = (state.myDeptAccess || []).slice().sort((a, b) => (b.requestedAt || 0) - (a.requestedAt || 0));
+  const busy = new Set(mine.filter(r => r.status === 'pending' || r.status === 'approved').map(r => r.targetDept));
+  const choices = DEPARTMENTS.filter(d => d.key !== state.userDept && !busy.has(d.key));
+  const sel = document.getElementById('xdDept');
+  const cur = preselect || sel.value;
+  sel.innerHTML = choices.length
+    ? choices.map(d => `<option value="${d.key}">${escapeHtml((d.abbr ? d.abbr + ' ' : '') + d.name)}</option>`).join('')
+    : '<option value="">— ขอครบทุกแผนกแล้ว —</option>';
+  if(choices.some(d => d.key === cur)) sel.value = cur;
+  sel.disabled = !choices.length;
+  document.getElementById('xdSendBtn').disabled = !choices.length;
+  document.getElementById('xdMine').innerHTML = mine.length ? mine.map(r => {
+    const when = r.status === 'pending' ? 'ส่งเมื่อ ' + thaiDateLabel(r.requestedAt)
+      : (r.decidedAt ? XD_STATUS[r.status] + ' ' + thaiDateLabel(r.decidedAt) + (r.decidedByName ? ' โดย ' + r.decidedByName : '') : '');
+    const act = r.status === 'pending' ? `<button class="btn btn-outline btn-sm" onclick="cancelDeptAccessRequest('${r.id}')">ยกเลิกคำขอ</button>`
+      : r.status === 'approved' ? `<button class="btn btn-outline btn-sm mb-no" onclick="cancelDeptAccessRequest('${r.id}')">เลิกใช้สิทธิ์</button>`
+      : `<button class="btn btn-outline btn-sm" onclick="renderDeptAccessRequest('${r.targetDept}');submitDeptAccessRequest()">ขอใหม่</button>`;
+    return `<div class="xd-row"><div class="xd-row-t"><b>${escapeHtml(deptLabel(r.targetDept))}<span class="xd-chip ${r.status}">${XD_STATUS[r.status] || r.status}</span></b>
+      <small>${escapeHtml(when)}</small>${r.reason ? `<q>${escapeHtml(r.reason)}</q>` : ''}</div><div class="xd-row-act">${act}</div></div>`;
+  }).join('') : '<div class="xd-empty">ยังไม่เคยขอสิทธิ์</div>';
+}
+async function submitDeptAccessRequest(){
+  if(!canRequestDeptAccess()) return;
+  const target = document.getElementById('xdDept').value;
+  if(!target || target === state.userDept || !deptByKey(target)){ alert('กรุณาเลือกแผนก'); return; }
+  const id = xdDocId(target, state.user.uid);
+  const data = { uid: state.user.uid, name: state.user.displayName || state.user.email || '', position: state.user.position || '',
+    fromDept: state.userDept, targetDept: target, status: 'pending', requestedAt: Date.now() };
+  const btn = document.getElementById('xdSendBtn');
+  btn.disabled = true;
+  try{
+    await window.fb.requestDeptAccess(id, data);
+    const i = state.myDeptAccess.findIndex(r => r.id === id);
+    if(i >= 0) state.myDeptAccess[i] = { id, ...data }; else state.myDeptAccess.push({ id, ...data });
+    flashSaved(false); render(); renderDeptAccessRequest();
+  }catch(e){ alert('ส่งคำขอไม่สำเร็จ: ' + e.message); }
+  finally{ btn.disabled = false; renderDeptAccessRequest(); }
+}
+async function cancelDeptAccessRequest(id){
+  const r = (state.myDeptAccess || []).find(x => x.id === id);
+  if(!r) return;
+  const msg = r.status === 'approved'
+    ? 'เลิกใช้สิทธิ์ตัดงบใน ' + deptLabel(r.targetDept) + '?\n\nรายการที่บันทึกไว้แล้วยังอยู่ครบ ถ้าต้องการอีกต้องส่งคำขอใหม่'
+    : 'ยกเลิกคำขอสิทธิ์ ' + deptLabel(r.targetDept) + '?';
+  if(!confirm(msg)) return;
+  try{
+    await window.fb.cancelDeptAccess(id);
+    state.myDeptAccess = state.myDeptAccess.filter(x => x.id !== id);
+    if(isCrossDeptNow() && !grantedDepts().includes(state.activeDept)) switchDept(state.userDept); else render();
+    renderDeptAccessRequest(); flashSaved(false);
+  }catch(e){ alert('ไม่สำเร็จ: ' + e.message); }
+}
+function openDeptAccessAdmin(){
+  if(!canApproveDeptAccess()) return;
+  const wrap = document.getElementById('xdAdminDeptWrap'), sel = document.getElementById('xdAdminDept');
+  if(isAdmin()){
+    wrap.classList.remove('hidden');
+    const cur = sel.value;
+    sel.innerHTML = '<option value="">ทุกแผนก</option>' + DEPARTMENTS.map(d => `<option value="${d.key}">${escapeHtml((d.abbr ? d.abbr + ' ' : '') + d.name)}</option>`).join('');
+    sel.value = cur || '';
+  } else wrap.classList.add('hidden');
+  renderDeptAccessAdmin();
+  openModal('xdAdminModal');
+}
+function renderDeptAccessAdmin(){
+  const f = isAdmin() ? document.getElementById('xdAdminDept').value : state.userDept;
+  const list = (state.deptAccessReqs || []).filter(r => !f || r.targetDept === f);
+  document.getElementById('xdAdminDesc').textContent = isAdmin()
+    ? 'คนจากแผนกอื่นที่ขอมาตัดงบ อนุมัติหรือยกเลิกสิทธิ์ได้ทุกแผนก'
+    : 'คนจากแผนกอื่นที่ขอมาตัดงบใน ' + deptLabel(state.userDept) + ' — ได้สิทธิ์แล้วเพิ่มรายการได้ แก้/ลบได้เฉพาะรายการของตัวเอง';
+  const by = st => list.filter(r => r.status === st).sort((a, b) => (b.decidedAt || b.requestedAt || 0) - (a.decidedAt || a.requestedAt || 0));
+  const row = (r, btns) => {
+    const sub = [r.position, 'จาก ' + deptShort(r.fromDept) + (isAdmin() && !f ? ' → ' + deptShort(r.targetDept) : '')].filter(Boolean).map(escapeHtml).join(' · ');
+    const when = r.status === 'pending' ? 'ขอเมื่อ ' + thaiDateLabel(r.requestedAt)
+      : (r.decidedAt ? XD_STATUS[r.status] + ' ' + thaiDateLabel(r.decidedAt) + (r.decidedByName ? ' โดย ' + r.decidedByName : '') : '');
+    return `<div class="xd-row"><div class="xd-row-t"><b>${escapeHtml(r.name || '—')}</b><small>${sub}</small><small>${escapeHtml(when)}</small>${r.reason ? `<q>${escapeHtml(r.reason)}</q>` : ''}</div>
+      ${canDecideDeptAccess(r) ? `<div class="xd-row-act">${btns(r)}</div>` : ''}</div>`;
+  };
+  const sec = (h, arr, btns, empty) => `<div class="xd-sec"><div class="xd-h">${h} <span>${arr.length}</span></div>
+    ${arr.length ? arr.map(r => row(r, btns)).join('') : `<div class="xd-empty">${empty}</div>`}</div>`;
+  const off = [...by('rejected'), ...by('revoked')];
+  document.getElementById('xdAdminBody').innerHTML =
+      sec('รออนุมัติ', by('pending'), r => `<button class="btn btn-primary btn-sm" onclick="decideDeptAccess('${r.id}','approved')">อนุมัติ</button><button class="btn btn-outline btn-sm mb-no" onclick="decideDeptAccess('${r.id}','rejected')">ไม่อนุมัติ</button>`, 'ไม่มีคำขอรออนุมัติ')
+    + sec('มีสิทธิ์อยู่', by('approved'), r => `<button class="btn btn-outline btn-sm mb-no" onclick="decideDeptAccess('${r.id}','revoked')">ยกเลิกสิทธิ์</button>`, 'ยังไม่มีใครได้สิทธิ์')
+    + (off.length ? sec('ไม่อนุมัติ / ยกเลิกแล้ว', off, r => `<button class="btn btn-outline btn-sm" onclick="decideDeptAccess('${r.id}','approved')">ให้สิทธิ์</button>`, '') : '');
+}
+async function decideDeptAccess(id, status){
+  const r = (state.deptAccessReqs || []).find(x => x.id === id);
+  if(!r || !canDecideDeptAccess(r)){ alert('คุณไม่มีสิทธิ์จัดการคำขอนี้'); return; }
+  const who = (r.name || 'ผู้ขอ') + ' (' + deptShort(r.fromDept) + ')';
+  if(status === 'rejected' && !confirm('ไม่อนุมัติคำขอของ ' + who + '?')) return;
+  if(status === 'revoked' && !confirm('ยกเลิกสิทธิ์ตัดงบใน ' + deptLabel(r.targetDept) + ' ของ ' + who + '?\n\nรายการที่เขาบันทึกไว้แล้วยังอยู่ครบ')) return;
+  const prev = { status: r.status, decidedBy: r.decidedBy, decidedByName: r.decidedByName, decidedAt: r.decidedAt };
+  const byName = state.user.displayName || state.user.email || '';
+  Object.assign(r, { status, decidedBy: state.user.uid, decidedByName: byName, decidedAt: Date.now() });
+  render(); renderDeptAccessAdmin();
+  try{ await window.fb.decideDeptAccess(id, status, state.user.uid, byName); flashSaved(false); }
+  catch(e){ Object.assign(r, prev); render(); renderDeptAccessAdmin(); alert('บันทึกไม่สำเร็จ: ' + e.message); }
+}
 
 /* ============ ลงนามในนามคนอื่น ============
    บางคนคุมงบแทนคนอื่นเป็นประจำ เดิมต้องแก้ชื่อในโปรไฟล์ไปมา (ชื่อบัญชีเปลี่ยนตามทั้งระบบ)
@@ -8132,6 +8453,8 @@ function subscribeActiveDeptData(){
   });
 }
 function switchDept(key){
+  // สมาชิก/ผู้ดูแลแผนก สลับได้เฉพาะแผนกตัวเองกับแผนกที่ได้สิทธิ์ข้ามแผนก
+  if(!canSwitchAllDepts() && key !== state.userDept && !grantedDepts().includes(key)) return;
   state.activeDept = key;
   state.activeCcId = null; state.activeItemKey = null; state.slipSelection = []; state.itemSearchQuery = '';
   state.activeProjectId = null; state.activeWorkTypeKey = null; state.activeProjectCatKey = null; state.projectSlipSelection = [];
@@ -8143,6 +8466,23 @@ function switchDept(key){
 }
 function renderDeptWrap(){
   const el = document.getElementById('deptWrap');
+  if(canRequestDeptAccess()){
+    // สมาชิก / ผู้ดูแลแผนก: ช่องเลือกแบบเดียวกับแอดมิน แต่มีแค่แผนกตัวเอง + แผนกที่ได้รับอนุมัติ
+    // และปิดท้ายด้วยตัวเลือก "ขอสิทธิ์ตัดงบแผนกอื่น"
+    const opts = [state.userDept, ...grantedDepts()].map(k=>{
+      const d = deptByKey(k); if(!d) return '';
+      return `<option value="${d.key}" ${d.key===state.activeDept?'selected':''}>${escapeHtml(d.abbr+' '+d.name)}</option>`;
+    }).join('');
+    el.innerHTML = `
+      <div class="dept-switcher">
+        <div class="dt-label">กำลังดูแผนก</div>
+        <select onchange="onDeptSelect(this)" aria-label="เลือกแผนก">${opts}
+          <option disabled>──────────</option>
+          <option value="${XD_REQ_OPT}">${escapeHtml(xdReqOptionLabel())}</option>
+        </select>
+      </div>`;
+    return;
+  }
   if(canSwitchAllDepts()){
     el.innerHTML = `
       <div class="dept-switcher">
@@ -8257,12 +8597,13 @@ function renderMain(){
         ${canManage ? `<button class="btn btn-primary btn-sm" onclick="openAddItemModal()">+ เพิ่มรายการงบประมาณ</button>` : `<span style="font-size:12.5px;color:var(--text-faint);">รอผู้ดูแลแผนกหรือแอดมินเพิ่มรายการ</span>`}</div>`;
     } else {
       html += `<div style="margin-bottom:14px;display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
-        <div style="display:flex;align-items:center;gap:8px;height:38px;padding:0 12px;border-radius:8px;border:1px solid var(--border);background:var(--card);max-width:320px;flex:1;min-width:220px;">
+        <div style="display:flex;align-items:center;gap:8px;height:38px;padding:0 12px;border-radius:8px;border:1px solid var(--border);background:var(--card);max-width:320px;flex:1;min-width:180px;">
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--text-faint)" stroke-width="2.2" stroke-linecap="round" style="flex-shrink:0;"><circle cx="11" cy="11" r="7"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
           <input type="text" id="itemSearchInput" placeholder="ค้นหารายการบัญชี (รหัสหรือชื่อ)" value="${escapeHtml(state.itemSearchQuery||'')}" oninput="onItemSearchInput(this.value)" style="border:none;outline:none;background:transparent;font-family:inherit;font-size:13px;width:100%;color:var(--text);">
         </div>
         <button class="btn btn-outline btn-sm" onclick="openSplitEntryModal()" title="บิลใบเดียวที่ต้องตัดงบหลายบัญชี เช่น ค่าโทรศัพท์ (ค่าใช้บริการ + ค่าบำรุงรักษาคู่สาย)" style="height:38px;white-space:nowrap;">⇄ รายการแยกบัญชี</button>
         <button class="btn btn-outline btn-sm" onclick="openMultiEntryModal()" title="พิมพ์ชื่อและ ลว. ครั้งเดียว แล้วลงหลายบัญชีพร้อมกัน เช่น ค่าเบี้ยเลี้ยง + ค่าที่พัก + ค่าพาหนะ" style="height:38px;white-space:nowrap;">☰ หลายรายการ หลายบัญชี</button>
+        ${ccOverviewHtml(cc)}
       </div>`;
       html += `<div id="itemListContainer">${buildItemListInnerHtml(cc)}</div>`;
     }
@@ -11230,6 +11571,7 @@ function initAuthListener(){
     if(userBlocked()){ watchOwnStatus(); render(); return; }   // รออนุมัติ/ถูกระงับ: ไม่โหลดข้อมูลใดๆ
     subscribeActiveDeptData();
     watchMembers();
+    watchDeptAccess();
     orgUnsub = window.fb.subscribeOrgSettings((settings)=>{
       state.orgSettings = settings || {};
       render();
@@ -11894,7 +12236,7 @@ if(window.__fbReady) guardFbWritesWhenOffline(); else window.addEventListener('f
   });
 })();
 /* ============ เครดิตผู้พัฒนา — แก้ข้อความที่นี่ที่เดียว ทุกจุดเปลี่ยนตาม ============ */
-var APP_CREDIT = { name:'BETONG TECH.', unit:'ผปบ.กฟส.เบตง', tel:'14755', year:'2569', version:'2.8' };
+var APP_CREDIT = { name:'BETONG TECH.', unit:'ผปบ.กฟส.เบตง', tel:'14755', year:'2569', version:'2.8.3' };
 function appCreditHtml(lines){
   const c = APP_CREDIT;
   const l1 = `พัฒนาโดย <b>${escapeHtml(c.name)}</b> · ${escapeHtml(c.unit)}`;
