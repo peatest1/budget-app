@@ -4819,14 +4819,19 @@ ${(opts && opts.preview) ? '' : `<sc` + `ript>
         var fits = el.querySelectorAll('.mf-f, .mf-one');
         for(var k = 0; k < fits.length; k++){
           var f = fits[k], fs = parseFloat(getComputedStyle(f).fontSize) || 13.5, guard = 0;
-          var floor = (f.closest && f.closest('.mf2')) ? 7.5 : 9.5;   // แบบคำร้องช่องแคบตามต้นฉบับ ย่อได้มากกว่า (ขึ้น 2 บรรทัดจะไปทับบรรทัดบน)
+          if(!(f.scrollWidth > f.clientWidth + 0.5)) continue;                 // พอดีช่องอยู่แล้ว ไม่แตะเลย
+          var inForm = !!(f.closest && f.closest('.mf2'));
+          var floor = inForm ? 7.5 : 9.5;   // แบบคำร้องช่องแคบตามต้นฉบับ ย่อได้มากกว่า
+          // จุดอ้างอิงเส้นฐาน: ย่อตัวอักษรแล้วข้อความจะลอยขึ้น — วัดก่อน/หลังแล้วเลื่อนกลับให้อยู่บนเส้นประเดิม
+          var mk = document.createElement('i'); mk.style.cssText = 'display:inline-block;width:0;height:0;';
+          f.appendChild(mk); var b0 = mk.offsetTop;
           while(f.scrollWidth > f.clientWidth + 0.5 && fs > floor && guard++ < 40){ fs -= 0.5; f.style.fontSize = fs + 'px'; }
-          // ย่อสุดแล้วยังยาวเกิน: ให้ข้อความในช่องขึ้น 2 บรรทัดแทนการตัดทิ้ง
+          // ย่อสุดแล้วยังยาวเกิน: ให้ข้อความในช่องขึ้น 2 บรรทัดแทนการตัดทิ้ง (บรรทัดล่างอยู่บนเส้นประ)
           if(f.scrollWidth > f.clientWidth + 0.5 && f.classList.contains('mf-f')){
-            var h0 = f.offsetHeight;
             f.style.whiteSpace = 'normal'; f.style.lineHeight = '1.1'; f.style.fontSize = '10px';
-            f.style.marginTop = (h0 - f.offsetHeight) + 'px';   // ขึ้น 2 บรรทัดโดยเส้นฐานบรรทัดล่างอยู่ที่เดิม
           }
+          if(inForm){ var d = b0 - mk.offsetTop; if(d) f.style.marginTop = d + 'px'; }
+          f.removeChild(mk);
         }
         var h = el.getBoundingClientRect().height;
         if(!(h > pageH + 2) || h * 0.82 > pageH) continue;
@@ -10962,29 +10967,31 @@ async function submitMedClaim(){
 // พิกัดทั้งหมดวัดจากแบบฟอร์มต้นฉบับ (ภาพกว้าง 1157 px = กระดาษ A4 กว้าง 210 มม. → 5.5095 px/มม.)
 // แล้วแปลงเป็นมิลลิเมตรนับจากมุมซ้ายบนของกรอบนอก (x 33, y 39) — กรอบกว้าง 198.6 มม. สูง 273 มม.
 // ตัวหนังสือ Sarabun ขนาดที่ทำให้ความยาวข้อความเท่าต้นฉบับ (เนื้อหา 12.2px / หัวเรื่อง 13.5px)
-const MF_S = 1157 / 210, MF_X0 = 33, MF_Y0 = 39;
+// v2.8.5: เทียบกับไฟล์ PDF ต้นฉบับ (Word) แล้ว ภาพหน้าจอที่ใช้วัดถูกขยายไว้ราว 0.8% — แปลงพิกัดเดิมเป็นมิลลิเมตรจริงด้วยสเกลแยกแกน
+// กรอบจริง: ซ้าย 7.44 มม. บน 7.62 มม. กว้าง 196.9 มม. สูง 271.0 มม. (A4)
+const MF_SX = (1158 / 210) * 1091 / 1083, MF_SY = (1158 / 210) * 1501 / 1490, MF_X0 = 33, MF_Y0 = 39;   // วัดจากเส้นตารางทุกเส้นของ PDF ต้นฉบับ
 function buildMedFormHtml(d){
   const e = escapeHtml;
-  const X = x => ((x - MF_X0) / MF_S).toFixed(2);
-  const Y = y => ((y - MF_Y0) / MF_S).toFixed(2);
-  const FS = 12.2, FT = 13.5, FB = 12.7;        // px: เนื้อหา / หัวเรื่อง / หัวช่องความเห็น
+  const X = x => ((x - MF_X0) / MF_SX).toFixed(2);
+  const Y = y => ((y - MF_Y0) / MF_SY).toFixed(2);
+  const FS = 12.1, FT = 13.4, FB = 12.6;        // px: เนื้อหา / หัวเรื่อง / หัวช่องความเห็น
   const out = [], spans = [];   // spans = ช่วงที่มีเส้นประอยู่ ใช้หาที่ว่างของแต่ละข้อความ
   // ข้อความ: x = ซ้ายสุด (หรือกึ่งกลางเมื่อ c), yb = เส้นฐานของตัวอักษร
   const T = (x, yb, txt, o) => { out.push({ k: 't', x, yb, txt, o: o || {} }); };
   const TR = (x, yb, txt, o, w) => {
     const fs = o.fs || FS;
-    const top = `calc(${Y(yb)}mm - ${(0.92 * fs).toFixed(2)}px)`;
+    const top = `calc(${Y(yb)}mm - ${(1.42 * fs).toFixed(2)}px)`;   // line-height 2: เส้นฐานอยู่ที่ 1.42 เท่าขนาดตัวอักษร
     // กึ่งกลาง: กล่องกว้างเท่ากันสองข้างแต่ไม่เกินขอบกรอบ (ล้นขอบกระดาษแล้วเบราว์เซอร์จะย่อทั้งหน้า)
     const hw = Math.min(150, x - MF_X0, 1127 - x);
-    const pos = o.c ? `left:${X(x - hw)}mm;width:${(2 * hw / MF_S).toFixed(2)}mm;text-align:center;` : (o.r ? `right:${((1127 - x) / MF_S).toFixed(2)}mm;` : `left:${X(x)}mm;`);
+    const pos = o.c ? `left:${X(x - hw)}mm;width:${(2 * hw / MF_SX).toFixed(2)}mm;text-align:center;` : (o.r ? `right:${((1127 - x) / MF_SX).toFixed(2)}mm;` : `left:${X(x)}mm;`);
     // กันล้น: ทุกข้อความมีความกว้างสูงสุด = ที่ว่างถึงช่องถัดไป ถ้าฟอนต์สำรองกว้างกว่า ตอนพิมพ์จะย่อเฉพาะข้อความนั้น
-    const fit = (!o.c && w) ? `width:${(w / MF_S).toFixed(2)}mm;` : '';
-    return `<div class="mt mf-one${o.b ? ' b' : ''}${o.r ? ' r' : ''}" style="${pos}${fit}top:${top};font-size:${fs}px;">${o.html ? txt : e(txt)}</div>`;
+    const fit = (!o.c && w) ? `width:${(w / MF_SX).toFixed(2)}mm;` : '';
+    return `<div class="mt mf-one${o.b ? ' b' : ''}${o.r ? ' r' : ''}${o.data ? ' mtd' : ''}" style="${pos}${fit}top:${top};font-size:${fs}px;">${o.html ? txt : e(txt)}</div>`;
   };
   // เส้นประ (จุดห่าง 1 มม. แบบต้นฉบับ)
   const D = (x0, x1, y) => {
     spans.push({ x0, x1, y });
-    const w = (x1 - x0) / MF_S, wpx = (w * 3.7795).toFixed(2);
+    const w = (x1 - x0) / MF_SX, wpx = (w * 3.7795).toFixed(2);
     out.push(`<svg class="md" style="left:${X(x0)}mm;top:calc(${Y(y)}mm - 1.5px);width:${w.toFixed(2)}mm" height="3" viewBox="0 0 ${wpx} 3" preserveAspectRatio="none"><line x1="0.7" y1="1.5" x2="${(wpx - 0.7).toFixed(2)}" y2="1.5" stroke="#000" stroke-width="1.25" stroke-linecap="round" stroke-dasharray="0 3.78"/></svg>`);
   };
   // ช่องเติมคำ: เส้นประ + ค่าที่กรอก (กึ่งกลางช่อง อยู่เหนือเส้นประ) — ยาวเกินช่องจะย่อตัวอักษรตอนพิมพ์
@@ -10992,13 +10999,13 @@ function buildMedFormHtml(d){
     D(x0, x1, y);
     const s = String(val == null ? '' : val);
     if(!s) return;
-    out.push(`<div class="mv mf-f" style="${left ? 'text-align:left;padding-left:1.6mm;box-sizing:border-box;' : ''}left:${X(x0)}mm;width:${((x1 - x0) / MF_S).toFixed(2)}mm;top:calc(${Y(y - 2)}mm - ${(0.92 * FS).toFixed(2)}px);font-size:${FS}px;">${num ? `<span class="arabic-num" lang="en">${e(s)}</span>` : e(s)}</div>`);
+    out.push(`<div class="mv mf-f" style="${left ? 'text-align:left;padding-left:1.6mm;box-sizing:border-box;' : ''}left:${X(x0)}mm;width:${((x1 - x0) / MF_SX).toFixed(2)}mm;top:calc(${Y(y - 2)}mm - ${(1.42 * FS).toFixed(2)}px);font-size:${FS}px;">${num ? `<span class="arabic-num" lang="en">${e(s)}</span>` : e(s)}</div>`);
   };
   // เส้นวันที่ ......./......./.......
   const DL = (x0, x1, y, s1, s2) => { D(x0, s1 - 4, y); T(s1 - 3, y - 1, '/'); D(s1 + 4, s2 - 4, y); T(s2 - 3, y - 1, '/'); D(s2 + 4, x1, y); };
   // เส้นทึบ (ขอบตาราง) หนา 3 px ของต้นฉบับ
-  const H = (x0, x1, yTop) => out.push(`<div class="mh" style="left:${X(x0)}mm;width:${((x1 - x0) / MF_S).toFixed(2)}mm;top:${Y(yTop)}mm;"></div>`);
-  const V = (x, y0, y1) => out.push(`<div class="mvl" style="left:${X(x)}mm;top:${Y(y0)}mm;height:${((y1 - y0) / MF_S).toFixed(2)}mm;"></div>`);
+  const H = (x0, x1, yTop) => out.push(`<div class="mh" style="left:${X(x0)}mm;width:${((x1 - x0) / MF_SX).toFixed(2)}mm;top:${Y(yTop)}mm;"></div>`);
+  const V = (x, y0, y1) => out.push(`<div class="mvl" style="left:${X(x)}mm;top:${Y(y0)}mm;height:${((y1 - y0) / MF_SY).toFixed(2)}mm;"></div>`);
   // เครื่องหมายถูกในวงเล็บ (cx = กึ่งกลางวงเล็บ)
   const CK = (cx, yb, on) => { if(on) out.push(`<svg class="mck" style="left:calc(${X(cx)}mm - 4px);top:calc(${Y(yb)}mm - 9.5px)" width="8" height="8" viewBox="0 0 12 12"><path d="M1.5 6.5l3 3 6-7" fill="none" stroke="#000" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"/></svg>`); };
   const td = s => { const [y, m, dd] = String(s || '').split('-').map(Number); return (y && m && dd) ? `${dd} ${THAI_MONTHS_ABBR[m - 1]} ${y + 543}` : ''; };
@@ -11011,7 +11018,7 @@ function buildMedFormHtml(d){
   V(573, 828, 1339);
   V(931, 1336, 1413); H(931, 1127, 1371); V(1072, 1371, 1413);
   // ===== หัว =====
-  out.push(`<img class="mlogo" src="${MED_LOGO}" alt="" style="left:${X(530)}mm;top:${Y(55)}mm;width:${(95 / MF_S).toFixed(2)}mm;height:${(93 / MF_S).toFixed(2)}mm;">`);
+  out.push(`<img class="mlogo" src="${MED_LOGO}" alt="" style="left:${X(530)}mm;top:${Y(55)}mm;width:${(95 / MF_SX).toFixed(2)}mm;height:${(93 / MF_SY).toFixed(2)}mm;">`);
   T(579.5, 179, 'แบบคำร้องและใบสำคัญจ่ายเงิน', { c: 1, b: 1, fs: FT });
   T(576, 210, 'ค่ารักษาพยาบาล', { c: 1, b: 1, fs: FT });
   // ===== ข้อ ๑ =====
@@ -11041,8 +11048,12 @@ function buildMedFormHtml(d){
   T(133, 645, '๓. ข้าพเจ้าขอรับรองว่า'); T(310, 645, '๓.๑'); T(351, 645, 'ผู้ป่วยเป็นผู้มีสิทธิได้รับการช่วยเหลือตามระเบียบนี้');
   T(310, 676, '๓.๒'); T(351, 676, 'ผู้ป่วยไม่มีสิทธิได้รับเงินค่ารักษาพยาบาลจากทางราชการหรือหน่วยงานอื่นหรือได้รับบางส่วน');
   T(310, 706, '๓.๓'); T(350, 706, 'ข้อความทั้งหมดซึ่งได้ให้ไว้ข้างต้นถูกต้องตามความเป็นจริงทุกประการ');
-  T(351, 765, '(ลงชื่อ)'); D(401, 745, 766); T(750, 765, 'ผู้ขอเบิก');
-  T(397, 805, 'วันที่'); F(430, 481, 806, dp.day, 1); T(486, 805, 'เดือน'); F(524, 659, 806, dp.month); T(661, 805, 'พ.ศ.'); F(694, 766, 806, dp.year, 1);
+  // ลงชื่อ + ชื่อและตำแหน่งผู้ขอเบิก (ดึงจากข้อ ๑ — พิมพ์แล้วเหลือแค่เซ็น) + วันที่
+  // เว้นที่เซ็นเหนือเส้นลงชื่อประมาณ 1 ซม. (จาก ๓.๓) แล้วเรียงชื่อ / ตำแหน่ง / วันที่ ลงมาถึงเส้นตาราง
+  T(351, 759, '(ลงชื่อ)'); D(401, 745, 760); T(750, 759, 'ผู้ขอเบิก');
+  if(d.name) T(573, 780, '( ' + d.name + ' )', { c: 1, data: 1 }); else { T(401, 780, '('); D(410, 736, 781); T(740, 780, ')'); }
+  if(d.position) T(573, 800, d.position, { c: 1, data: 1 }); else D(430, 716, 801);
+  T(397, 820, 'วันที่'); F(430, 481, 821, dp.day, 1); T(486, 820, 'เดือน'); F(524, 659, 821, dp.month); T(661, 820, 'พ.ศ.'); F(694, 766, 821, dp.year, 1);
   // ===== ความเห็น / ตรวจสอบ / ตรวจจ่าย / อนุมัติ (เว้นว่างให้เขียนมือ) =====
   T(303.5, 857, 'ความเห็นของหน่วยงานที่สังกัด', { c: 1, b: 1, fs: FB }); T(46, 885, 'เรียน'); T(94, 885, 'อฝ./อก./ผจก.'); T(116, 917, 'เห็นควรให้เบิกได้ตามระเบียบ');
   D(46, 271, 998); D(328, 570, 998); T(156, 1027, 'หผ.', { c: 1 }); T(465, 1027, 'อฝ./อก./ผจก.', { c: 1 });
@@ -11082,16 +11093,17 @@ function buildMedFormHtml(d){
     return TR(o.x, o.yb, o.txt, o.o, w);
   });
   return `<style>
-  .mf2{ position:relative; overflow:hidden; width:${(1094 / MF_S).toFixed(2)}mm; height:${((1575 - MF_Y0) / MF_S).toFixed(2)}mm; margin:2.1mm 0 0 1mm; color:#000;
+  .mf2{ position:relative; overflow:hidden; width:${(1094 / MF_SX).toFixed(2)}mm; height:${((1575 - MF_Y0) / MF_SY).toFixed(2)}mm; margin:2.62mm 0 0 2.44mm; color:#000;
     font-family:'Sarabun','Noto Sans Thai','TH SarabunPSK',sans-serif; -webkit-print-color-adjust:exact; print-color-adjust:exact; }
-  .mf2 .mt, .mf2 .mv{ position:absolute; line-height:1; white-space:nowrap; }
+  /* กล่องข้อความเผื่อที่บน-ล่างครึ่งตัวอักษร: สระบน/ล่าง วรรณยุกต์ ไม่ถูกตัด (กล่องตัดเฉพาะความยาวเกินช่อง) */
+  .mf2 .mt, .mf2 .mv{ position:absolute; line-height:2; white-space:nowrap; }
   .mf2 .mt.b{ font-weight:700; }
   .mf2 .mt.mf-one{ overflow:hidden; }
   .mf2 .mt.r{ text-align:right; }
   .mf2 .mv{ text-align:center; overflow:hidden; }
   .mf2 .md, .mf2 .mck{ position:absolute; overflow:visible; }
-  .mf2 .mh{ position:absolute; height:0; border-top:${(3 / MF_S).toFixed(3)}mm solid #000; }
-  .mf2 .mvl{ position:absolute; width:0; border-left:${(3 / MF_S).toFixed(3)}mm solid #000; }
+  .mf2 .mh{ position:absolute; height:0; border-top:${(3 / MF_SY).toFixed(3)}mm solid #000; }
+  .mf2 .mvl{ position:absolute; width:0; border-left:${(3 / MF_SX).toFixed(3)}mm solid #000; }
   .mf2 .mlogo{ position:absolute; }
 </style>
 <div class="mf2">${html.join('')}</div>`;
@@ -12910,7 +12922,7 @@ if(window.__fbReady) guardFbWritesWhenOffline(); else window.addEventListener('f
   });
 })();
 /* ============ เครดิตผู้พัฒนา — แก้ข้อความที่นี่ที่เดียว ทุกจุดเปลี่ยนตาม ============ */
-var APP_CREDIT = { name:'BETONG TECH.', unit:'ผปบ.กฟส.เบตง', tel:'14755', year:'2569', version:'2.8.4' };
+var APP_CREDIT = { name:'BETONG TECH.', unit:'ผปบ.กฟส.เบตง', tel:'14755', year:'2569', version:'2.8.5' };
 function appCreditHtml(lines){
   const c = APP_CREDIT;
   const l1 = `พัฒนาโดย <b>${escapeHtml(c.name)}</b> · ${escapeHtml(c.unit)}`;
