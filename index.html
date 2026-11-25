@@ -4030,7 +4030,7 @@ let state = {
   whFiles: [],             // คลังพัสดุ: งบซื้อของตาม WBS (year-scoped, warehouse department only)
   activeWhFileId: null,
   activeWhEntries: [],     // live purchase lines of the one warehouse file currently open
-  whSlipSelection: [],     // [entryId] picked to combine into one printed ใบตัดงบ (max 3), scoped to activeWhFileId
+  whSlipSelection: [],     // [{fileId, entryId}] picked to combine into one printed ใบตัดงบ (max 3) — ข้ามแฟ้มได้ (เหมือนแฟ้มงาน WBS)
   projects: [],            // WBS construction-project books (not year-scoped)
   transfers: [],           // ใบขอโอนงบ of the project currently open in the transfer modal (loaded on demand)
   trCur: null,             // the ใบขอโอนงบ being edited in that modal (null = showing the list)
@@ -7006,16 +7006,18 @@ function canDeleteWhEntry(entry){
   return !!(entry.addedBy && state.user && entry.addedBy === state.user.uid);
 }
 
+// เปลี่ยนแฟ้มแล้วรายการที่ติ๊กไว้ยังอยู่ — ติ๊กรายการจากหลายแฟ้ม (หลาย WBS) มารวมพิมพ์ใบเดียวได้
 function selectWhFile(id){
   state.activeWhFileId = id;
-  state.whSlipSelection = [];
   render();
 }
 function autoSelectFirstWhFile(){
-  if(state.activeWhFileId && whFilesForYear().some(f=>f.id===state.activeWhFileId)) return;
+  // แฟ้มที่ถูกลบ/ไม่อยู่ในปีนี้แล้ว เอารายการที่ติ๊กของแฟ้มนั้นออก ที่เหลือยังเลือกไว้เหมือนเดิม
+  const ok = new Set(whFilesForYear().map(f=>f.id));
+  if(state.whSlipSelection.some(sel=>!ok.has(sel.fileId))) state.whSlipSelection = state.whSlipSelection.filter(sel=>ok.has(sel.fileId));
+  if(state.activeWhFileId && ok.has(state.activeWhFileId)) return;
   const first = whFilesForYear()[0];
   state.activeWhFileId = first ? first.id : null;
-  state.whSlipSelection = [];
 }
 
 /* ---- file CRUD ---- */
@@ -7065,7 +7067,6 @@ async function submitWhFile(editId){
     };
     state.whFiles.push(f);
     state.activeWhFileId = f.id;
-    state.whSlipSelection = [];
     undo = () => { state.whFiles = state.whFiles.filter(x => x.id !== f.id); if(state.activeWhFileId === f.id) state.activeWhFileId = null; };
   }
   closeModal('whFileModal');
@@ -7173,7 +7174,7 @@ async function deleteWhEntry(entryId){
   if(!canDeleteWhEntry(row)){ alert('ลบได้เฉพาะรายการที่คุณเพิ่มเอง หรือผู้ดูแลแผนก/แอดมิน'); return; }
   if(row.whSplitId){ return whSplitMutate(row, 'delete'); }
   if(!confirm(`ย้ายรายการ "${row.desc}" (${fmt(row.amount)} บาท) ไปถังขยะ?\nกู้คืนได้ภายใน 30 วัน (โดยผู้ดูแลแผนกหรือแอดมิน)`)) return;
-  state.whSlipSelection = state.whSlipSelection.filter(id=>id!==entryId);
+  state.whSlipSelection = state.whSlipSelection.filter(sel=>!(sel.fileId===f.id && sel.entryId===entryId));
   try{
     await window.fb.softDeleteWarehouseEntryTx(f.id, entryId, {uid: state.user?.uid, name: state.user?.displayName || state.user?.email}, whTxBase(f));
     flashSaved();
@@ -7228,30 +7229,53 @@ function downloadWhSlip(entryId){
   const docTitle = `ใบตัดงบ_${f.wbs}_${row.date}`;
   openSlipPrintWindow(buildProjectSlipBodyHtml([whSlipEntry(f, row)], payerName, payerCode, payerPosition, row.date), docTitle);
 }
-function toggleWhSlipSelection(entryId){
-  const i = state.whSlipSelection.indexOf(entryId);
+function toggleWhSlipSelection(entryId, fileId){
+  fileId = fileId || state.activeWhFileId;
+  const i = state.whSlipSelection.findIndex(sel=>sel.fileId===fileId && sel.entryId===entryId);
   if(i>=0) state.whSlipSelection.splice(i,1);
   else{
     if(state.whSlipSelection.length >= MAX_SLIP_SELECTION){
       alert(`เลือกรวมพิมพ์ได้สูงสุด ${MAX_SLIP_SELECTION} รายการต่อใบตัดงบ`);
       render(); return;
     }
-    state.whSlipSelection.push(entryId);
+    state.whSlipSelection.push({fileId, entryId});
   }
   render();
 }
-function isWhEntrySelected(entryId){ return state.whSlipSelection.includes(entryId); }
+function isWhEntrySelected(entryId, fileId){
+  fileId = fileId || state.activeWhFileId;
+  return state.whSlipSelection.some(sel=>sel.fileId===fileId && sel.entryId===entryId);
+}
 function clearWhSlipSelection(){ state.whSlipSelection = []; render(); }
-function printCombinedWhSlip(){
-  const f = getWhFile(state.activeWhFileId);
-  if(!f || !state.whSlipSelection.length) return;
-  const rows = whRows(f);
+// รวมพิมพ์ได้ข้ามแฟ้ม: แฟ้มที่ไม่ได้เปิดอยู่ดึงรายการจากฐานข้อมูลมาคิดยอดสะสม ณ บรรทัดนั้น (ช่อง "คงเหลือหลังเบิก")
+// แต่ละรายการได้ช่อง WBS ของตัวเองในตารางตัดงบ หัวใบแสดงเลข WBS ครบทุกแฟ้ม
+async function printCombinedWhSlip(){
+  if(!state.whSlipSelection.length) return;
+  const sel = state.whSlipSelection.slice();
+  const lists = {};
+  for(const fid of new Set(sel.map(x=>x.fileId))){
+    if(fid === state.activeWhFileId && whEntriesLoadedFor === fid){ lists[fid] = state.activeWhEntries; continue; }
+    try{ lists[fid] = await window.fb.getWarehouseEntriesOnce(fid); }
+    catch(e){ console.error('printCombinedWhSlip: fetch entries for', fid, e); alert('ดึงรายการของแฟ้มที่เลือกไม่สำเร็จ ลองใหม่อีกครั้ง\n\n' + e.message); return; }
+  }
+  const picked = [];
+  const okFiles = new Set(whFilesForYear().map(f=>f.id));   // แฟ้มที่ถูกลบไปแล้ว/คนละปี ไม่เอามาพิมพ์
+  for(const x of sel){
+    const f = getWhFile(x.fileId);
+    if(!f || !okFiles.has(f.id)) continue;
+    const row = (lists[x.fileId] || []).find(e=>e.id===x.entryId && !e.deletedAt);
+    if(!row) continue;
+    picked.push({f, row});
+  }
   // บิลหลาย WBS มีใบตัดงบของตัวเอง (ทุก WBS ของบิลอยู่ในใบเดียว) จึงไม่รวมกับรายการอื่น
-  if(state.whSlipSelection.some(id => { const r = rows.find(x=>x.id===id); return r && r.whSplitId; })){
+  if(picked.some(p=>p.row.whSplitId)){
     alert('รายการที่เลือกมีบิลที่ตัดงบหลาย WBS ซึ่งมีใบตัดงบของตัวเองอยู่แล้ว\nกรุณาเอาออกจากการเลือก แล้วพิมพ์บิลนั้นด้วยปุ่มพิมพ์ท้ายบรรทัด');
     return;
   }
-  const entries = state.whSlipSelection.map(id=>rows.find(r=>r.id===id)).filter(Boolean).map(r=>whSlipEntry(f, r));
+  const entries = picked.map(({f, row})=>({
+    project: {wbs: f.wbs}, catLabel: '', catCode: '', networkNo: '', blankCodes: true,
+    row, rowRemaining: (Number(f.budget)||0) - xRunningUpTo(lists[f.id], row.id),
+  }));
   if(!entries.length){
     alert('ไม่พบรายการที่เลือกไว้ อาจถูกลบไปแล้ว');
     state.whSlipSelection = []; render(); return;
@@ -7260,9 +7284,10 @@ function printCombinedWhSlip(){
   const payerCode = state.user ? signerCode() : '';
   const payerPosition = state.user ? signerPos() : '';
   const docDateStr = todayStr();
+  const wbsTitle = [...new Set(picked.map(p=>p.f.wbs))].join('+');
   openSlipPrintWindow(
     buildProjectSlipBodyHtml(entries, payerName, payerCode, payerPosition, docDateStr),
-    `ใบตัดงบรวม_${f.wbs}_${docDateStr}`);
+    `ใบตัดงบรวม_${wbsTitle}_${docDateStr}`);
 }
 
 /* ============ งบซื้อของ: รายการหลายบรรทัด / ภาษี / บิลเดียวหลาย WBS ============
@@ -7310,7 +7335,7 @@ async function whSplitMutate(entry, mode){
   if(mode === 'purge' && !confirm(`บิลนี้ตัดงบ ${parts.length} WBS การลบถาวรจะลบทั้งบิล\n\n${lines}\n\nการลบถาวรกู้คืนไม่ได้ ลบถาวร?`)) return;
   const who = {uid: state.user?.uid, name: state.user?.displayName || state.user?.email};
   const verb = mode === 'delete' ? 'ลบ' : (mode === 'restore' ? 'กู้คืน' : 'ลบถาวร');
-  if(mode === 'delete') state.whSlipSelection = state.whSlipSelection.filter(id => !parts.some(pt => pt.entryId === id));
+  if(mode === 'delete') state.whSlipSelection = state.whSlipSelection.filter(sel => !parts.some(pt => pt.fileId === sel.fileId && pt.entryId === sel.entryId));
   try{
     const fallbacks = await whSplitFallbacks([...new Set(parts.map(pt => pt.fileId))]);
     await window.fb.whSplitWriteTx(parts.map(pt => ({fileId: pt.fileId, entryId: pt.entryId})), mode, who, fallbacks);
@@ -9222,7 +9247,7 @@ function renderSlipSelectionBar(){
   const printFn = isWh ? 'printCombinedWhSlip' : (isProject ? 'printCombinedProjectSlip' : 'printCombinedSlip');
   bar.className = 'slip-bar show';
   bar.innerHTML = `
-    <span>เลือกแล้ว ${n}/${MAX_SLIP_SELECTION} รายการ</span>
+    <span>เลือกแล้ว ${n}/${MAX_SLIP_SELECTION} รายการ${isWh && new Set(state.whSlipSelection.map(x=>x.fileId)).size > 1 ? ` · จาก ${new Set(state.whSlipSelection.map(x=>x.fileId)).size} แฟ้ม` : ''}</span>
     <button class="btn btn-outline btn-sm" onclick="${clearFn}()">ล้างการเลือก</button>
     <button class="btn btn-primary btn-sm" onclick="${printFn}()">🖨 พิมพ์ใบตัดงบรวม</button>
   `;
