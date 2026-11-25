@@ -766,6 +766,27 @@ body.sort-active .drag-handle{cursor:grabbing;}
 .entry-form .field.desc input{width:280px;}
 .entry-form .field.amt input{width:130px;}
 .entry-form .field.tax input{width:130px;}
+/* ---- งบซื้อของ (คลังพัสดุ): ชื่อรายการหลายบรรทัด / ภาษี / บิลเดียวหลาย WBS ---- */
+.field textarea{font-family:'Noto Sans Thai',sans-serif;font-size:14px;line-height:1.45;padding:8px 10px;
+  border:1px solid var(--border);border-radius:7px;resize:vertical;color:var(--text);background:#fff;}
+.entry-form .field.desc textarea{width:270px;min-height:40px;}
+.modal .field textarea{width:100%;}
+.entry-form .wh-vat{display:flex;align-items:center;gap:6px;font-size:12.5px;white-space:nowrap;cursor:pointer;padding-bottom:9px;}
+.entry-form .wh-vat input{width:auto;margin:0;}
+.wh-desc{white-space:pre-line;}
+.wh-sub{font-size:10.5px;margin-top:2px;}
+.whs-modal .whs-line{display:flex;gap:10px;align-items:flex-end;flex-wrap:wrap;padding:10px 12px 8px;
+  border:1px solid var(--border-soft);border-radius:9px;margin-bottom:8px;background:#FBFCFC;}
+.whs-modal .whs-line .field{margin-bottom:0;}
+.whs-modal .whs-rem{flex-basis:100%;font-size:11.5px;color:var(--text-muted);font-family:'JetBrains Mono';min-height:15px;}
+.whs-modal .wh-vat{display:flex;align-items:center;gap:7px;font-size:12.5px;cursor:pointer;}
+.whs-modal .wh-vat input{width:auto;margin:0;}
+@media (max-width:760px), (max-width:1000px) and (pointer:coarse){
+  .main .entry-form .field.desc textarea{width:100%;min-height:64px;}
+  .entry-form .wh-vat{padding-bottom:0;}
+  .whs-modal .whs-line .field{width:100% !important;flex:1 1 100% !important;min-width:0 !important;}
+  .whs-modal .whs-line .field.half{flex:1 1 40% !important;width:auto !important;}
+}
 
 /* ---- รายการแบบแจกแจงรายละเอียด ---- */
 /* ขอบ 1px ของปุ่มขอบเส้นทำให้สูงกว่าปุ่มส้มข้างๆ 2px จึงลดระยะบน-ล่างลงเท่ากับเส้นขอบ */
@@ -1993,9 +2014,10 @@ body.access-gated #mTabbar, body.access-gated #proxyBar{display:none !important;
     </div>
 
     <!-- ใบตัดงบเปล่า: แยกจากระบบคุมงบทั้งหมด ไม่อ่านไม่เขียนข้อมูลใดๆ กรอกแล้วพิมพ์ จบ
-         จึงวางไว้ท้ายแถบข้าง นอกกลุ่มของทุกโหมด และขึ้นเหมือนกันทุกโหมด -->
+         จึงวางไว้ท้ายแถบข้าง นอกกลุ่มของทุกโหมด และขึ้นเหมือนกันทุกโหมด
+         ค่ารักษา สก.5 ตัดงบทำการ (ศูนย์ต้นทุน) เท่านั้น จึงขึ้นเฉพาะหน้าคุมงบทั่วไป -->
     <div class="side-tools">
-      <button class="side-tool-btn" onclick="openMedClaim()" title="กรอกแบบคำร้องค่ารักษาพยาบาล (สก.5) แล้วตัดงบพร้อมพิมพ์ หรือพิมพ์แบบคำร้องอย่างเดียว" style="margin-bottom:8px;">
+      <button class="side-tool-btn" id="sideMedBtn" onclick="openMedClaim()" title="กรอกแบบคำร้องค่ารักษาพยาบาล (สก.5) แล้วตัดงบพร้อมพิมพ์ หรือพิมพ์แบบคำร้องอย่างเดียว" style="margin-bottom:8px;">
         <span class="sti">🩺</span><span>เบิกค่ารักษาพยาบาล (สก.5)</span>
       </button>
       <button class="side-tool-btn" onclick="openBlankSlipModal()" title="พิมพ์ใบตัดงบเปล่าโดยกรอกเองทุกช่อง ไม่เกี่ยวกับงบในระบบ">
@@ -2226,6 +2248,32 @@ body.access-gated #mTabbar, body.access-gated #proxyBar{display:none !important;
     <div class="modal-actions">
       <button class="btn btn-outline" onclick="closeModal('editEntryModal')">ยกเลิก</button>
       <button class="btn btn-primary" onclick="submitEditEntry()">บันทึกการแก้ไข</button>
+    </div>
+  </div>
+</div>
+
+<!-- งบซื้อของ (คลังพัสดุ): บิลใบเดียวตัดงบหลาย WBS (หลายแฟ้ม) -->
+<div class="modal-overlay hidden" id="whSplitModal">
+  <div class="modal whs-modal" style="max-width:760px;">
+    <h2>บิลเดียว ตัดงบหลาย WBS</h2>
+    <p class="modal-desc" id="whsDesc"></p>
+    <div style="display:flex;gap:12px;flex-wrap:wrap;">
+      <div class="field" style="width:170px;"><label for="whsDate">วันที่</label><input type="date" id="whsDate"></div>
+      <div class="field" style="flex:1;min-width:240px;width:auto;"><label for="whsName">รายการ (ขึ้นบรรทัดใหม่ได้ เช่น บรรทัดล่าง = เลข PO)</label>
+        <textarea id="whsName" rows="2" placeholder="เช่น สาย SAC 50 ตร.มม. 1,000 เมตร&#10;PO 11223344"></textarea></div>
+    </div>
+    <div style="font-size:12px;font-weight:600;color:var(--text-muted);margin:2px 0 8px;">ตัดงบแต่ละ WBS <span style="font-weight:400;color:var(--text-faint);">(2–3 แฟ้ม ตามช่องในใบตัดงบ)</span></div>
+    <div id="whsLines"></div>
+    <button class="btn btn-outline btn-sm" id="whsAddBtn" type="button" onclick="addWhSplitLine()">+ เพิ่ม WBS</button>
+    <label class="wh-vat" style="margin-top:14px;"><input type="checkbox" id="whsVat" checked onchange="recalcWhSplit()"> เครดิตภาษีซื้อได้ <span style="color:var(--text-faint);">(ไม่ติ๊ก = รวมภาษีในยอดตัดงบ)</span></label>
+    <div style="display:flex;justify-content:flex-end;gap:22px;flex-wrap:wrap;margin-top:12px;padding-top:12px;border-top:1px solid var(--border-soft);">
+      <div style="text-align:right;"><div style="font-size:11.5px;color:var(--text-muted);">รวมยอดตัดงบ</div><div id="whsTotalLedger" style="font-family:'JetBrains Mono';font-size:19px;font-weight:700;">0.00</div></div>
+      <div style="text-align:right;"><div style="font-size:11.5px;color:var(--text-muted);">รวมเงินที่เบิก (รวมภาษี)</div><div id="whsTotalGross" style="font-family:'JetBrains Mono';font-size:19px;font-weight:700;">0.00</div></div>
+    </div>
+    <div class="modal-actions" style="flex-wrap:wrap;">
+      <button class="btn btn-outline" type="button" onclick="closeModal('whSplitModal')">ยกเลิก</button>
+      <button class="btn btn-outline" type="button" onclick="submitWhSplit(false)">บันทึก</button>
+      <button class="btn btn-primary" type="button" onclick="submitWhSplit(true)">บันทึก + พิมพ์ใบตัดงบ</button>
     </div>
   </div>
 </div>
@@ -3566,7 +3614,8 @@ body.access-gated #mTabbar, body.access-gated #proxyBar{display:none !important;
       if(data.closed) throw new Error('แฟ้มงบซื้อของนี้ปิดงานไปแล้ว (อาจมีคนเพิ่งกดปิด) — เพิ่มหรือแก้รายการไม่ได้ จนกว่าจะยกเลิกปิดงาน');
       const baseTotalPaid = whBaseTotalPaid(data, fallbackPaid);
       const baseEntryCount = typeof data.entryCount === 'number' ? data.entryCount : 0;
-      tx.set(ref, {...data, totalPaid: baseTotalPaid + (Number(entry.amount)||0), entryCount: baseEntryCount + 1});
+      // ยอดตัดงบ = ยอดก่อนภาษี (หรือรวมภาษีถ้าเครดิตภาษีซื้อไม่ได้) — รายการเดิมไม่มีภาษี จึงได้ค่าเท่าเดิม
+      tx.set(ref, {...data, totalPaid: baseTotalPaid + entryLedgerAmount(entry), entryCount: baseEntryCount + 1});
       tx.set(doc(db, 'warehouseFiles', fileId, 'entries', entry.id), entry);
     }),
     // Purchase lines go to a 30-day trash like the other modes: the entry doc stays (stamped with
@@ -3582,7 +3631,7 @@ body.access-gated #mTabbar, body.access-gated #proxyBar{display:none !important;
       const entryData = entrySnap.data();
       const baseTotalPaid = whBaseTotalPaid(data, fallbackPaid);
       const baseEntryCount = typeof data.entryCount === 'number' ? data.entryCount : 0;
-      tx.set(ref, {...data, totalPaid: baseTotalPaid - (Number(entryData.amount)||0), entryCount: Math.max(0, baseEntryCount - 1)});
+      tx.set(ref, {...data, totalPaid: baseTotalPaid - entryLedgerAmount(entryData), entryCount: Math.max(0, baseEntryCount - 1)});
       tx.set(entryRef, {...entryData, deletedAt: Date.now(), deletedByUid: (who && who.uid) || null, deletedByName: (who && who.name) || null});
     }),
     restoreWarehouseEntryTx: (fileId, entryId, fallbackPaid) => runTransaction(db, async (tx) => {
@@ -3595,7 +3644,7 @@ body.access-gated #mTabbar, body.access-gated #proxyBar{display:none !important;
       const entryData = entrySnap.data();
       const baseTotalPaid = whBaseTotalPaid(data, fallbackPaid);
       const baseEntryCount = typeof data.entryCount === 'number' ? data.entryCount : 0;
-      tx.set(ref, {...data, totalPaid: baseTotalPaid + (Number(entryData.amount)||0), entryCount: baseEntryCount + 1});
+      tx.set(ref, {...data, totalPaid: baseTotalPaid + entryLedgerAmount(entryData), entryCount: baseEntryCount + 1});
       tx.set(entryRef, {...entryData, deletedAt: null, deletedByUid: null, deletedByName: null});
     }),
     // Final removal of an already-trashed entry (aggregate was reduced when it was trashed).
@@ -3675,10 +3724,20 @@ body.access-gated #mTabbar, body.access-gated #proxyBar{display:none !important;
       tx.set(ref, {...data, departments});
       tx.set(entryRef, {...next, workTypeKey, catKey});
     }),
-    editWarehouseEntryTx: (fileId, entryId, patch, who, fallbackPaid) => runTransaction(db, async (tx) => {
+    // mates = บรรทัดอื่นของบิลเดียวกันที่ตัดงบแฟ้มอื่น [{fileId, entryId}] — วันที่/ชื่อรายการเป็นของบิล
+    // จึงแก้ตามให้ทุกบรรทัดในทรานแซกชันเดียวกัน (แบบเดียวกับรายการแยกบัญชีในงบทำการ) ยอดเงินของบรรทัดคู่ไม่แตะ
+    editWarehouseEntryTx: (fileId, entryId, patch, who, fallbackPaid, mates, header) => runTransaction(db, async (tx) => {
       const ref = doc(db, 'warehouseFiles', fileId);
       const entryRef = doc(db, 'warehouseFiles', fileId, 'entries', entryId);
+      const mateList = (header && Object.keys(header).length) ? (mates || []) : [];
+      const mateRefs = mateList.map(m => doc(db, 'warehouseFiles', m.fileId, 'entries', m.entryId));
+      const mateFileIds = [...new Set(mateList.map(m => m.fileId))];
+      const mateFileSnaps = await Promise.all(mateFileIds.map(id => tx.get(doc(db, 'warehouseFiles', id))));
+      const mateSnaps = await Promise.all(mateRefs.map(r => tx.get(r)));
       const [snap, entrySnap] = await Promise.all([tx.get(ref), tx.get(entryRef)]);
+      mateFileSnaps.forEach(sn => {
+        if(sn.exists() && sn.data().closed) throw new Error('แฟ้ม ' + (sn.data().wbs || '') + ' ในบิลเดียวกันปิดงานไปแล้ว — แก้วันที่/ชื่อรายการของบิลนี้ไม่ได้ จนกว่าจะยกเลิกปิดงาน');
+      });
       if(!snap.exists()) throw new Error('ไม่พบแฟ้มงบซื้อของนี้ในระบบ (อาจถูกลบไปแล้วโดยผู้อื่น)');
       if(!entrySnap.exists()) throw new Error('ไม่พบรายการซื้อนี้ (อาจถูกลบไปแล้วโดยผู้อื่น)');
       const entryData = entrySnap.data();
@@ -3687,9 +3746,78 @@ body.access-gated #mTabbar, body.access-gated #proxyBar{display:none !important;
       if(data.closed) throw new Error('แฟ้มงบซื้อของนี้ปิดงานไปแล้ว (อาจมีคนเพิ่งกดปิด) — เพิ่มหรือแก้รายการไม่ได้ จนกว่าจะยกเลิกปิดงาน');
       const next = buildEditedEntry(entryData, patch, who);
       const baseTotalPaid = whBaseTotalPaid(data, fallbackPaid);
-      const delta = (Number(next.amount)||0) - (Number(entryData.amount)||0);
+      const delta = entryLedgerAmount(next) - entryLedgerAmount(entryData);
       tx.set(ref, {...data, totalPaid: baseTotalPaid + delta});
       tx.set(entryRef, next);
+      mateSnaps.forEach((sn, i) => {
+        if(!sn.exists() || sn.data().deletedAt) return;
+        tx.set(mateRefs[i], buildEditedEntry(sn.data(), header, who));
+      });
+    }),
+    getWarehouseFileOnce: async (fileId) => {
+      const snap = await getDoc(doc(db, 'warehouseFiles', fileId));
+      return snap.exists() ? snap.data() : null;
+    },
+    /* ===== บิลใบเดียวที่ตัดงบหลายแฟ้มงบซื้อของ (หลาย WBS) =====
+       parts = [{fileId, entryId, entry?}] (entry เฉพาะตอนเพิ่ม) · mode = 'add' | 'delete' | 'restore' | 'purge'
+       อ่านแฟ้มและรายการทุกบรรทัดก่อน แล้วปรับยอดสะสมของทุกแฟ้มพร้อมกันในทรานแซกชันเดียว
+       — ไม่มีทางที่แฟ้มหนึ่งตัดงบแล้วอีกแฟ้มไม่ตัด
+       fallbacks = {fileId: ยอดตั้งต้น} สำหรับแฟ้มรุ่นเก่าที่ยังไม่มี totalPaid บนเซิร์ฟเวอร์ */
+    whSplitWriteTx: (parts, mode, who, fallbacks) => runTransaction(db, async (tx) => {
+      const fileIds = [...new Set(parts.map(pt => pt.fileId))];
+      const fileRefs = fileIds.map(id => doc(db, 'warehouseFiles', id));
+      const entryRefs = parts.map(pt => doc(db, 'warehouseFiles', pt.fileId, 'entries', pt.entryId));
+      const [fileSnaps, entrySnaps] = await Promise.all([
+        Promise.all(fileRefs.map(r => tx.get(r))),
+        Promise.all(entryRefs.map(r => tx.get(r))),
+      ]);
+      if(mode === 'purge'){
+        entrySnaps.forEach(sn => {
+          if(sn.exists() && !sn.data().deletedAt) throw new Error('มีบรรทัดในบิลนี้ถูกกู้คืนไปแล้วโดยผู้อื่น จึงยังลบถาวรไม่ได้ — ปิดหน้าต่างแล้วลองใหม่');
+        });
+        entrySnaps.forEach((sn, i) => { if(sn.exists()) tx.delete(entryRefs[i]); });
+        return;
+      }
+      // ลบ: แฟ้มที่ถูกลบไปแล้วไม่ต้องคืนยอด (ให้บรรทัดที่เหลือลบได้) / เพิ่ม-กู้คืน: ต้องมีแฟ้มจริงและยังไม่ปิดงาน
+      const files = {};
+      fileIds.forEach((id, i) => {
+        const sn = fileSnaps[i];
+        if(!sn.exists()){
+          if(mode === 'delete') return;
+          throw new Error('ไม่พบแฟ้มงบซื้อของบางแฟ้มของบิลนี้ในระบบ (อาจถูกลบไปแล้ว)');
+        }
+        const d = sn.data();
+        if(mode !== 'delete' && d.closed) throw new Error('แฟ้ม ' + (d.wbs || '') + ' ปิดงานไปแล้ว — ' + (mode === 'add' ? 'เพิ่มบิลนี้' : 'กู้คืนบิลนี้') + 'ไม่ได้ จนกว่าจะยกเลิกปิดงาน');
+        const fb = fallbacks && typeof fallbacks[id] === 'number' ? fallbacks[id] : null;
+        if(typeof d.totalPaid !== 'number' && fb === null) throw new Error('ยังโหลดยอดสะสมของแฟ้ม ' + (d.wbs || '') + ' ไม่ครบ ลองใหม่อีกครั้ง');
+        files[id] = {...d, totalPaid: whBaseTotalPaid(d, fb), entryCount: typeof d.entryCount === 'number' ? d.entryCount : 0};
+      });
+      const writes = [];
+      parts.forEach((pt, i) => {
+        const sn = entrySnaps[i];
+        let entryData;
+        if(mode === 'add'){
+          if(sn.exists()) throw new Error('รายการนี้ถูกบันทึกไปแล้ว');
+          entryData = pt.entry;
+        } else {
+          if(!sn.exists()){
+            if(mode === 'delete') return;
+            throw new Error('ไม่พบบางบรรทัดของบิลนี้ (อาจถูกลบถาวรไปแล้ว)');
+          }
+          entryData = sn.data();
+          if(mode === 'delete' && entryData.deletedAt) return;   // ลบไปแล้ว อย่าหักซ้ำ
+          if(mode === 'restore' && !entryData.deletedAt) return; // กู้ไปแล้ว อย่าบวกซ้ำ
+        }
+        const sign = mode === 'delete' ? -1 : 1;
+        const f = files[pt.fileId];
+        if(f){ f.totalPaid = f.totalPaid + sign * entryLedgerAmount(entryData); f.entryCount = Math.max(0, f.entryCount + sign); }
+        const next = mode === 'add' ? entryData
+          : mode === 'delete' ? {...entryData, deletedAt: Date.now(), deletedByUid: (who && who.uid) || null, deletedByName: (who && who.name) || null}
+          : {...entryData, deletedAt: null, deletedByUid: null, deletedByName: null};
+        writes.push([entryRefs[i], next]);
+      });
+      fileIds.forEach((id, i) => { if(files[id]) tx.set(fileRefs[i], files[id]); });
+      writes.forEach(([r, d]) => tx.set(r, d));
     }),
     softDeleteWarehouseFile: (id, who) => setDoc(doc(db, 'warehouseFiles', id),
       {deletedAt: Date.now(), deletedByUid: (who && who.uid) || null, deletedByName: (who && who.name) || null}, {merge: true}),
@@ -4382,7 +4510,10 @@ function buildSlipBodyHtml(cc, entries, payerName, payerCode, payerPosition, doc
 }
 
 /* ============ WBS project mode: withdrawal slip (separate from budget-mode slip above — do not merge) ============ */
-function buildProjectSlipBodyHtml(entries, payerName, payerCode, payerPosition, docDateStr){
+function buildProjectSlipBodyHtml(entries, payerName, payerCode, payerPosition, docDateStr, opts){
+  // opts.mergeItemRows: บิลใบเดียวที่ตัดงบหลาย WBS (คลังพัสดุ) — ตารางรายการด้านบนเป็นบิลเดียว จึงพิมพ์บรรทัดเดียว
+  // (ชื่อรายการของบิล + ยอดรวมทุก WBS) ส่วนตารางล่างยังแยกช่องตาม WBS เหมือนเดิม
+  opts = opts || {};
   // entries: array (length 1-3) of {project, catLabel, catCode, networkNo, row, rowRemaining}
   // Each entry carries its OWN project, since entries selected across different WBS project
   // files ("แฟ้มงาน") can now be combined onto a single printed slip.
@@ -4398,19 +4529,27 @@ function buildProjectSlipBodyHtml(entries, payerName, payerCode, payerPosition, 
   const uniqueWbsList = [...new Set(entries.map(e=>e.project.wbs))];
   const wbsHeaderText = uniqueWbsList.join(' , ');
 
-  const itemRows = entries.map((e,i)=>{
+  // ชื่อรายการหลายบรรทัด (งบซื้อของ: บรรทัดบน = ของที่ซื้อ, บรรทัดล่าง = เลข PO) พิมพ์ขึ้นบรรทัดใหม่ตามที่กรอก
+  const descHtml = (d) => escapeHtml(d).replace(/\n/g, '<br>');
+  const mergeTop = !!opts.mergeItemRows && entries.length > 1;
+  const topRows = mergeTop ? [{row: {
+    desc: entries[0].row.desc,
+    amount: entries.reduce((s,e)=> s + (Number(e.row.amount)||0), 0),
+    tax: entries.reduce((s,e)=> s + (Number(e.row.tax)||0), 0),
+  }}] : entries;
+  const itemRows = topRows.map((e,i)=>{
     const tax = Number(e.row.tax)||0;
     const rowTotal = (Number(e.row.amount)||0) + tax;
     return `
         <tr>
           <td class="ctr">${numEn(i+1)}</td>
-          <td class="hl">${escapeHtml(e.row.desc)}</td>
+          <td class="hl">${descHtml(e.row.desc)}</td>
           <td class="num hl">${numEn(fmt2(e.row.amount))}</td>
           <td class="num hl">${tax ? numEn(fmt2(tax)) : '-'}</td>
           <td class="num hl">${numEn(fmt2(rowTotal))}</td>
         </tr>`;
   }).join('');
-  const blankItemRowCount = Math.max(0, 5 - entries.length);
+  const blankItemRowCount = Math.max(0, 5 - topRows.length);
   const blankItemRows = Array.from({length:blankItemRowCount}).map(()=>`<tr><td>&nbsp;</td><td></td><td></td><td></td><td></td></tr>`).join('');
 
   const s0 = slot(0), s1 = slot(1), s2 = slot(2);
@@ -6833,7 +6972,7 @@ function getWhFile(id){ return state.whFiles.find(f=>f.id===id); }
 function whAggregateTotalPaid(f){
   if(typeof f.totalPaid === 'number') return f.totalPaid;
   if(f.id === state.activeWhFileId && whEntriesLoadedFor === f.id){
-    return state.activeWhEntries.filter(e=>!e.deletedAt).reduce((s,e)=> s + (Number(e.amount)||0), 0);
+    return state.activeWhEntries.filter(e=>!e.deletedAt).reduce((s,e)=> s + entryLedgerAmount(e), 0);
   }
   return 0;
 }
@@ -6859,7 +6998,7 @@ function whRows(f){
     .filter(e=>!e.deletedAt)
     .sort((a,b)=> (a.date||'').localeCompare(b.date||'') || (a.createdAt||0)-(b.createdAt||0));
   let running = 0;
-  return rows.map(r=>{ running = money(running + (Number(r.amount)||0)); return {...r, cumulative: running}; });
+  return rows.map(r=>{ running = money(running + entryLedgerAmount(r)); return {...r, cumulative: running}; });
 }
 function whCanManage(){ return canManageDept(WAREHOUSE_DEPT); }
 function canDeleteWhEntry(entry){
@@ -6995,13 +7134,20 @@ async function addWhEntry(){
   const dateEl = document.getElementById('whEntryDate');
   const descEl = document.getElementById('whEntryDesc');
   const amtEl  = document.getElementById('whEntryAmount');
+  const taxEl  = document.getElementById('whEntryTax');
+  const vatEl  = document.getElementById('whEntryVat');
   const date = dateEl.value || todayStr();
-  const desc = descEl.value.trim();
+  const desc = whCleanDesc(descEl.value);
   const amount = Number(amtEl.value)||0;
+  const tax = taxEl ? money(Number(taxEl.value)||0) : 0;
+  const vatCreditable = vatEl ? !!vatEl.checked : true;
   if(!desc){ alert('กรุณากรอกชื่อรายการ/รายการพัสดุที่ซื้อ'); descEl.focus(); return; }
   if(amount <= 0){ alert('กรุณากรอกจำนวนเงินให้ถูกต้อง'); amtEl.focus(); return; }
+  if(tax < 0){ alert('ภาษีมูลค่าเพิ่มติดลบไม่ได้'); taxEl.focus(); return; }
   const entry = {
     id: uid(), date, desc, amount,
+    // รายการที่ไม่มีภาษีเก็บหน้าตาเหมือนเดิมทุกช่อง (ไม่มี tax/vatCreditable)
+    ...(tax > 0 ? {tax, vatCreditable} : {}),
     addedBy: state.user ? state.user.uid : null,
     addedByName: state.user ? (signerName(false) || '') : '',
     addedByEmail: state.user ? (state.user.email || '') : '',
@@ -7012,6 +7158,8 @@ async function addWhEntry(){
   let base;
   try{ base = whTxBase(f); }catch(e){ alert(e.message); return; }   // ก่อนล้างช่อง จะได้ไม่ต้องพิมพ์ใหม่
   descEl.value=''; amtEl.value='';
+  if(taxEl) taxEl.value='';
+  if(vatEl) vatEl.checked = true;
   try{
     await window.fb.addWarehouseEntryTx(f.id, entry, base);
     flashSaved();
@@ -7023,6 +7171,7 @@ async function deleteWhEntry(entryId){
   const row = whRows(f).find(r=>r.id===entryId);
   if(!row) return;
   if(!canDeleteWhEntry(row)){ alert('ลบได้เฉพาะรายการที่คุณเพิ่มเอง หรือผู้ดูแลแผนก/แอดมิน'); return; }
+  if(row.whSplitId){ return whSplitMutate(row, 'delete'); }
   if(!confirm(`ย้ายรายการ "${row.desc}" (${fmt(row.amount)} บาท) ไปถังขยะ?\nกู้คืนได้ภายใน 30 วัน (โดยผู้ดูแลแผนกหรือแอดมิน)`)) return;
   state.whSlipSelection = state.whSlipSelection.filter(id=>id!==entryId);
   try{
@@ -7039,12 +7188,16 @@ function trashedWhEntries(){
 async function restoreWhEntry(entryId){
   const f = getWhFile(state.activeWhFileId);
   if(!f || !whCanManage()) return;
+  const te = state.activeWhEntries.find(x=>x.id===entryId);
+  if(te && te.whSplitId){ return whSplitMutate(te, 'restore'); }
   try{ await window.fb.restoreWarehouseEntryTx(f.id, entryId, whTxBase(f)); flashSaved(); }
   catch(e){ console.error(e); flashSaved(true); alert('กู้คืนไม่สำเร็จ: '+e.message); }
 }
 async function permanentlyDeleteWhEntry(entryId, label){
   const f = getWhFile(state.activeWhFileId);
   if(!f || !whCanManage()) return;
+  const te = state.activeWhEntries.find(x=>x.id===entryId);
+  if(te && te.whSplitId){ return whSplitMutate(te, 'purge'); }
   if(label === undefined){
     const e = state.activeWhEntries.find(x=>x.id===entryId);
     label = e ? `${e.desc} (${fmt(e.amount)} บาท)` : 'รายการนี้';
@@ -7068,6 +7221,7 @@ function downloadWhSlip(entryId){
   if(!f) return;
   const row = whRows(f).find(r=>r.id===entryId);
   if(!row) return;
+  if(row.whSplitId){ return printWhSplitSlip(row); }
   const payerName = row.addedByName || row.addedByEmail || '';
   const payerCode = row.addedByCode || '';
   const payerPosition = row.addedByPosition || '';
@@ -7092,6 +7246,11 @@ function printCombinedWhSlip(){
   const f = getWhFile(state.activeWhFileId);
   if(!f || !state.whSlipSelection.length) return;
   const rows = whRows(f);
+  // บิลหลาย WBS มีใบตัดงบของตัวเอง (ทุก WBS ของบิลอยู่ในใบเดียว) จึงไม่รวมกับรายการอื่น
+  if(state.whSlipSelection.some(id => { const r = rows.find(x=>x.id===id); return r && r.whSplitId; })){
+    alert('รายการที่เลือกมีบิลที่ตัดงบหลาย WBS ซึ่งมีใบตัดงบของตัวเองอยู่แล้ว\nกรุณาเอาออกจากการเลือก แล้วพิมพ์บิลนั้นด้วยปุ่มพิมพ์ท้ายบรรทัด');
+    return;
+  }
   const entries = state.whSlipSelection.map(id=>rows.find(r=>r.id===id)).filter(Boolean).map(r=>whSlipEntry(f, r));
   if(!entries.length){
     alert('ไม่พบรายการที่เลือกไว้ อาจถูกลบไปแล้ว');
@@ -7104,6 +7263,224 @@ function printCombinedWhSlip(){
   openSlipPrintWindow(
     buildProjectSlipBodyHtml(entries, payerName, payerCode, payerPosition, docDateStr),
     `ใบตัดงบรวม_${f.wbs}_${docDateStr}`);
+}
+
+/* ============ งบซื้อของ: รายการหลายบรรทัด / ภาษี / บิลเดียวหลาย WBS ============
+   - ชื่อรายการขึ้นบรรทัดใหม่ได้ (บรรทัดบน = ของที่ซื้อ, บรรทัดล่าง = เลข PO) ใบตัดงบพิมพ์ตามบรรทัด
+   - ภาษีมูลค่าเพิ่ม + "เครดิตภาษีซื้อได้" แบบค่าน้ำมันในงบทำการ: ติ๊ก = ตัดงบเฉพาะยอดก่อนภาษี / ไม่ติ๊ก = รวมภาษี
+   - บิลใบเดียวตัดงบหลายแฟ้ม (หลาย WBS สูงสุด 3 ตามช่องในใบตัดงบ) บันทึก/ลบ/กู้คืน/ลบถาวร ทั้งบิลในทรานแซกชันเดียว
+     ทุกบรรทัดเก็บ whSplitParts (แฟ้ม รหัสรายการ WBS ยอด) ไว้ตามหาบรรทัดคู่ตอนพิมพ์และตอนลบ */
+const WH_SPLIT_MAX = 3;
+function whCleanDesc(v){
+  return String(v == null ? '' : v).split(/\r?\n/).map(l => l.replace(/[ \t]+/g, ' ').trim()).filter(Boolean).slice(0, 4).join('\n');
+}
+function whTaxNoteHtml(r){
+  const tax = Number(r.tax) || 0;
+  if(!(tax > 0)) return '';
+  return r.vatCreditable === false
+    ? `<div class="wh-sub" style="color:var(--rust);">ภาษี ${fmt(tax)} · เครดิตภาษีซื้อไม่ได้ — รวมภาษีในยอดตัดงบแล้ว</div>`
+    : `<div class="wh-sub" style="color:var(--text-faint);">ก่อนภาษี ${fmt(r.amount)} + ภาษี ${fmt(tax)} · เครดิตภาษีซื้อได้ (ตัดงบเฉพาะก่อนภาษี)</div>`;
+}
+function whSplitBadgeHtml(r){
+  if(!r || !r.whSplitId) return '';
+  const parts = r.whSplitParts || [];
+  const others = parts.filter(pt => pt.entryId !== r.id).map(pt => `${escapeHtml(pt.wbs || '')} ${fmt(pt.amount)}`).join(' · ');
+  return `<div style="font-size:10.5px;color:var(--teal);margin-top:3px;display:flex;align-items:center;gap:5px;flex-wrap:wrap;">
+    <span style="border:1px solid var(--teal);border-radius:999px;padding:0 6px;font-weight:600;">⇄ บิลเดียว ${parts.length} WBS</span>
+    ${others ? `<span style="color:var(--text-faint);">คู่กับ ${others}</span>` : ''}</div>`;
+}
+// ยอดตั้งต้นของแฟ้มรุ่นเก่าที่ยังไม่มี totalPaid บนเซิร์ฟเวอร์ (แฟ้มที่สร้างในแอปรุ่นนี้มีครบทุกแฟ้ม)
+async function whSplitFallbacks(fileIds){
+  const out = {};
+  for(const id of fileIds){
+    const f = getWhFile(id);
+    if(f && typeof f.totalPaid === 'number') continue;
+    if(f && id === state.activeWhFileId && whEntriesLoadedFor === id){ out[id] = whAggregateTotalPaid(f); continue; }
+    const list = await window.fb.getWarehouseEntriesOnce(id);
+    out[id] = list.filter(e => !e.deletedAt).reduce((s, e) => s + entryLedgerAmount(e), 0);
+  }
+  return out;
+}
+async function whSplitMutate(entry, mode){
+  const parts = entry.whSplitParts || [];
+  if(!parts.length){ alert('บิลนี้ไม่มีข้อมูลบรรทัดคู่ จึงจัดการทั้งบิลไม่ได้'); return; }
+  const lines = parts.map(pt => `   · ${pt.wbs}  ${fmt(pt.amount)}${pt.tax ? ' + ภาษี ' + fmt(pt.tax) : ''}`).join('\n');
+  if(mode === 'delete' && !confirm(`รายการ "${entry.desc}" เป็นบิลใบเดียวที่ตัดงบ ${parts.length} WBS การลบจะลบทั้งบิล\n\n${lines}\n\nย้ายไปถังขยะ? (กู้คืนได้ภายใน 30 วัน โดยผู้ดูแลแผนกหรือแอดมิน)`)) return;
+  if(mode === 'restore' && !confirm(`บิลนี้ตัดงบ ${parts.length} WBS การกู้คืนจะกู้คืนทั้งบิล\n\n${lines}\n\nกู้คืน?`)) return;
+  if(mode === 'purge' && !confirm(`บิลนี้ตัดงบ ${parts.length} WBS การลบถาวรจะลบทั้งบิล\n\n${lines}\n\nการลบถาวรกู้คืนไม่ได้ ลบถาวร?`)) return;
+  const who = {uid: state.user?.uid, name: state.user?.displayName || state.user?.email};
+  const verb = mode === 'delete' ? 'ลบ' : (mode === 'restore' ? 'กู้คืน' : 'ลบถาวร');
+  if(mode === 'delete') state.whSlipSelection = state.whSlipSelection.filter(id => !parts.some(pt => pt.entryId === id));
+  try{
+    const fallbacks = await whSplitFallbacks([...new Set(parts.map(pt => pt.fileId))]);
+    await window.fb.whSplitWriteTx(parts.map(pt => ({fileId: pt.fileId, entryId: pt.entryId})), mode, who, fallbacks);
+    flashSaved();
+  }catch(e){ console.error(e); flashSaved(true); alert(verb + 'ไม่สำเร็จ: ' + e.message); }
+}
+// พิมพ์ทั้งบิล: ดึงรายการของทุกแฟ้มในบิล คิดยอดสะสม ณ บรรทัดนั้นของแต่ละแฟ้ม (ช่อง "คงเหลือหลังเบิก")
+async function buildWhSplitSlipHtml(entry){
+  const parts = entry.whSplitParts || [];
+  if(!parts.length) throw new Error('ข้อมูลบิลไม่ครบ');
+  const list = [];
+  for(const pt of parts){
+    const f = getWhFile(pt.fileId) || await window.fb.getWarehouseFileOnce(pt.fileId);
+    if(!f) throw new Error('ไม่พบแฟ้ม ' + pt.wbs + ' แล้ว');
+    // ใช้รายการในเครื่องได้เมื่อมีบรรทัดนี้แล้ว — กด "บันทึก + พิมพ์" รายการใหม่อาจยังไม่ถึงเครื่อง จึงดึงจากฐานข้อมูลแทน
+    const local = (pt.fileId === state.activeWhFileId && whEntriesLoadedFor === pt.fileId) ? state.activeWhEntries : null;
+    const entries = (local && local.some(e => e.id === pt.entryId)) ? local : await window.fb.getWarehouseEntriesOnce(pt.fileId);
+    const row = entries.find(e => e.id === pt.entryId);
+    if(!row) throw new Error('ไม่พบบรรทัดของแฟ้ม ' + pt.wbs + ' ในบิลนี้แล้ว');
+    if(row.deletedAt) throw new Error('บรรทัดของแฟ้ม ' + pt.wbs + ' ในบิลนี้ถูกลบไปแล้ว');
+    const running = xRunningUpTo(entries, pt.entryId);
+    if(running === null) throw new Error('คำนวณยอดสะสมของแฟ้ม ' + pt.wbs + ' ไม่ได้');
+    list.push({ project: {wbs: f.wbs}, catLabel: '', catCode: '', networkNo: '', blankCodes: true,
+      row, rowRemaining: (Number(f.budget) || 0) - running });
+  }
+  return buildProjectSlipBodyHtml(list, entry.addedByName || entry.addedByEmail || '', entry.addedByCode || '',
+    entry.addedByPosition || '', entry.date, { mergeItemRows: true });
+}
+async function printWhSplitSlip(entry){
+  try{
+    const html = await buildWhSplitSlipHtml(entry);
+    openSlipPrintWindow(html, `ใบตัดงบ_หลายWBS_${entry.date}`);
+  }catch(e){ console.error(e); alert('ยังพิมพ์ใบตัดงบไม่ได้: ' + e.message); }
+}
+// ---- หน้าต่างบิลเดียวหลาย WBS ----
+let whsSeq = 0, whsSaving = false;
+// ยอดซื้อไปแล้วของแฟ้มรุ่นเก่าที่ไม่มี totalPaid และไม่ได้เปิดอยู่ (ต้องดึงรายการมาคิด) — เก็บไว้ระหว่างเปิดหน้าต่าง
+let whsLegacyPaid = {};
+function whsPaid(f){
+  if(typeof f.totalPaid === 'number' || (f.id === state.activeWhFileId && whEntriesLoadedFor === f.id)) return whAggregateTotalPaid(f);
+  if(typeof whsLegacyPaid[f.id] === 'number') return whsLegacyPaid[f.id];
+  if(whsLegacyPaid[f.id] !== 'loading'){
+    whsLegacyPaid[f.id] = 'loading';
+    window.fb.getWarehouseEntriesOnce(f.id).then(list => {
+      whsLegacyPaid[f.id] = money(list.filter(e => !e.deletedAt).reduce((s, e) => s + entryLedgerAmount(e), 0));
+      recalcWhSplit();
+    }).catch(e => { console.error(e); delete whsLegacyPaid[f.id]; });
+  }
+  return null;
+}
+function whsRemaining(f){ const p = whsPaid(f); return p === null ? null : money((Number(f.budget) || 0) - p); }
+function whSplitFiles(){ return whFilesForYear().filter(f => !f.closed); }
+function whSplitLineHtml(idx, fileId){
+  const opts = whSplitFiles().map(f => `<option value="${escapeHtml(f.id)}" ${f.id === fileId ? 'selected' : ''}>${escapeHtml(f.wbs)} — ${escapeHtml(f.name)}</option>`).join('');
+  return `<div class="whs-line" data-idx="${idx}">
+    <div class="field" style="flex:1;min-width:230px;width:auto;"><label>WBS</label><select id="whsFile${idx}" onchange="recalcWhSplit()"><option value="">— เลือกแฟ้ม WBS —</option>${opts}</select></div>
+    <div class="field half" style="width:130px;"><label>จำนวนเงิน</label><input type="number" id="whsAmt${idx}" min="0" step="0.01" placeholder="0.00" oninput="recalcWhSplit()"></div>
+    <div class="field half" style="width:120px;"><label>ภาษี (ถ้ามี)</label><input type="number" id="whsTax${idx}" min="0" step="0.01" placeholder="0.00" oninput="recalcWhSplit()"></div>
+    <button class="btn btn-outline btn-sm whs-del" type="button" onclick="removeWhSplitLine(${idx})" title="เอา WBS นี้ออก" style="margin-bottom:3px;">ลบ</button>
+    <div class="whs-rem" id="whsRem${idx}"></div>
+  </div>`;
+}
+function whSplitIdxs(){ return [...document.querySelectorAll('#whsLines .whs-line')].map(el => Number(el.dataset.idx)); }
+function addWhSplitLine(fileId){
+  if(whSplitIdxs().length >= WH_SPLIT_MAX) return;
+  document.getElementById('whsLines').insertAdjacentHTML('beforeend', whSplitLineHtml(++whsSeq, fileId || ''));
+  recalcWhSplit();
+}
+function removeWhSplitLine(idx){
+  if(whSplitIdxs().length <= 2) return;
+  const el = document.querySelector(`#whsLines .whs-line[data-idx="${idx}"]`);
+  if(el) el.remove();
+  recalcWhSplit();
+}
+function whSplitValues(){
+  const vat = document.getElementById('whsVat').checked;
+  return whSplitIdxs().map(idx => {
+    const fileId = document.getElementById('whsFile' + idx).value;
+    const amount = money(Number(document.getElementById('whsAmt' + idx).value) || 0);
+    const tax = money(Number(document.getElementById('whsTax' + idx).value) || 0);
+    return { idx, fileId, file: (fileId && getWhFile(fileId)) || null, amount, tax, ledger: money(amount + (vat ? 0 : tax)) };
+  });
+}
+function recalcWhSplit(){
+  const lines = whSplitValues();
+  let tl = 0, tg = 0;
+  const picked = lines.map(l => l.fileId).filter(Boolean);
+  lines.forEach(l => {
+    tl += l.ledger; tg += l.amount + l.tax;
+    const rem = document.getElementById('whsRem' + l.idx);
+    if(!l.file){ rem.textContent = ''; return; }
+    if(picked.filter(id => id === l.fileId).length > 1){ rem.innerHTML = `<span style="color:var(--rust);">เลือกแฟ้มนี้ซ้ำกับบรรทัดอื่น</span>`; return; }
+    const r = whsRemaining(l.file);
+    if(r === null){ rem.textContent = 'กำลังโหลดยอดคงเหลือ…'; return; }
+    const after = money(r - l.ledger);
+    rem.innerHTML = `คงเหลือ ${fmt(r)}${l.ledger ? ` → หลังตัดงบ <b style="${after < 0 ? 'color:var(--rust);' : 'color:var(--teal);'}">${fmt(after)}</b>${after < 0 ? ' <span style="color:var(--rust);">เกินงบ</span>' : ''}` : ''}`;
+  });
+  document.getElementById('whsTotalLedger').textContent = fmt(tl);
+  document.getElementById('whsTotalGross').textContent = fmt(tg);
+  const n = lines.length;
+  document.getElementById('whsAddBtn').style.display = n >= WH_SPLIT_MAX ? 'none' : '';
+  document.querySelectorAll('#whsLines .whs-del').forEach(b => { b.style.visibility = n <= 2 ? 'hidden' : 'visible'; });
+}
+function openWhSplitModal(){
+  const files = whSplitFiles();
+  if(files.length < 2){ alert('ปีงบประมาณ ' + state.activeYear + ' มีแฟ้มงบซื้อของที่ยังไม่ปิดงานไม่ถึง 2 แฟ้ม จึงยังตัดหลาย WBS ไม่ได้'); return; }
+  document.getElementById('whsDesc').textContent = `ปีงบประมาณ ${state.activeYear} · บันทึกครั้งเดียว ตัดงบทุกแฟ้มพร้อมกัน แล้วพิมพ์ใบตัดงบใบเดียว`;
+  document.getElementById('whsDate').value = todayStr();
+  document.getElementById('whsName').value = '';
+  document.getElementById('whsVat').checked = true;
+  document.getElementById('whsLines').innerHTML = '';
+  whsSeq = 0; whsLegacyPaid = {};
+  const cur = files.find(f => f.id === state.activeWhFileId);
+  addWhSplitLine(cur ? cur.id : '');
+  addWhSplitLine('');
+  openModal('whSplitModal');
+  setTimeout(() => document.getElementById('whsName').focus(), 50);
+}
+async function submitWhSplit(andPrint){
+  if(whsSaving) return;
+  const date = document.getElementById('whsDate').value || todayStr();
+  const desc = whCleanDesc(document.getElementById('whsName').value);
+  if(!desc){ alert('กรุณากรอกรายการ'); document.getElementById('whsName').focus(); return; }
+  const vat = document.getElementById('whsVat').checked;
+  const lines = whSplitValues();
+  if(lines.length < 2){ alert('ต้องมีอย่างน้อย 2 WBS'); return; }
+  if(lines.some(l => !l.file)){ alert('กรุณาเลือกแฟ้ม WBS ให้ครบทุกบรรทัด'); return; }
+  if(new Set(lines.map(l => l.fileId)).size !== lines.length){ alert('เลือกแฟ้ม WBS ซ้ำกัน กรุณาเลือกแฟ้มที่ต่างกันในแต่ละบรรทัด'); return; }
+  const closed = lines.find(l => l.file.closed);
+  if(closed){ alert('แฟ้ม ' + closed.file.wbs + ' ปิดงานแล้ว'); return; }
+  const bad = lines.find(l => !(l.amount > 0));
+  if(bad){ alert('กรุณากรอกจำนวนเงินของ ' + bad.file.wbs + ' ให้มากกว่า 0'); document.getElementById('whsAmt' + bad.idx).focus(); return; }
+  if(lines.some(l => l.tax < 0)){ alert('ภาษีมูลค่าเพิ่มติดลบไม่ได้'); return; }
+  if(lines.some(l => whsRemaining(l.file) === null)){ alert('กำลังโหลดยอดคงเหลือของแฟ้ม ลองกดบันทึกอีกครั้งในอีกสักครู่'); return; }
+  const over = lines.map(l => { const after = money(whsRemaining(l.file) - l.ledger); return after < 0 ? '• ' + l.file.wbs + ' เกินงบ ' + fmt(-after) + ' บาท' : ''; }).filter(Boolean);
+  if(over.length && !confirm('แฟ้มต่อไปนี้จะเกินงบหลังบันทึก\n\n' + over.join('\n') + '\n\nบันทึกต่อไหม?')) return;
+
+  const whSplitId = uid(), now = Date.now();
+  const who = {
+    addedBy: state.user ? state.user.uid : null,
+    addedByName: state.user ? (signerName(false) || '') : '',
+    addedByEmail: state.user ? (state.user.email || '') : '',
+    addedByCode: state.user ? signerCode() : '', ...signerAudit(), ...crossDeptAudit(),
+    addedByPosition: state.user ? signerPos() : '',
+  };
+  const ids = lines.map(() => uid());
+  const whSplitParts = lines.map((l, i) => ({ fileId: l.fileId, entryId: ids[i], wbs: l.file.wbs || '', amount: l.amount, tax: l.tax }));
+  const parts = lines.map((l, i) => ({ fileId: l.fileId, entryId: ids[i], entry: {
+    id: ids[i], date, desc, amount: l.amount,
+    ...(l.tax > 0 ? { tax: l.tax, vatCreditable: vat } : {}),
+    whSplitId, whSplitSeq: i, whSplitCount: lines.length, whSplitParts,
+    ...who, createdAt: now + i,
+  }}));
+  whsSaving = true;
+  const btns = [...document.querySelectorAll('#whSplitModal .modal-actions .btn')];
+  btns.forEach(b => b.disabled = true);
+  try{
+    const fallbacks = await whSplitFallbacks(lines.map(l => l.fileId));
+    await window.fb.whSplitWriteTx(parts, 'add', {uid: state.user?.uid, name: state.user?.displayName || state.user?.email}, fallbacks);
+  }catch(e){
+    console.error(e); flashSaved(true);
+    alert('บันทึกไม่สำเร็จ ไม่มี WBS ใดถูกตัดงบ\n\n' + e.message);
+    return;
+  }finally{
+    whsSaving = false;
+    btns.forEach(b => b.disabled = false);
+  }
+  closeModal('whSplitModal');
+  flashSaved();
+  if(andPrint) printWhSplitSlip(parts[0].entry);
 }
 
 function projectsForDept(){
@@ -7767,6 +8144,9 @@ function render(){
   budgetSection.classList.add('hidden');
   projectSection.classList.add('hidden');
   warehouseSection.classList.add('hidden');
+  // ค่ารักษา สก.5 ตัดงบทำการเท่านั้น — หน้า WBS (แฟ้มงาน / งบซื้อของ) ไม่โชว์ปุ่มนี้
+  const medBtn = document.getElementById('sideMedBtn');
+  if(medBtn) medBtn.classList.toggle('hidden', state.appMode === 'project' || state.appMode === 'warehouse');
   if(state.appMode === 'project'){
     projectSection.classList.remove('hidden');
     renderProjectSidebar();
@@ -9323,7 +9703,7 @@ async function buildWarehouseWorkbook(ExcelJS, deptLabel, year){
     catch(e){ console.error('ดึงรายการซื้อของแฟ้ม', f.wbs, 'ไม่สำเร็จ', e); failed.push(`${f.wbs} — ${f.name}`); continue; }
     const rows = sortEntriesForExport(entries);
     const budget = Number(f.budget)||0;
-    const paid = rows.reduce((s,e)=> s + (Number(e.amount)||0), 0);
+    const paid = rows.reduce((s,e)=> s + entryLedgerAmount(e), 0);
     summary.push([f.wbs||'', f.name||'', f.year, budget, paid, budget - paid,
       f.closed ? 'ปิดงานแล้ว' : 'กำลังดำเนินการ']);
     sheets.push({f, rows, budget, paid});
@@ -9351,8 +9731,8 @@ async function buildWarehouseWorkbook(ExcelJS, deptLabel, year){
     xlTableHead(ws, r, ['วันที่','รายการ','จำนวนเงิน','รวมซื้อ','คงเหลือ','ผู้บันทึก','การแก้ไข'], 2, 4);
     r++;
     s.rows.forEach(e=>{
-      running = money(running + (Number(e.amount)||0));
-      xlDataRow(ws, r, [e.date||'', e.desc||'', Number(e.amount)||0, running, s.budget - running,
+      running = money(running + entryLedgerAmount(e));
+      xlDataRow(ws, r, [e.date||'', e.desc||'', entryLedgerAmount(e), running, s.budget - running,
         (e.addedByName || e.addedByEmail || '') + (e.addedByRealName ? ' (บันทึกโดย ' + e.addedByRealName + ')' : ''), entryEditNoteText(e)], 2, 4);
       r++;
     });
@@ -11191,11 +11571,27 @@ function openEditWhEntry(entryId){
   const entry = state.activeWhEntries.find(e=>e.id===entryId && !e.deletedAt);
   if(!entry) return;
   if(!canDeleteWhEntry(entry)){ alert('แก้ไขได้เฉพาะรายการที่คุณเพิ่มเอง หรือผู้ดูแลแผนก/แอดมิน'); return; }
-  showEditEntryModal({mode:'warehouse', fileId: f.id, entryId}, entry, {
+  const parts = entry.whSplitId ? (entry.whSplitParts || []) : null;
+  showEditEntryModal({mode:'warehouse', fileId: f.id, entryId,
+    whHadTax: 'tax' in entry,
+    whParts: parts,
+    whMates: parts ? parts.filter(pt => pt.entryId !== entryId).map(pt => ({fileId: pt.fileId, entryId: pt.entryId})) : null,
+    whOld: {date: entry.date || '', desc: entry.desc || ''}}, entry, {
     desc: `${f.wbs} — ${f.name}`,
-    showTax: false, showVat: false,
-    nameLabel: 'ชื่อรายการ/รายการพัสดุที่ซื้อ',
+    showTax: true, showVat: true, multiline: true,
+    nameLabel: 'ชื่อรายการ/รายการพัสดุที่ซื้อ (ขึ้นบรรทัดใหม่ได้)',
+    note: parts ? `รายการนี้เป็นบิลใบเดียวที่ตัดงบ ${parts.length} WBS — วันที่และชื่อรายการจะเปลี่ยนทั้งบิล ส่วนจำนวนเงินกับภาษีเปลี่ยนเฉพาะ ${f.wbs}` : '',
   });
+}
+// ช่องชื่อรายการในหน้าต่างแก้ไข: งบซื้อของใช้กล่องหลายบรรทัด โหมดอื่นใช้ช่องบรรทัดเดียวตัวเดิม
+function eeSetMultiline(on){
+  const cur = document.getElementById('eeName');
+  if(!cur || (cur.tagName === 'TEXTAREA') === !!on) return;
+  const el = document.createElement(on ? 'textarea' : 'input');
+  if(on){ el.rows = 3; } else { el.type = 'text'; }
+  el.id = 'eeName';
+  el.placeholder = 'รายละเอียดรายการ';
+  cur.replaceWith(el);
 }
 
 function showEditEntryModal(ctx, entry, opts){
@@ -11207,6 +11603,7 @@ function showEditEntryModal(ctx, entry, opts){
   }
   document.getElementById('eeDesc').textContent = opts.desc || '';
   document.getElementById('eeDescLabel').textContent = opts.nameLabel || 'รายการ';
+  eeSetMultiline(!!opts.multiline);
   document.getElementById('eeDate').value = entry.date || todayStr();
   document.getElementById('eeName').value = entry.desc || '';
   document.getElementById('eeAmount').value = Number(entry.amount) || 0;
@@ -11229,13 +11626,29 @@ async function submitEditEntry(){
   const ctx = editingEntryCtx;
   if(!ctx) return;
   const date = document.getElementById('eeDate').value || todayStr();
-  const desc = document.getElementById('eeName').value.trim();
+  const desc = ctx.mode === 'warehouse' ? whCleanDesc(document.getElementById('eeName').value) : document.getElementById('eeName').value.trim();
   const amount = Number(document.getElementById('eeAmount').value);
   if(!desc){ alert('กรุณากรอกชื่อรายการ'); return; }
   if(!(amount > 0)){ alert('กรุณากรอกจำนวนเงินให้ถูกต้อง'); return; }
   const patch = {date, desc, amount};
   if(ctx.showTax) patch.tax = Number(document.getElementById('eeTax').value) || 0;
   if(ctx.showVat) patch.vatCreditable = !!document.getElementById('eeVatCreditable').checked;
+  let whHeader = null;
+  if(ctx.mode === 'warehouse'){
+    if(patch.tax < 0){ alert('ภาษีมูลค่าเพิ่มติดลบไม่ได้'); return; }
+    patch.tax = money(patch.tax);
+    // รายการที่ไม่เคยมีภาษีและยังไม่ใส่ภาษี: ไม่เพิ่มช่องภาษีเข้าไป (ประวัติการแก้จะได้ไม่ขึ้นว่าแก้ภาษี)
+    if(!ctx.whHadTax && !patch.tax){ delete patch.tax; delete patch.vatCreditable; }
+    if(ctx.whParts && ctx.whParts.length){
+      const nextParts = ctx.whParts.map(pt => pt.entryId === ctx.entryId ? {...pt, amount, tax: patch.tax || 0} : pt);
+      const changed = JSON.stringify(nextParts) !== JSON.stringify(ctx.whParts);
+      if(changed) patch.whSplitParts = nextParts;
+      whHeader = {};
+      if(date !== ctx.whOld.date) whHeader.date = date;
+      if(desc !== ctx.whOld.desc) whHeader.desc = desc;
+      if(changed) whHeader.whSplitParts = nextParts;
+    }
+  }
   // บิลข้ามระบบเก็บสำเนายอดของทุกบรรทัดไว้ใน xSplitParts (ใช้โชว์ป้าย "คู่กับ ..." และข้อความ
   // ยืนยันตอนลบ) ถ้าแก้ยอดแล้วไม่อัปเดตสำเนา ป้ายจะบอกยอดเก่าซึ่งไม่ตรงกับเงินที่ตัดจริง
   const header = {date, desc};
@@ -11256,7 +11669,7 @@ async function submitEditEntry(){
     } else if(ctx.mode === 'project'){
       await window.fb.editProjectEntryTx(ctx.projId, ctx.workTypeKey, ctx.catKey, ctx.entryId, patch, who);
     } else {
-      await window.fb.editWarehouseEntryTx(ctx.fileId, ctx.entryId, patch, who, whTxBase(getWhFile(ctx.fileId) || {}));
+      await window.fb.editWarehouseEntryTx(ctx.fileId, ctx.entryId, patch, who, whTxBase(getWhFile(ctx.fileId) || {}), ctx.whMates || [], whHeader);
     }
     moneySaved = true;
     // บิลข้ามระบบ: วันที่กับชื่อรายการเป็นของบิล ต้องตามไปแก้อีกฝั่งด้วย
@@ -11837,8 +12250,8 @@ function renderWhMain(){
           return `<tr>
             <td style="text-align:center;"><input type="checkbox" title="เลือกรวมพิมพ์ใบตัดงบ" ${isWhEntrySelected(r.id)?'checked':''} onchange="toggleWhSlipSelection('${r.id}')"></td>
             <td class="mono">${escapeHtml(r.date)}</td>
-            <td>${escapeHtml(r.desc)}${(r.addedByName || r.addedByEmail) ? `<div style="font-size:10.5px;color:var(--text-faint);margin-top:2px;">เพิ่มโดย ${escapeHtml(r.addedByName || r.addedByEmail)}${r.addedByRealName ? ' (บันทึกโดย ' + escapeHtml(r.addedByRealName) + ')' : ''}</div>` : ''}${entryEditNoteHtml(r)}</td>
-            <td class="num">${fmt(r.amount)}</td>
+            <td><span class="wh-desc">${escapeHtml(r.desc)}</span>${whSplitBadgeHtml(r)}${whTaxNoteHtml(r)}${(r.addedByName || r.addedByEmail) ? `<div style="font-size:10.5px;color:var(--text-faint);margin-top:2px;">เพิ่มโดย ${escapeHtml(r.addedByName || r.addedByEmail)}${r.addedByRealName ? ' (บันทึกโดย ' + escapeHtml(r.addedByRealName) + ')' : ''}</div>` : ''}${entryEditNoteHtml(r)}</td>
+            <td class="num">${fmt(entryLedgerAmount(r))}</td>
             <td class="num">${fmt(r.cumulative)}</td>
             <td class="num ${rowRemaining<0?'neg':''}">${fmt(rowRemaining)}</td>
             <td style="white-space:nowrap;">
@@ -11866,6 +12279,7 @@ function renderWhMain(){
         <div class="eyebrow" style="margin-top:6px;color:var(--text-faint);">ปีงบประมาณ ${f.year}</div>
       </div>
       <div class="header-actions">
+        ${f.closed ? '' : `<button class="btn btn-outline btn-sm" onclick="openWhSplitModal()" title="บิลใบเดียวที่ตัดงบหลายแฟ้ม (2–3 WBS) — บันทึกครั้งเดียว ตัดงบทุกแฟ้มพร้อมกัน แล้วพิมพ์ใบตัดงบใบเดียว">⇄ บิลเดียวหลาย WBS</button>`}
         ${canManage ? `
           ${headMenuHtml([
             { icon:'pen', label:'แก้ไขชื่อ / งบแฟ้ม', fn:'openEditWhFileModal()' },
@@ -11903,10 +12317,13 @@ function renderWhMain(){
     ${f.closed ? `<div style="font-size:12.5px;color:var(--text-faint);margin-bottom:14px;">ฟอร์มเพิ่มรายการถูกซ่อนไว้ — แฟ้มงบซื้อของนี้ปิดงานแล้ว</div>` : `
     <div class="entry-form">
       <div class="field"><label>วันที่</label><input type="date" id="whEntryDate" value="${todayStr()}"></div>
-      <div class="field desc"><label>ชื่อรายการ/รายการพัสดุที่ซื้อ</label><input type="text" id="whEntryDesc" placeholder="เช่น สายไฟ THW 25 ตร.มม. 200 เมตร" onkeydown="if(event.key==='Enter'){addWhEntry();}"></div>
+      <div class="field desc"><label>ชื่อรายการ/รายการพัสดุที่ซื้อ</label><textarea id="whEntryDesc" rows="2" placeholder="เช่น สาย SAC 50 ตร.มม. 1,000 เมตร&#10;PO 11223344" onkeydown="if(event.key==='Enter'&&(event.ctrlKey||event.metaKey)){event.preventDefault();addWhEntry();}"></textarea></div>
       <div class="field amt"><label>จำนวนเงิน (บาท)</label><input type="number" id="whEntryAmount" min="0" step="0.01" placeholder="0.00" onkeydown="if(event.key==='Enter'){addWhEntry();}"></div>
+      <div class="field tax"><label>ภาษีมูลค่าเพิ่ม (ถ้ามี)</label><input type="number" id="whEntryTax" min="0" step="0.01" placeholder="0.00" onkeydown="if(event.key==='Enter'){addWhEntry();}"></div>
+      <div class="field"><label class="wh-vat"><input type="checkbox" id="whEntryVat" checked> เครดิตภาษีซื้อได้</label></div>
       <button class="btn btn-primary" type="button" onclick="addWhEntry()">+ เพิ่มรายการ</button>
-    </div>`}
+    </div>
+    <div style="margin-top:-10px;margin-bottom:14px;font-size:11px;color:var(--text-faint);">ชื่อรายการกด Enter ขึ้นบรรทัดใหม่ได้ (เช่น บรรทัดล่างใส่เลข PO) · ถ้าไม่ติ๊ก "เครดิตภาษีซื้อได้" ระบบจะรวมภาษีในยอดตัดงบ — ค่าเริ่มต้นคือติ๊กไว้</div>`}
 
     ${rowsHtml}
     ${canManage ? buildEntryTrashSectionHtml(trashedWhEntries(), 'restoreWhEntry', 'permanentlyDeleteWhEntry', []) : ''}
@@ -12518,6 +12935,8 @@ function mTools(){
     if(p && !p.closed) t.push({ l:'เบิกร่วมงบทำการ', i:'merge', f:'openXSplitModal()', c:'teal' });
     if(cm) t.push({ l:'แฟ้มงานใหม่', i:'newfile', f:'openNewProjectModal()' });
   } else if(state.appMode === 'warehouse'){
+    const wf = mActiveWh();
+    if(wf && !wf.closed) t.push({ l:'บิลเดียวหลาย WBS', i:'merge', f:'openWhSplitModal()', c:'teal' });
     if(cm) t.push({ l:'แฟ้มงบซื้อของใหม่', i:'newfile', f:'openNewWhFileModal()' });
   } else {
     const cc = mActiveCc();
@@ -12526,7 +12945,7 @@ function mTools(){
     if(cc && cm) t.push({ l:'เพิ่มบัญชี', i:'addlist', f:'openAddItemModal()' });
     if(cm) t.push({ l:'ศูนย์ต้นทุนใหม่', i:'newfile', f:'openNewCcModal()' });
   }
-  t.push({ l:'ค่ารักษา สก.5', i:'doc', f:'openMedClaim()', c:'teal' });
+  if(state.appMode !== 'project' && state.appMode !== 'warehouse') t.push({ l:'ค่ารักษา สก.5', i:'doc', f:'openMedClaim()', c:'teal' });
   t.push({ l:'ใบตัดงบเปล่า', i:'doc', f:'openBlankSlipModal()', c:'ink' });
   // งานดูแลระบบอยู่หัวข้อ "จัดการระบบ" แยกต่างหาก — ถ้ามีอย่างเดียว (ส่งออก Excel ของสมาชิกทั่วไป) ให้อยู่ตรงนี้
   const sys = sysToolItems();
@@ -12547,6 +12966,8 @@ function mHomeTiles(){
     t.push(me);
     if(cm) t.push({ l:'ถังขยะ', i:'trash', f:'openTrashModal()', c:'ink' });
   } else if(state.appMode === 'warehouse'){
+    const wf = mActiveWh();
+    if(wf && !wf.closed) t.push({ l:'หลาย WBS', i:'merge', f:'openWhSplitModal()', c:'teal' });
     t.push({ l:'ใบตัดงบเปล่า', i:'doc', f:'openBlankSlipModal()', c:'ink' });
     if(cm) t.push({ l:'ถังขยะ', i:'trash', f:'openTrashModal()', c:'ink' });
     t.push(me);
@@ -12889,7 +13310,7 @@ function guardFbWritesWhenOffline(){
   netGuardedFb = fb;
   Object.keys(fb).forEach(k => {
     if(typeof fb[k] !== 'function') return;
-    if(!/^(save|add|edit|delete|softDelete|restore|purge|set|crossSplit)/.test(k) || /^deleteExpired/.test(k)) return;
+    if(!/^(save|add|edit|delete|softDelete|restore|purge|set|crossSplit|whSplit)/.test(k) || /^deleteExpired/.test(k)) return;
     const orig = fb[k];
     fb[k] = function(){ if(netIsOffline()) return Promise.reject(new Error(NET_OFFLINE_MSG)); return orig.apply(this, arguments); };
   });
@@ -12898,7 +13319,7 @@ if(window.__fbReady) guardFbWritesWhenOffline(); else window.addEventListener('f
 // ด่านแรกอยู่ที่ปุ่มเลย: หลายฟอร์มล้างช่องกรอกและวาดรายการไว้ก่อน (แบบ optimistic) แล้วค่อยรอฐานข้อมูล
 // ถ้าปล่อยไปถึงฐานข้อมูลตอนออฟไลน์ รายการจะโผล่แล้วหายไป และสิ่งที่พิมพ์ไว้หายไปด้วย — จึงหยุดตั้งแต่ตอนกด
 (function(){
-  ['addEntry','addProjectEntry','addWhEntry','submitLinesEntry','submitSplitEntry','submitXSplit','submitEditEntry',
+  ['addEntry','addProjectEntry','addWhEntry','submitLinesEntry','submitSplitEntry','submitXSplit','submitWhSplit','submitEditEntry',
    'submitAddItem','submitNewCc','submitNewProject','submitWhFile','submitEditCc','submitEditProject','submitAddWorkType',
    'submitOrgSettings','submitProfileName','saveNetworkNo','updateItemBudget','updateItemMeta','updateProjectCode',
    'removeItem','removeWorkType','restoreItem','restoreWorkType','permanentlyDeleteItem','permanentlyDeleteWorkType',
