@@ -479,6 +479,37 @@ body{
 .btn-reopen{border-color:rgba(47,122,110,.4) !important;color:var(--teal) !important;background:var(--teal-soft) !important;font-weight:600;}
 
 /* "ปิดงาน" (closed WBS project file) indicators */
+/* ---- WBS: งบมาก่อน โอนงบจริงภายหลัง ---- */
+.fund-banner{display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin:0 0 16px;padding:11px 14px;border-radius:10px;
+  border:1px solid #BFDCD6;background:#EEF7F5;color:#1F4F47;font-size:13px;line-height:1.55;}
+.fund-banner.wait{border-color:#EBD5A8;background:#FBF4E6;color:#6B4E14;}
+.fund-banner .fb-main{flex:1;min-width:240px;}
+.fund-banner b{font-weight:700;}
+.fund-banner .fb-sub{font-size:11.5px;opacity:.8;}
+.fund-chip{display:inline-block;margin:3px 0 2px;padding:0 7px;border-radius:999px;font-size:10px;font-weight:600;
+  background:rgba(94,186,170,.18);color:#8FD8CB;border:1px solid rgba(143,216,203,.35);}
+.fund-chip.wait{background:rgba(232,170,66,.16);color:#F0C47A;border-color:rgba(240,196,122,.35);}
+.fund-modal .fund-toggle{display:flex;gap:10px;align-items:flex-start;padding:12px 14px;border:1px solid var(--border);border-radius:10px;cursor:pointer;margin-bottom:14px;}
+.fund-modal .fund-toggle input{width:auto;margin-top:3px;}
+.fund-modal .fund-toggle small{display:block;color:var(--text-muted);font-size:11.5px;margin-top:2px;line-height:1.5;}
+.fund-modal .fund-seg{display:inline-flex;border:1px solid var(--border);border-radius:8px;overflow:hidden;margin-bottom:8px;}
+.fund-modal .fund-seg button{border:0;background:#fff;padding:7px 14px;font:inherit;font-size:13px;cursor:pointer;color:var(--text-muted);}
+.fund-modal .fund-seg button.on{background:var(--ink);color:#fff;}
+.fund-modal .fund-row{display:flex;gap:12px;flex-wrap:wrap;align-items:flex-end;}
+.fund-modal .fund-row .field{margin-bottom:0;}
+.fund-modal .fund-calc{font-size:12.5px;color:var(--text-muted);margin:8px 0 12px;min-height:18px;}
+.fund-modal .fund-calc b{color:var(--text);}
+.fund-modal table.fund-tbl{width:100%;border-collapse:collapse;font-size:12.5px;}
+.fund-modal table.fund-tbl th,.fund-modal table.fund-tbl td{padding:6px 8px;border-bottom:1px solid var(--border-soft);text-align:right;white-space:nowrap;}
+.fund-modal table.fund-tbl th:first-child,.fund-modal table.fund-tbl td:first-child{text-align:left;white-space:normal;}
+.fund-modal table.fund-tbl th{font-size:11px;color:var(--text-muted);font-weight:600;}
+.fund-modal table.fund-tbl td.new{font-weight:700;color:var(--teal);}
+.fund-modal table.fund-tbl td.neg{color:var(--rust);font-weight:700;}
+.fund-modal table.fund-tbl tr.tot td{font-weight:700;border-top:1px solid var(--border);border-bottom:0;}
+.fund-modal .fund-wrap{max-height:42vh;overflow:auto;border:1px solid var(--border-soft);border-radius:8px;}
+@media (max-width:760px), (max-width:1000px) and (pointer:coarse){
+  .fund-modal table.fund-tbl th,.fund-modal table.fund-tbl td{padding:6px 5px;font-size:11.5px;}
+}
 .closed-banner{
   display:flex;align-items:center;gap:10px;background:var(--rust-soft);border:1px solid rgba(193,70,47,.35);
   color:var(--rust);font-size:13px;font-weight:600;padding:10px 14px;border-radius:8px;margin-bottom:18px;
@@ -2669,6 +2700,31 @@ body.access-gated #mTabbar, body.access-gated #proxyBar{display:none !important;
 </div>
 
 <!-- Edit WBS project modal -->
+<!-- WBS: งบมาก่อน โอนงบจริงภายหลัง -->
+<div class="modal-overlay hidden" id="fundModal">
+  <div class="modal fund-modal" style="max-width:680px;">
+    <h2>งบโอนจริงภายหลัง</h2>
+    <p class="modal-desc" id="fundDesc"></p>
+    <label class="fund-toggle"><input type="checkbox" id="fundOn" onchange="fundRecalc()">
+      <span><b>แฟ้มนี้ได้งบมาก่อน โอนงบจริงให้ภายหลัง (เมื่อเสร็จงาน)</b>
+      <small>ระหว่างรอโอน คิดงบใช้ได้ 80% ตามปกติ · พอกรอกยอดที่โอนมาจริง ทุกหมวดจะลดลงตามสัดส่วนเดียวกัน และยอดที่โอนมาคือวงเงินที่ใช้ได้เลย (ไม่คิด 80% ซ้ำ) · งบ 100% ที่กรอกไว้ไม่ถูกแก้</small></span></label>
+    <div id="fundBody">
+      <div style="font-size:12.5px;font-weight:600;margin-bottom:6px;">ยอดที่โอนมาจริง <span style="font-weight:400;color:var(--text-faint);">(เว้นว่าง = ยังไม่โอน)</span></div>
+      <div class="fund-seg" role="group"><button type="button" id="fundTypeAmount" onclick="fundSetType('amount')">เป็นบาท</button><button type="button" id="fundTypePct" onclick="fundSetType('pct')">เป็น %</button></div>
+      <div class="fund-row">
+        <div class="field" style="width:190px;"><label id="fundValLabel" for="fundVal">ยอดเงิน (บาท)</label><input type="number" id="fundVal" min="0" step="0.01" placeholder="เว้นว่าง = ยังไม่โอน" oninput="fundRecalc()"></div>
+        <div class="field" style="width:170px;"><label for="fundDate">วันที่โอน (ถ้ามี)</label><input type="date" id="fundDate"></div>
+      </div>
+      <div class="fund-calc" id="fundCalc"></div>
+      <div class="fund-wrap"><table class="fund-tbl" id="fundTbl"></table></div>
+    </div>
+    <div class="modal-actions">
+      <button class="btn btn-outline" type="button" onclick="closeModal('fundModal')">ยกเลิก</button>
+      <button class="btn btn-primary" type="button" onclick="saveFund()">บันทึก</button>
+    </div>
+  </div>
+</div>
+
 <div class="modal-overlay hidden" id="editProjectModal">
   <div class="modal">
     <h2>แก้ไขแฟ้มงาน</h2>
@@ -5316,7 +5372,7 @@ function trLetterHtml(t){
       <thead>
         <tr><th colspan="7" class="ttl">${escapeHtml(t.job)}</th></tr>
         <tr><th colspan="7" class="ttl">${escapeHtml(t.wbs)}</th></tr>
-        <tr class="hd"><th>รายการ</th><th>อนุมัติ<br>(80 %)</th><th>ค่าใช้จ่ายจริง<br>(บาท)</th><th>คงเหลือ<br>(บาท)</th><th>โอนระหว่าง<br>กิจกรรม</th><th>รับโอนระหว่าง<br>กิจกรรม</th><th>คงเหลือ<br>(บาท)</th></tr>
+        <tr class="hd"><th>รายการ</th><th>${t.approvedPct !== undefined ? 'อนุมัติ' : 'อนุมัติ<br>(80 %)'}</th><th>ค่าใช้จ่ายจริง<br>(บาท)</th><th>คงเหลือ<br>(บาท)</th><th>โอนระหว่าง<br>กิจกรรม</th><th>รับโอนระหว่าง<br>กิจกรรม</th><th>คงเหลือ<br>(บาท)</th></tr>
       </thead>
       <tbody>${body}
         <tr class="total"><td>รวม</td><td>${fmt(tA)}</td><td>${fmt(tU)}</td><td></td>
@@ -5416,6 +5472,7 @@ async function openTransferModal(){
 function trNewRequest(){
   const p = getProject(state.activeProjectId); if(!p) return;
   state.trCur = {id:null, projId:p.id, wbs:p.wbs, job:p.name, amounts:trAmountsFromProject(p), letter:trDefaultLetter(p)};
+  trApplyFundPct(state.trCur, p);
   trRender();
 }
 function trOpen(id, thenPrint){
@@ -5442,7 +5499,14 @@ function trRefreshAmounts(){
   state.trCur.amounts = trAmountsFromProject(p);
   state.trCur.amounts[TR_EXTRA_KEY] = extra;
   state.trCur.wbs = p.wbs; state.trCur.job = p.name;
+  trApplyFundPct(state.trCur, p);
   trRender();
+}
+// แฟ้มที่โอนงบจริงแล้ว: หัวคอลัมน์ "อนุมัติ (80 %)" เหลือแค่ "อนุมัติ" (เก็บ % ไว้กับใบ ใช้บอกในหน้าแก้ไข พิมพ์ซ้ำได้หัวเดิม)
+function trApplyFundPct(t, p){
+  const fu = projFundInfo(p);
+  if(fu && !fu.waiting) t.approvedPct = Math.round(fu.pct * 100) / 100;
+  else delete t.approvedPct;
 }
 async function trSave(){
   const p = getProject(state.activeProjectId); if(!p || !state.trCur) return;
@@ -5524,7 +5588,7 @@ function trEditorHtml(p){
       <div class="tr-pane">
         <div class="tr-card">
           <h3>งบรวมทุกแผนกในแฟ้ม (บาท)</h3>
-          <table class="tr-tbl"><thead><tr><th>หมวด</th><th>อนุมัติ 80%</th><th>ใช้จริง</th></tr></thead><tbody>${amountRows}</tbody></table>
+          <table class="tr-tbl"><thead><tr><th>หมวด</th><th>${t.approvedPct !== undefined ? 'อนุมัติ' : 'อนุมัติ 80%'}</th><th>ใช้จริง</th></tr></thead><tbody>${amountRows}</tbody></table>${t.approvedPct !== undefined ? `<div class="tr-note" style="color:var(--teal);">แฟ้มนี้โอนงบจริงมาแล้ว ${fundPctText(t.approvedPct)}% — ช่องอนุมัติใช้ยอดที่โอนมาจริงของแต่ละหมวด</div>` : ''}
           <div class="tr-note">สี่หมวดแรกดึงจากแฟ้มงานอัตโนมัติ · ค่าพัสดุเข้างานเป็นงบนอกหน้าคุมงบ กรอกเฉพาะในใบนี้ (เว้น 0 = ไม่แสดงแถวในรายงาน)</div>
           <button class="btn btn-outline btn-sm" style="margin-top:9px" onclick="trRefreshAmounts()">↺ อัปเดตตัวเลขจากแฟ้มล่าสุด</button>
         </div>
@@ -7612,12 +7676,96 @@ function catEntriesSource(workTypeKey, catKey, cat, entriesOverride){
   }
   return cat.entries || [];
 }
+/* ============ WBS: งบมาก่อน โอนงบจริงภายหลัง ============
+   บางแฟ้มได้งบมาก่อน (กรอกงบ 100% แต่ละหมวดตามปกติ) แล้วโอนเงินจริงมาเป็นก้อนเดียวเมื่อเสร็จงาน
+   ซึ่งอาจไม่เต็มจำนวน เช่น ใช้ไป 50% เขาโอนมา 60% — งบจริงของทุกหมวดจึงลดตามสัดส่วนเดียวกัน
+     p.fundLater = true                                      แฟ้มนี้เป็นแบบโอนงบจริงภายหลัง
+     p.fundReceived = {type:'amount'|'pct', value, date}     ยอดที่โอนมาจริง (ยังไม่โอน = ไม่มีช่องนี้)
+   - ยังไม่โอน: คิดงบใช้ได้ 80% ตามปกติทุกอย่าง
+   - โอนแล้ว: ยอดที่โอนมาคือวงเงินที่ใช้ได้เลย (ไม่คิด 80% ซ้ำ) แบ่งให้ทุกหมวดตามสัดส่วนงบ 100% ที่กรอกไว้
+     · กรอกเป็น % = % ของงบ 100% ทั้งแฟ้ม  · กรอกเป็นบาท = แอปคิด % ให้
+     · ปัดเศษสตางค์ให้ผลรวมทุกหมวดเท่ากับยอดที่โอนมาพอดี (เศษที่เหลือให้หมวดที่เศษทศนิยมมากสุดก่อน)
+   งบ 100% ที่กรอกไว้ไม่ถูกแก้ ปิดตัวเลือกนี้เมื่อไหร่ก็กลับมาคิดแบบเดิม
+   แฟ้มปกติ (ไม่มี fundLater) คิดตัวเลขด้วยสูตรเดิมทุกตัว */
+function projFundCats(p){
+  const out = [];
+  Object.keys(p.departments || {}).sort().forEach(wtKey => {
+    const wt = p.departments[wtKey];
+    if(!wt || wt.deletedAt) return;
+    Object.keys(wt.budgets || {}).sort().forEach(catKey => {
+      out.push({ key: wtKey + '|' + catKey, wtKey, catKey, cat: wt.budgets[catKey], a: Number(wt.budgets[catKey].amount100) || 0 });
+    });
+  });
+  return out;
+}
+function projFundReceivedValid(fr){
+  return !!fr && (fr.type === 'amount' || fr.type === 'pct') && typeof fr.value === 'number' && isFinite(fr.value) && fr.value >= 0;
+}
+// null = แฟ้มปกติ · {waiting:true} = รอโอน · {R, pct, ...} = โอนมาแล้ว
+function projFundInfo(p){
+  if(!p || !p.fundLater) return null;
+  const base = money(projFundCats(p).reduce((s, c) => s + c.a, 0));
+  const fr = p.fundReceived;
+  if(!projFundReceivedValid(fr)) return { waiting: true, base };
+  const R = fr.type === 'pct' ? money(base * fr.value / 100) : money(fr.value);
+  return { waiting: false, base, R, pct: base > 0 ? R / base * 100 : 0, type: fr.type, value: fr.value, date: fr.date || '' };
+}
+// วงเงินที่ใช้ได้ของแต่ละหมวดหลังโอนจริง {'wtKey|catKey': บาท} — null ถ้ายังไม่โอน/แฟ้มปกติ
+function projFundAlloc(p, info){
+  info = info || projFundInfo(p);
+  if(!info || info.waiting) return null;
+  const cats = projFundCats(p);
+  const total = Math.round(info.R * 100);               // ทำงานเป็นสตางค์ กันเศษทศนิยม
+  const out = {};
+  if(!(info.base > 0)){ cats.forEach(c => out[c.key] = 0); return out; }
+  const base100 = cats.reduce((s, c) => s + Math.round(c.a * 100), 0);
+  let used = 0;
+  const parts = cats.map((c, i) => {
+    const exact = total * Math.round(c.a * 100) / base100;
+    const fl = Math.floor(exact + 1e-9);
+    used += fl;
+    return { c, i, fl, frac: exact - fl };
+  });
+  let left = total - used;
+  [...parts].sort((x, y) => (y.frac - x.frac) || (x.i - y.i)).forEach(pt => { if(left > 0 && pt.c.a > 0){ pt.fl++; left--; } });
+  parts.forEach(pt => out[pt.c.key] = pt.fl / 100);
+  return out;
+}
+// หาแฟ้มที่เป็นเจ้าของหมวดงบ (projCatTotals รับแค่ตัวหมวด) — จำไว้ใน WeakMap แฟ้มอัปเดตเมื่อไหร่ก็หาใหม่เอง
+const projCatOwner = new WeakMap();
+function projOfCat(cat){
+  if(!cat || typeof cat !== 'object') return null;
+  if(projCatOwner.has(cat)) return projCatOwner.get(cat);
+  for(const p of state.projects || []){
+    Object.values(p.departments || {}).forEach(wt => Object.values((wt && wt.budgets) || {}).forEach(c => { if(c && typeof c === 'object') projCatOwner.set(c, p); }));
+  }
+  return projCatOwner.get(cat) || null;
+}
+// วงเงินที่ใช้ได้ของหมวด: แฟ้มปกติ/รอโอน = 80% (สูตรเดิม) · โอนแล้ว = ส่วนแบ่งจากยอดที่โอนมาจริง
+function catUsableInfo(cat, workTypeKey, catKey, p){
+  p = p || projOfCat(cat);
+  if(p && p.fundLater){
+    const alloc = projFundAlloc(p);
+    const k = workTypeKey + '|' + catKey;
+    if(alloc && k in alloc) return { usable: alloc[k], funded: true };
+  }
+  return { usable: money((Number(cat.amount100)||0) * USABLE_RATIO), funded: false };
+}
+// % ที่โชว์บนเกจ WBS (มีขีดที่ 80%): แฟ้มปกติ = จ่ายแล้วเทียบงบ 100%
+// แฟ้มที่โอนงบจริงแล้ว = เทียบวงเงินที่โอนมา โดยให้ "ใช้ครบวงเงิน" ตรงกับขีด 80% เหมือนแฟ้มปกติ
+function wbsUsedPct(t){
+  if(t.funded) return t.usable80 > 0 ? t.totalPaid / t.usable80 * 80 : (t.totalPaid > 0 ? 100 : 0);
+  return t.amount100 > 0 ? (t.totalPaid / t.amount100 * 100) : 0;
+}
+function fundPctText(x){ return (Math.round((Number(x)||0) * 100) / 100).toLocaleString('en-US', { maximumFractionDigits: 2 }); }
 function projCatTotals(cat, workTypeKey, catKey, entriesOverride){
   const amount100 = Number(cat.amount100)||0;
-  const usable80 = money(amount100 * USABLE_RATIO);
+  const ui = catUsableInfo(cat, workTypeKey, catKey);
+  const usable80 = ui.usable;
+  const fundedFlag = ui.funded ? {funded: true} : {};
   if(!entriesOverride && catEntriesPending(cat)){
     const paid = money(cat.totalPaid);
-    return {amount100, usable80, totalPaid: paid, remaining: money(usable80 - paid), rows: [], loading: true};
+    return {amount100, usable80, totalPaid: paid, remaining: money(usable80 - paid), rows: [], loading: true, ...fundedFlag};
   }
   // Soft-deleted entries stay around (so they can be restored) but never count toward totals.
   const sortedEntries = [...catEntriesSource(workTypeKey, catKey, cat, entriesOverride)].filter(e=>!e.deletedAt).sort((a,b)=> (a.date||'').localeCompare(b.date||'') || a.createdAt-b.createdAt);
@@ -7630,7 +7778,7 @@ function projCatTotals(cat, workTypeKey, catKey, entriesOverride){
   });
   const totalPaid = running;
   const remaining = money(usable80 - totalPaid);
-  return {amount100, usable80, totalPaid, remaining, rows};
+  return {amount100, usable80, totalPaid, remaining, rows, ...fundedFlag};
 }
 // Soft-deleted entries for one WBS category — shown in a small trash section under its ledger.
 function trashedEntriesOfCat(cat, workTypeKey, catKey){
@@ -7645,7 +7793,9 @@ function projTotals(project){
       amount100 += t.amount100; usable80 += t.usable80; totalPaid += t.totalPaid;
     });
   });
-  return {amount100: money(amount100), usable80: money(usable80), totalPaid: money(totalPaid), remaining: money(usable80-totalPaid)};
+  const fund = projFundInfo(project);
+  return {amount100: money(amount100), usable80: money(usable80), totalPaid: money(totalPaid), remaining: money(usable80-totalPaid),
+    ...(fund ? {fund} : {})};
 }
 // Cheap, aggregate-only totals — safe to call for every WBS project in the sidebar list at once
 // (mirrors ccTotals's role in budget mode). Only reads the totalPaid field already precomputed on
@@ -7685,6 +7835,110 @@ function saveProject(p){
       alert('บันทึกการแก้ไขแฟ้มงานไม่สำเร็จ: ' + e.message + '\n\nสิ่งที่เพิ่งแก้ยังไม่ได้บันทึก กรุณารีเฟรชหน้าแล้วแก้ใหม่อีกครั้ง');
     }
   }, 250);
+}
+
+/* ---- หน้าแฟ้มงาน: แถบบอกสถานะงบโอนภายหลัง + หน้าต่างตั้งค่า ---- */
+function fundBannerHtml(p, totals, canManage){
+  const fu = totals.fund;
+  if(!fu) return '';
+  const btn = canManage ? `<button class="btn btn-outline btn-sm" type="button" onclick="openFundModal()">${fu.waiting ? 'กรอกยอดที่โอนมา' : 'แก้ไข'}</button>` : '';
+  if(fu.waiting) return `<div class="fund-banner wait"><div class="fb-main"><b>แฟ้มนี้ได้งบมาก่อน · รอโอนงบจริงเมื่อเสร็จงาน</b>
+    <div class="fb-sub">ตอนนี้คิดงบใช้ได้ 80% ตามปกติ — พอได้ยอดที่โอนมาจริง กรอกที่ปุ่มด้านขวา ทุกหมวดจะคิดตามสัดส่วนให้เอง</div></div>${btn}</div>`;
+  return `<div class="fund-banner"><div class="fb-main"><b>งบโอนมาจริง ${fmt(fu.R)} บาท = ${fundPctText(fu.pct)}% ของงบ 100% (${fmt(fu.base)})</b>${fu.date ? ` · โอนเมื่อ ${escapeHtml(thaiDateLabel(fu.date))}` : ''}
+    <div class="fb-sub">ทุกหมวดคิดวงเงินที่ใช้ได้ ${fundPctText(fu.pct)}% ของงบ 100% ที่กรอกไว้ (ไม่คิด 80% ซ้ำ) — ยอดคงเหลือ ใบตัดงบ และใบขอโอนงบใช้ตัวเลขนี้</div></div>${btn}</div>`;
+}
+let fundType = 'amount';
+function fundSetType(t){
+  const v = document.getElementById('fundVal');
+  const p = getProject(state.activeProjectId);
+  // สลับหน่วยแล้วแปลงตัวเลขที่กรอกไว้ให้ด้วย (ยอดเท่าเดิม)
+  if(t !== fundType && p && v.value !== ''){
+    const base = projFundInfo({...p, fundLater: true}).base, n = Number(v.value);
+    if(base > 0 && isFinite(n)) v.value = t === 'pct' ? String(Math.round(n / base * 100 * 10000) / 10000) : String(money(base * n / 100));
+  }
+  fundType = t;
+  document.getElementById('fundTypeAmount').classList.toggle('on', t === 'amount');
+  document.getElementById('fundTypePct').classList.toggle('on', t === 'pct');
+  document.getElementById('fundValLabel').textContent = t === 'pct' ? 'เปอร์เซ็นต์ของงบ 100% (%)' : 'ยอดเงิน (บาท)';
+  v.step = t === 'pct' ? '0.01' : '0.01';
+  fundRecalc();
+}
+// ค่าที่กรอกในหน้าต่าง → แฟ้มจำลอง (ยังไม่บันทึก) ใช้คิดตารางตัวอย่างด้วยสูตรเดียวกับของจริง
+function fundDraft(p){
+  const on = document.getElementById('fundOn').checked;
+  const raw = document.getElementById('fundVal').value;
+  const d = {...p};
+  delete d.fundLater; delete d.fundReceived;
+  if(!on) return d;
+  d.fundLater = true;
+  if(raw !== '') d.fundReceived = { type: fundType, value: Number(raw), date: document.getElementById('fundDate').value || '' };
+  return d;
+}
+function fundRecalc(){
+  const p = getProject(state.activeProjectId); if(!p) return;
+  const on = document.getElementById('fundOn').checked;
+  document.getElementById('fundBody').style.opacity = on ? '' : '.45';
+  document.getElementById('fundBody').style.pointerEvents = on ? '' : 'none';
+  const d = fundDraft(p), info = projFundInfo({...d, fundLater: true});
+  const raw = document.getElementById('fundVal').value, n = Number(raw);
+  const calc = document.getElementById('fundCalc');
+  const bad = raw !== '' && !(isFinite(n) && n >= 0);
+  if(bad) calc.innerHTML = '<span style="color:var(--rust);">ตัวเลขไม่ถูกต้อง</span>';
+  else if(raw === '') calc.innerHTML = `ยังไม่กรอกยอดที่โอนมา — คิดงบใช้ได้ 80% ตามปกติ (งบ 100% ทั้งแฟ้ม <b>${fmt(info.base)}</b>)`;
+  else calc.innerHTML = `โอนมาจริง <b>${fmt(info.R)}</b> บาท = <b>${fundPctText(info.pct)}%</b> ของงบ 100% (${fmt(info.base)})`
+    + (info.pct > 100 ? ' <span style="color:var(--rust);">— มากกว่างบ 100%</span>' : '');
+  // ตารางตัวอย่าง: รวมหมวดเดียวกันจากทุกประเภทงาน (แบบเดียวกับใบขอโอนงบ)
+  const alloc = (on && !bad && raw !== '') ? projFundAlloc(d) : null;
+  const rows = {};
+  const order = PROJECT_CATEGORY_DEFS.map(x => x.key);
+  [...projFundCats(p)].sort((x, y) => ((order.indexOf(x.catKey) + 1) || 99) - ((order.indexOf(y.catKey) + 1) || 99)).forEach(c => {
+    const label = c.cat.label || c.catKey;
+    const r = rows[label] || (rows[label] = { a: 0, now: 0, next: 0, paid: 0 });
+    const t = projCatTotals(c.cat, c.wtKey, c.catKey);
+    r.a += c.a; r.now += t.usable80; r.paid += t.totalPaid;
+    r.next += alloc ? alloc[c.key] : money(c.a * USABLE_RATIO);
+  });
+  let tot = { a: 0, now: 0, next: 0, paid: 0 };
+  const body = Object.entries(rows).map(([label, r]) => {
+    tot.a += r.a; tot.now += r.now; tot.next += r.next; tot.paid += r.paid;
+    const rem = money(r.next - r.paid);
+    return `<tr><td>${escapeHtml(label)}</td><td>${fmt(r.a)}</td><td>${fmt(r.now)}</td><td class="new">${fmt(r.next)}</td><td>${fmt(r.paid)}</td><td class="${rem < 0 ? 'neg' : ''}">${fmt(rem)}</td></tr>`;
+  }).join('');
+  const trem = money(tot.next - tot.paid);
+  document.getElementById('fundTbl').innerHTML = `<thead><tr><th>หมวด</th><th>งบ 100%</th><th>ใช้ได้ตอนนี้</th><th>${alloc ? 'ใช้ได้หลังบันทึก' : 'ใช้ได้ (80%)'}</th><th>จ่ายแล้ว</th><th>คงเหลือ</th></tr></thead>
+    <tbody>${body}<tr class="tot"><td>รวม</td><td>${fmt(tot.a)}</td><td>${fmt(tot.now)}</td><td class="new">${fmt(tot.next)}</td><td>${fmt(tot.paid)}</td><td class="${trem < 0 ? 'neg' : ''}">${fmt(trem)}</td></tr></tbody>`;
+}
+function openFundModal(){
+  const p = getProject(state.activeProjectId); if(!p) return;
+  if(!canManageDept(p.deptKey)){ alert('เฉพาะผู้ดูแลแผนกและแอดมินเท่านั้นที่ตั้งค่างบโอนภายหลังได้'); return; }
+  document.getElementById('fundDesc').textContent = `${p.wbs} — ${p.name}`;
+  document.getElementById('fundOn').checked = !!p.fundLater;
+  const fr = projFundReceivedValid(p.fundReceived) ? p.fundReceived : null;
+  fundType = fr ? fr.type : 'amount';
+  document.getElementById('fundVal').value = fr ? String(fr.value) : '';
+  document.getElementById('fundDate').value = fr && fr.date ? fr.date : '';
+  fundSetType(fundType);
+  openModal('fundModal');
+}
+async function saveFund(){
+  const p = getProject(state.activeProjectId); if(!p) return;
+  if(!canManageDept(p.deptKey)) return;
+  const on = document.getElementById('fundOn').checked;
+  const raw = document.getElementById('fundVal').value;
+  if(on && raw !== ''){
+    const n = Number(raw);
+    if(!(isFinite(n) && n >= 0)){ alert('กรุณากรอกยอดที่โอนมาให้ถูกต้อง'); return; }
+    const info = projFundInfo(fundDraft(p));
+    if(info.pct > 100 && !confirm(`ยอดที่โอนมา ${fmt(info.R)} บาท มากกว่างบ 100% ของแฟ้ม (${fmt(info.base)}) — บันทึกต่อไหม?`)) return;
+  }
+  if(!on && p.fundLater && !confirm('ยกเลิก "งบโอนจริงภายหลัง" ของแฟ้มนี้?\n\nทุกหมวดจะกลับไปคิดงบใช้ได้ 80% ตามเดิม (งบ 100% ที่กรอกไว้ไม่เปลี่ยน)')) return;
+  const d = fundDraft(p);
+  if(d.fundReceived) d.fundReceived = { type: d.fundReceived.type, value: d.fundReceived.type === 'pct' ? Math.round(d.fundReceived.value * 10000) / 10000 : money(d.fundReceived.value), date: d.fundReceived.date };
+  delete p.fundLater; delete p.fundReceived;
+  if(d.fundLater) p.fundLater = true;
+  if(d.fundReceived) p.fundReceived = d.fundReceived;
+  closeModal('fundModal');
+  saveProject(p); render();
 }
 
 /* ============ WBS project mode: mode switching ============ */
@@ -9642,23 +9896,27 @@ async function buildProjectWorkbook(ExcelJS, deptLabel, year){
       Object.keys(wt.budgets||{}).forEach(catKey=> liveKeys.add(wtKey+'|'+catKey));
     });
     const orphans = sortEntriesForExport(entries).filter(e=> !liveKeys.has(e.workTypeKey+'|'+e.catKey));
+    const fundInfo = projFundInfo(p), fundAlloc = projFundAlloc(p, fundInfo);
     const workTypes = Object.entries(p.departments||{}).filter(([,wt])=>!wt.deletedAt).map(([wtKey, wt])=>({
       name: wtName(wtKey),
       cats: Object.entries(wt.budgets||{}).map(([catKey, cat])=>{
         const rows = sortEntriesForExport(entries.filter(e=>e.workTypeKey===wtKey && e.catKey===catKey));
         amount100 += Number(cat.amount100)||0;
         paid += rows.reduce((s,e)=> s + entryLedgerAmount(e), 0);
-        return {label: cat.label||catKey, code: cat.code||'', usable: (Number(cat.amount100)||0) * USABLE_RATIO, rows};
+        const fa = fundAlloc && (wtKey+'|'+catKey) in fundAlloc ? fundAlloc[wtKey+'|'+catKey] : null;
+        return {label: cat.label||catKey, code: cat.code||'', usable: fa !== null ? fa : (Number(cat.amount100)||0) * USABLE_RATIO, rows, ...(fa !== null ? {funded: true} : {})};
       // A category with neither budget nor entries is just an empty table in the way of the reader.
       }).filter(c=> c.usable > 0 || c.rows.length),
     })).filter(wt=> wt.cats.length);
     // projTotals()/projCatTotals() read the ledger of whichever project is open on screen, so they
     // would report the open project's spending for every other file in the export. The totals here
     // are summed from this project's own fetched entries instead.
-    const usable80 = money(amount100 * USABLE_RATIO);
+    const usable80 = fundAlloc ? fundInfo.R : money(amount100 * USABLE_RATIO);
+    // แฟ้มที่โอนงบจริงภายหลัง: ช่องงบใช้ได้เป็นยอดที่โอนมาจริง และบอกไว้ในช่องสถานะ
+    const fundNote = fundInfo ? (fundInfo.waiting ? ' · รอโอนงบจริง' : ` · งบโอนมาจริง ${fundPctText(fundInfo.pct)}%`) : '';
     summary.push([p.wbs||'', p.name||'', projectYearOf(p) || '', amount100, usable80, paid,
-      usable80 - paid, p.closed ? 'ปิดงานแล้ว' : 'กำลังดำเนินการ']);
-    sheets.push({p, workTypes, amount100, usable80, paid, orphans});
+      usable80 - paid, (p.closed ? 'ปิดงานแล้ว' : 'กำลังดำเนินการ') + fundNote]);
+    sheets.push({p, workTypes, amount100, usable80, paid, orphans, ...(fundAlloc ? {fundPct: fundInfo.pct} : {})});
   }
   abortIfIncomplete(failed);
 
@@ -9672,7 +9930,7 @@ async function buildProjectWorkbook(ExcelJS, deptLabel, year){
     let r = xlSheetHeader(ws, COLS, s.p.wbs||'', s.p.name||'',
       `ปีงบประมาณ ${projectYearOf(s.p) || '—'}  ·  ${s.p.closed ? 'ปิดงานแล้ว' : 'กำลังดำเนินการ'}`);
     const frozen = r + 1;
-    r = xlTotalsBlock(ws, r, ['งบประมาณ 100%','งบใช้ได้ 80%','ใช้ไปแล้ว','คงเหลือ'],
+    r = xlTotalsBlock(ws, r, ['งบประมาณ 100%', s.fundPct !== undefined ? `งบโอนมาจริง ${fundPctText(s.fundPct)}%` : 'งบใช้ได้ 80%','ใช้ไปแล้ว','คงเหลือ'],
       [s.amount100, s.usable80, s.paid, s.usable80 - s.paid]);
 
     s.workTypes.forEach(wt=>{
@@ -9680,7 +9938,7 @@ async function buildProjectWorkbook(ExcelJS, deptLabel, year){
       r++;
       wt.cats.forEach(cat=>{
         xlBandRow(ws, r, COLS,
-          `${cat.label}   ·   รหัสบัญชี ${cat.code || '—'}   ·   งบใช้ได้ 80% ${fmt(cat.usable)}`,
+          `${cat.label}   ·   รหัสบัญชี ${cat.code || '—'}   ·   ${cat.funded ? 'งบโอนมาจริง' : 'งบใช้ได้ 80%'} ${fmt(cat.usable)}`,
           XL.cat, XL.ink, 11);
         ws.getRow(r).height = 19;
         r++;
@@ -9929,7 +10187,8 @@ function recalcXsTotals(){
     const cat = p && ((p.departments||{})[l.workTypeKey]||{}).budgets?.[l.catKey];
     const el = document.getElementById('xsAfter'+l.idx);
     if(!cat){ if(el) el.classList.remove('show'); return; }
-    const now = (Number(cat.amount100)||0) * USABLE_RATIO - catAggregateTotalPaid(cat);
+    const ui = catUsableInfo(cat, l.workTypeKey, l.catKey, p);
+    const now = (ui.funded ? ui.usable : (Number(cat.amount100)||0) * USABLE_RATIO) - catAggregateTotalPaid(cat);
     xsWriteAfter(el, now, now - l.amount);
   });
 
@@ -10585,7 +10844,7 @@ async function buildXSplitSlipHtml(entry){
     if(row.deletedAt) throw new Error('บรรทัดของแฟ้มงาน '+pt.wbs+' ในบิลนี้ถูกลบไปแล้ว');
     const running = xRunningUpTo(catEntries, pt.entryId);
     if(running === null) throw new Error('คำนวณยอดสะสมของแฟ้มงาน '+pt.wbs+' ไม่ได้ (ข้อมูลอาจเพิ่งถูกแก้)');
-    const usable80 = money((Number(cat.amount100)||0) * USABLE_RATIO);
+    const usable80 = catUsableInfo(cat, pt.workTypeKey, pt.catKey, proj).usable;
     wbsEntries.push({
       wbs: proj.wbs, catLabel: cat.label || pt.catKey, catCode: cat.code || '',
       networkNo: (wt.networkNo || ''), amount: Number(row.amount)||0, tax: Number(row.tax)||0,
@@ -11893,6 +12152,7 @@ document.addEventListener('keydown', onSortKeyDown);
 
 /* ---- เมนู "จัดการ" บนหัวหน้า: รวมปุ่มของผู้ดูแล (แก้ไข / เพิ่มบัญชี / ลบ) ไว้ปุ่มเดียว ---- */
 const HEAD_MENU_IC = {
+  coin:'<circle cx="12" cy="12" r="9"/><path d="M14.8 9.2A3 3 0 0 0 12 8c-1.7 0-3 .9-3 2s1.3 1.6 3 2 3 .9 3 2-1.3 2-3 2a3 3 0 0 1-2.8-1.2"/><path d="M12 6v2m0 8v2"/>',
   pen:'<path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z"/>',
   plus:'<line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>',
   lock:'<rect x="4" y="11" width="16" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/>',
@@ -12173,14 +12433,15 @@ function renderProjectSidebar(){
   const itemHtml = (p, inOpenList)=>{
     const active = p.id===state.activeProjectId;
     const t = projTotalsCheap(p);
-    const pct = t.amount100>0 ? (t.totalPaid/t.amount100*100) : 0;
+    const fu = projFundInfo(p);
+    const pct = (fu && !fu.waiting) ? wbsUsedPct({funded: true, usable80: fu.R, totalPaid: t.totalPaid}) : (t.amount100>0 ? (t.totalPaid/t.amount100*100) : 0);
     const justClosed = inOpenList && p.closed;   // ปิดงานแล้วแต่ยังค้างในรายการหลัก
     return `<div class="cc-item ${active?'active':''} ${p.closed&&!justClosed?'is-closed':''} ${justClosed?'just-closed':''}" onclick="selectProject('${p.id}')" style="position:relative;">
       <div class="code">${projHighlight(p.wbs)}</div>
       <div class="name">${projHighlight(p.name)}</div>
       ${projectYearOf(p)==null ? `<div class="noyear" title="แฟ้มนี้ไม่มีข้อมูลปี จึงแสดงในทุกปีเพื่อไม่ให้หาไม่เจอ">ไม่ระบุปี · แสดงทุกปี</div>` : ''}
-      ${justClosed ? `<div class="jc-note">ปิดงานแล้วเมื่อวันที่ ${thaiDateLabel(p.closedAt)}</div>` : ''}
-      <div class="cc-progress has-mark80" title="ใช้ไปแล้ว ${pct.toFixed(0)}% ของงบ 100% — ขีดคือ 80% ที่ใช้ได้จริง"><div class="cc-progress-fill ${wbsGaugeClass(pct)}" style="width:${Math.min(pct,100)}%"></div><div class="mark80"></div></div>
+      ${justClosed ? `<div class="jc-note">ปิดงานแล้วเมื่อวันที่ ${thaiDateLabel(p.closedAt)}</div>` : ''}${fu ? `<div class="fund-chip ${fu.waiting ? 'wait' : ''}">${fu.waiting ? 'รอโอนงบจริง' : 'โอนจริง ' + fundPctText(fu.pct) + '%'}</div>` : ''}
+      <div class="cc-progress has-mark80" title="${fu && !fu.waiting ? 'ใช้ไปแล้ว ' + (t.totalPaid / (fu.R || 1) * 100).toFixed(0) + '% ของงบที่โอนมาจริง — ขีดคือใช้ครบวงเงิน' : `ใช้ไปแล้ว ${pct.toFixed(0)}% ของงบ 100% — ขีดคือ 80% ที่ใช้ได้จริง`}"><div class="cc-progress-fill ${wbsGaugeClass(pct)}" style="width:${Math.min(pct,100)}%"></div><div class="mark80"></div></div>
       ${p.closed ? `<div class="mini-stamp" title="ปิดงานแล้ว"><span>ปิด<br>งาน</span></div>` : ''}
     </div>`;
   };
@@ -12412,6 +12673,7 @@ function renderProjectMain(){
         ${canManage ? headMenuHtml([
           { icon:'pen', label:'แก้ไขชื่อ / เลข WBS', fn:'openEditProjectModal()' },
           { icon:'plus', label:'เพิ่มประเภทงาน', fn:'openAddWorkTypeModal()' },
+          { icon:'coin', label:'งบโอนจริงภายหลัง', fn:'openFundModal()' },
           { icon:'lock', label:p.closed ? 'ยกเลิกปิดงาน' : 'ปิดงาน', fn:'toggleProjectClosed()' },
           { sep:true },
           { icon:'trash', label:'ลบแฟ้มงาน', fn:'deleteProject()', danger:true },
@@ -12420,11 +12682,11 @@ function renderProjectMain(){
       </div>
     </div>
 
-    ${p.closed ? `<div class="closed-banner">🔒 แฟ้มงานนี้ปิดงานแล้ว - ไม่สามารถเพิ่มรายจ่ายได้</div>` : ''}
+    ${p.closed ? `<div class="closed-banner">🔒 แฟ้มงานนี้ปิดงานแล้ว - ไม่สามารถเพิ่มรายจ่ายได้</div>` : ''}${fundBannerHtml(p, totals, canManage)}
 
     <div class="stat-strip">
       <div class="stat-box"><div class="label">งบทั้งหมด (100%)</div><div class="value">${fmt(totals.amount100)}</div></div>
-      <div class="stat-box"><div class="label">งบใช้ได้ (80%)</div><div class="value">${fmt(totals.usable80)}</div></div>
+      <div class="stat-box"><div class="label">${totals.fund && !totals.fund.waiting ? `งบโอนมาจริง (${fundPctText(totals.fund.pct)}%)` : 'งบใช้ได้ (80%)'}</div><div class="value">${fmt(totals.usable80)}</div></div>
       <div class="stat-box"><div class="label">จ่ายไปแล้ว</div><div class="value">${fmt(totals.totalPaid)}</div></div>
       <div class="stat-box remain"><div class="label">คงเหลือ</div><div class="value ${remainCls}">${fmt(totals.remaining)}</div></div>
     </div>
@@ -12521,7 +12783,7 @@ function renderProjectMain(){
 
 function renderProjectCatCard(workTypeKey, catKey, cat){
   const t = projCatTotals(cat, workTypeKey, catKey);
-  const pct = t.amount100>0 ? (t.totalPaid/t.amount100*100) : 0;
+  const pct = wbsUsedPct(t);
   const barWidth = Math.min(pct,100);
   const gClass = wbsGaugeClass(pct);
   const gaugeColorVar = gClass==='over' ? 'var(--rust)' : (gClass==='warn' ? 'var(--amber)' : 'var(--teal)');
@@ -12532,12 +12794,12 @@ function renderProjectCatCard(workTypeKey, catKey, cat){
       <span class="cat-code mono">${escapeHtml(cat.code||'—')}</span>
     </div>
     <div class="cat-card-body">
-      <div class="mini-radial" style="background:${wbsGaugeBg(gaugeColorVar, barWidth)};" title="ขีดเข้ม = 80% ของงบ (เพดานที่ใช้ได้จริง)">
+      <div class="mini-radial" style="background:${wbsGaugeBg(gaugeColorVar, barWidth)};" title="${t.funded ? 'ขีดเข้ม = ใช้ครบวงเงินที่โอนมาจริง' : 'ขีดเข้ม = 80% ของงบ (เพดานที่ใช้ได้จริง)'}">
         <div class="mini-radial-inner"><span>${Math.round(pct)}%</span></div>
       </div>
       <div class="cat-card-nums">
         <div class="num-row"><span>งบ 100%</span><span class="v">${fmt(t.amount100)}</span></div>
-        <div class="num-row"><span>งบใช้ได้ (80%)</span><span class="v">${fmt(t.usable80)}</span></div>
+        <div class="num-row"><span>${t.funded ? 'งบโอนมาจริง' : 'งบใช้ได้ (80%)'}</span><span class="v">${fmt(t.usable80)}</span></div>
         <div class="num-row"><span>จ่ายแล้ว</span><span class="v">${fmt(t.totalPaid)}</span></div>
         <div class="remain num-row"><span>คงเหลือ</span><span class="v ${remainCls}">${fmt(t.remaining)}</span></div>
       </div>
@@ -12547,7 +12809,7 @@ function renderProjectCatCard(workTypeKey, catKey, cat){
 
 function renderProjectCatDetail(p, workTypeKey, wtName, networkNo, catKey, cat, canManage){
   const t = projCatTotals(cat, workTypeKey, catKey);
-  const pct = t.amount100>0 ? (t.totalPaid/t.amount100*100) : 0;
+  const pct = wbsUsedPct(t);
   const barWidth = Math.min(pct,100);
   const gClass = wbsGaugeClass(pct);
   const gaugeColorVar = gClass==='over' ? 'var(--rust)' : (gClass==='warn' ? 'var(--amber)' : 'var(--teal)');
@@ -12616,13 +12878,13 @@ function renderProjectCatDetail(p, workTypeKey, wtName, networkNo, catKey, cat, 
             : `<div class="readout">${fmt(cat.amount100)}</div>`}
         </div>
         <div class="field">
-          <label>งบที่ใช้ได้ (80%)</label>
+          <label>${t.funded ? `งบโอนมาจริง (${fundPctText((projFundInfo(p) || {}).pct)}% ของงบ 100%)` : 'งบที่ใช้ได้ (80%)'}</label>
           <div class="readout">${fmt(t.usable80)}</div>
         </div>
       </div>
 
       <div class="summary-card">
-        <div class="radial-gauge" style="background:${wbsGaugeBg(gaugeColorVar, barWidth)};" title="ขีดเข้ม = 80% ของงบ (เพดานที่ใช้ได้จริง)">
+        <div class="radial-gauge" style="background:${wbsGaugeBg(gaugeColorVar, barWidth)};" title="${t.funded ? 'ขีดเข้ม = ใช้ครบวงเงินที่โอนมาจริง' : 'ขีดเข้ม = 80% ของงบ (เพดานที่ใช้ได้จริง)'}">
           <div class="radial-gauge-inner">
             <span class="radial-gauge-pct">${Math.round(pct)}%</span>
             <span class="radial-gauge-label">ใช้ไปแล้ว</span>
@@ -12904,10 +13166,12 @@ function mCards(){
       .filter(p => projectMatchesYear(p) && (!p.closed || isProjectRecentlyClosed(p) || p.id === act))
       .sort((a,b) => String(a.wbs||'').localeCompare(String(b.wbs||'')))
       .forEach(p => {
-        const t = projTotalsCheap(p), usable = money(t.amount100 * USABLE_RATIO), paid = money(t.totalPaid);
-        const pct = t.amount100 > 0 ? paid / t.amount100 * 100 : 0;
+        const t = projTotalsCheap(p), paid = money(t.totalPaid);
+        const fu = projFundInfo(p), got = fu && !fu.waiting;
+        const usable = got ? fu.R : money(t.amount100 * USABLE_RATIO);
+        const pct = got ? wbsUsedPct({funded: true, usable80: fu.R, totalPaid: paid}) : (t.amount100 > 0 ? paid / t.amount100 * 100 : 0);
         out.push({ id:p.id, kind:'งบโครงการ (WBS)', code:p.wbs, name:p.name, remain:money(usable - paid), paid, of:usable,
-          ofLabel:'งบใช้ได้ 80%', pct, cls:wbsGaugeClass(pct), mark80:true, closed:!!p.closed });
+          ofLabel: got ? `งบโอนมาจริง ${fundPctText(fu.pct)}%` : 'งบใช้ได้ 80%', pct, cls:wbsGaugeClass(pct), mark80:true, closed:!!p.closed });
       });
   } else if(state.appMode === 'warehouse'){
     whFilesForYear().forEach(f => {
@@ -13345,7 +13609,7 @@ if(window.__fbReady) guardFbWritesWhenOffline(); else window.addEventListener('f
 // ถ้าปล่อยไปถึงฐานข้อมูลตอนออฟไลน์ รายการจะโผล่แล้วหายไป และสิ่งที่พิมพ์ไว้หายไปด้วย — จึงหยุดตั้งแต่ตอนกด
 (function(){
   ['addEntry','addProjectEntry','addWhEntry','submitLinesEntry','submitSplitEntry','submitXSplit','submitWhSplit','submitEditEntry',
-   'submitAddItem','submitNewCc','submitNewProject','submitWhFile','submitEditCc','submitEditProject','submitAddWorkType',
+   'submitAddItem','submitNewCc','submitNewProject','submitWhFile','submitEditCc','submitEditProject','saveFund','submitAddWorkType',
    'submitOrgSettings','submitProfileName','saveNetworkNo','updateItemBudget','updateItemMeta','updateProjectCode',
    'removeItem','removeWorkType','restoreItem','restoreWorkType','permanentlyDeleteItem','permanentlyDeleteWorkType',
    'deleteEntry','deleteProjectEntry','deleteWhEntry','restoreEntry','restoreProjectEntry','restoreWhEntry',
